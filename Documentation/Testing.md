@@ -1,6 +1,8 @@
 <!-- Copyright 2026 Software Deck Pty Ltd; SPDX-License-Identifier: Apache-2.0 -->
 # Tests and coverage
 
+[Documentation index](README.md) | [Public API reference](APIReference.md)
+
 The 0.0.1 verification snapshot was measured on October 25, 2026. Coverage reports contain executable-line counts, not estimates.
 
 | Target | Observed result | Coverage |

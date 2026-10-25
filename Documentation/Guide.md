@@ -1,4 +1,7 @@
-# SwiftVideoComposition
+<!-- Copyright 2026 Software Deck Pty Ltd; SPDX-License-Identifier: Apache-2.0 -->
+# SwiftVideo usage guide
+
+[Documentation index](README.md) | [Public API reference](APIReference.md) | [Composition recipes](Recipes.md)
 
 A Swift package for programmatic video composition on iOS, macOS, and Android.
 The `SwiftVideo` product provides immutable timeline models, transactional editing,

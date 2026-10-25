@@ -4,6 +4,7 @@
 [![Apple tests](https://github.com/shial4/SwiftVideo/actions/workflows/apple.yml/badge.svg)](https://github.com/shial4/SwiftVideo/actions/workflows/apple.yml)
 [![Android tests](https://github.com/shial4/SwiftVideo/actions/workflows/android.yml/badge.svg)](https://github.com/shial4/SwiftVideo/actions/workflows/android.yml)
 [![Release](https://img.shields.io/github/v/release/shial4/SwiftVideo)](https://github.com/shial4/SwiftVideo/releases)
+[![Documentation](https://img.shields.io/badge/Documentation-Read%20the%20docs-blue)](Documentation/README.md)
 [![Swift 6.3+](https://img.shields.io/badge/Swift-6.3%2B-F05138?logo=swift&logoColor=white)](Package.swift)
 [![iOS 17+](https://img.shields.io/badge/iOS-17%2B-black?logo=apple)](Package.swift)
 [![Android 9+](https://img.shields.io/badge/Android-API%2028%2B-3DDC84?logo=android&logoColor=white)](Documentation/Testing.md)
@@ -12,7 +13,7 @@
 
 **Compose, edit, animate, and export video in Swift. One timeline model for iOS, macOS, and Android.**
 
-[Install](#install) | [Quick start](#quick-start) | [Capabilities](#capabilities) | [Example editor](Example) | [Tests and coverage](Documentation/Testing.md) | [API guide](Documentation/Guide.md)
+[Install](#install) | [Quick start](#quick-start) | [Documentation](Documentation/README.md) | [API reference](Documentation/APIReference.md) | [Example editor](Example) | [Tests and coverage](Documentation/Testing.md)
 
 ![SwiftVideo editor: playback, timeline editing, filters, overlays, and export](Documentation/Images/editor.gif)
 
@@ -41,6 +42,12 @@
 | Android | API 28+, Skip Fuse app, matching Swift Android SDK/toolchain |
 
 Android requires an initialized Skip app context and the generated Media3 JVM module. See the [build instructions](Documentation/Testing.md); a standalone Swift command-line process does not provide Android media services.
+
+## Documentation
+
+**[Read the full documentation](Documentation/README.md)** on GitHub, including the [usage guide](Documentation/Guide.md), [public API reference](Documentation/APIReference.md), and [complete composition recipes](Documentation/Recipes.md).
+
+The documentation covers setup, SwiftUI integration, image/title scenes, commentary video and captions, animation, audio, timeline editing, export/cancellation, project persistence, GPU/CPU responsibilities, platform limits, and troubleshooting. Select your dependency's release tag in GitHub to read matching documentation.
 
 ## Quick start
 
