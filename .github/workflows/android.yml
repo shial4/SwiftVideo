@@ -61,10 +61,13 @@ jobs:
           arch: x86_64
           target: google_apis
           profile: pixel_6
-          cores: 4
+          cores: 2
+          # Match the emulator version used for the passing local render tests.
+          emulator-build: '15507667' # 36.6.11
           disable-animations: true
-          # The default 2.5 GB caused system-wide memory pressure and export stalls.
-          emulator-options: -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -memory 6144
+          # Avoid the system-wide memory pressure observed with the default 2.5 GB.
+          emulator-options: -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -memory 6144 -accel on
+          pre-emulator-launch-script: '"$ANDROID_HOME/emulator/emulator" -accel-check'
           script: bash Tools/TestAndroid.sh
       - name: Report and gate coverage
         run: |

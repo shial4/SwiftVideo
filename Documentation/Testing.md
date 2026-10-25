@@ -31,7 +31,7 @@ The media fixtures are deterministic red/blue videos, a green image, and synthes
 
 Android Media3 exports share the serialized `RenderBehaviorTests` suite so concurrent tests do not compete for the hosted emulator's graphics and codec resources. Core and fixture tests remain parallel.
 
-The hosted Android emulator uses four virtual CPU cores and 6 GB of RAM. Its default 2.5 GB configuration caused system-wide memory pressure and ANRs during 1080p exports. CI keeps the same 1080p composition checks and Media3 timeout as local tests.
+The hosted Android emulator uses two virtual CPU cores and 6 GB of RAM, with VM acceleration required. Emulator 36.6.11 is pinned to match the version used for local verification. CI keeps the same 1080p composition checks and Media3 timeout as local tests.
 
 Apple has additional renderer-specific failure and text-orientation tests, which explain its higher test count. The orientation test independently checks an asymmetric glyph in decoded output; it reproduced the iOS inversion before the fix and passes on both Apple targets. The Android instrumentation runner appears as one JUnit wrapper; `swt-events.jsonl` records the individual Swift Testing results.
 
