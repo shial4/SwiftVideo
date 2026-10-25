@@ -63,12 +63,7 @@ jobs:
           profile: pixel_6
           disable-animations: true
           emulator-options: -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect
-          script: |
-            skip android test --swift-version "$SWIFT_VERSION" --arch x86_64 --scratch-path .build-android-coverage --testing-library testing --no-cleanup --remote-folder /data/local/tmp/swiftvideo-coverage --env 'LLVM_PROFILE_FILE=/data/local/tmp/swiftvideo-coverage/coverage-%m.profraw' -Xswiftc -DSWIFTVIDEO_CORE_COVERAGE -Xswiftc -profile-generate -Xswiftc -profile-coverage-mapping
-            (cd "$ANDROID_MODULE/.." && SKIP_BRIDGE_ANDROID_BUILD_DISABLED=1 skip gradle :SwiftVideo:connectedDebugAndroidTest)
-            mkdir -p .build-coverage/android
-            adb shell 'cd /data/local/tmp/swiftvideo-coverage && tar -cf /data/local/tmp/swiftvideo-profiles.tar coverage-*.profraw'
-            adb pull /data/local/tmp/swiftvideo-profiles.tar .build-coverage/android/profiles.tar
+          script: bash Tools/TestAndroid.sh
       - name: Report and gate coverage
         run: |
           mkdir -p .build-coverage/android
@@ -86,7 +81,6 @@ jobs:
             --sourcefiles "$ANDROID_MODULE/../SwiftVideoMedia3/src/main/kotlin" \
             --xml .build-coverage/android/media3.xml --html .build-coverage/android/media3-html
           swift Tools/Coverage.swift android-media3 .build-coverage/android/media3.xml .build-coverage/android/media3.json 75
-          cp "$ANDROID_MODULE/build/outputs/androidTest-results/connected/debug/swt-events.jsonl" .build-coverage/android/
       - name: Build the example editor
         run: |
           SKIP_DYNAMIC_LIBRARIES=1 swift build --build-system native --package-path Example --scratch-path Example/.build-host --target SwiftVideoEditor
