@@ -1,0 +1,57 @@
+# Copyright 2026 Software Deck Pty Ltd
+# SPDX-License-Identifier: Apache-2.0
+
+name: Apple tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: apple-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  tests:
+    runs-on: macos-26
+    timeout-minutes: 45
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Check licensing headers
+        run: swift Tools/CheckHeaders.swift
+      - name: Test the library and editor model
+        run: |
+          swift test --disable-xctest --enable-code-coverage
+          swift test --package-path Example --disable-xctest
+      - name: Test iOS with coverage
+        run: |
+          mkdir -p .build-coverage
+          xcodebuild -scheme SwiftVideoComposition-Package \
+            -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' \
+            -derivedDataPath .build-ios -resultBundlePath .build-coverage/iOS.xcresult \
+            -skipPackagePluginValidation -enableCodeCoverage YES \
+            -only-testing:SwiftVideoTests/TimelineTests \
+            -only-testing:SwiftVideoTests/BoundaryTests \
+            -only-testing:SwiftVideoTests/CompositionBuilderTests \
+            -only-testing:SwiftVideoTests/ExporterTests \
+            -only-testing:SwiftVideoTests/AppleExportTests \
+            -only-testing:SwiftVideoTests/RenderBehaviorTests test
+          xcrun xccov view --report --json .build-coverage/iOS.xcresult > .build-coverage/ios-raw.json
+          swift Tools/Coverage.swift ios .build-coverage/ios-raw.json .build-coverage/ios.json 90
+      - name: Build the iOS editor
+        run: |
+          xcodebuild -project Example/Darwin/SwiftVideoEditor.xcodeproj \
+            -scheme 'SwiftVideoEditor App' -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath Example/.build-ios -skipPackagePluginValidation \
+            SKIP_ACTION=none CODE_SIGNING_ALLOWED=NO build
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: apple-test-results
+          path: .build-coverage
+          retention-days: 14
