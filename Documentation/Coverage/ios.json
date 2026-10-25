@@ -1,0 +1,68 @@
+{
+  "covered" : 1128,
+  "executable" : 1186,
+  "files" : [
+    {
+      "covered" : 129,
+      "executable" : 130,
+      "file" : "Sources/SwiftVideo/AndroidRenderPlan.swift"
+    },
+    {
+      "covered" : 99,
+      "executable" : 110,
+      "file" : "Sources/SwiftVideo/AppleFrameRenderer.swift"
+    },
+    {
+      "covered" : 77,
+      "executable" : 86,
+      "file" : "Sources/SwiftVideo/AppleMediaSources.swift"
+    },
+    {
+      "covered" : 247,
+      "executable" : 264,
+      "file" : "Sources/SwiftVideo/AppleVideoRenderer.swift"
+    },
+    {
+      "covered" : 49,
+      "executable" : 51,
+      "file" : "Sources/SwiftVideo/CompositionBuilder.swift"
+    },
+    {
+      "covered" : 110,
+      "executable" : 111,
+      "file" : "Sources/SwiftVideo/ProjectValidation.swift"
+    },
+    {
+      "covered" : 97,
+      "executable" : 97,
+      "file" : "Sources/SwiftVideo/VideoEditor.swift"
+    },
+    {
+      "covered" : 0,
+      "executable" : 12,
+      "file" : "Sources/SwiftVideo/VideoError.swift"
+    },
+    {
+      "covered" : 112,
+      "executable" : 116,
+      "file" : "Sources/SwiftVideo/VideoExporter.swift"
+    },
+    {
+      "covered" : 88,
+      "executable" : 88,
+      "file" : "Sources/SwiftVideo/VideoProject.swift"
+    },
+    {
+      "covered" : 76,
+      "executable" : 76,
+      "file" : "Sources/SwiftVideo/VideoTime.swift"
+    },
+    {
+      "covered" : 44,
+      "executable" : 45,
+      "file" : "Sources/SwiftVideo/VisualStyle.swift"
+    }
+  ],
+  "linePercent" : 95.1096121416526,
+  "suite" : "ios"
+}

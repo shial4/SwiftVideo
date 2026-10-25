@@ -1,0 +1,72 @@
+<!-- Copyright 2026 Software Deck Pty Ltd; SPDX-License-Identifier: Apache-2.0 -->
+# Tests and coverage
+
+The 0.0.1 verification snapshot was measured on October 25, 2026. Coverage reports contain executable-line counts, not estimates.
+
+| Target | Observed result | Coverage |
+| --- | --- | --- |
+| macOS library | 36 tests, 6 suites passed | Integration and core behavior |
+| iOS 26.5 Simulator | 36 tests, 6 suites passed | 1,128 / 1,186 lines, 95.11% |
+| Android API 34 arm64 instrumentation | 34 tests, 6 suites passed | Real Media3 exports and native Swift tests |
+| Android native Swift core | 30 tests, 4 suites passed | 688 / 726 lines, 94.77% |
+| Android Media3 bridge | Instrumentation coverage | 326 / 362 generated lines, 90.06% |
+| Example editor model on macOS | 5 tests passed | Asset loading, edits, history, selection, failure handling |
+
+See the checked-in [iOS](Coverage/ios.json), [Android core](Coverage/android-core.json), and [Media3](Coverage/android-media3.json) reports. These are release snapshots. GitHub Actions uploads reports for each run; README workflow badges link to the current result.
+
+## What the tests verify
+
+- Rational frame/time arithmetic, overflow, input validation, and JSON round trips.
+- Builder loops, branches, reusable arrays, thrown errors, stable IDs, immutable modifiers, and bounded text allocation.
+- Atomic edits, missing targets, failed-batch rollback, split/trim source ranges, animation continuity, and audio envelopes.
+- Export progress, cancellation, cleanup after failure, unsupported capabilities, and protection of existing destinations.
+- Independently decoded real exports: duration, dimensions, frame changes, filters, crop, stacking, image opacity, text/animation, audio energy, stereo pan, and fades.
+
+The media fixtures are deterministic red/blue videos, a green image, and synthesized audio. Pixel and PCM measurements use platform decoders independently of the compositor. Tests allow codec/color conversion tolerances; they do not compare byte-identical compressed files across platforms.
+
+Apple has additional renderer-specific failure and text-orientation tests, which explain its higher test count. The orientation test independently checks an asymmetric glyph in decoded output; it reproduced the iOS inversion before the fix and passes on both Apple targets. The Android instrumentation runner appears as one JUnit wrapper; `swt-events.jsonl` records the individual Swift Testing results.
+
+## Coverage scope and gates
+
+CI requires at least 90% iOS source lines, 90% Android shared Swift core lines, and 75% Media3 bridge bytecode lines.
+
+The iOS report includes executable first-party `Sources/SwiftVideo` code for that target, including the Apple renderer. Duplicate Xcode package/product coverage entries are checked and deduplicated.
+
+Android core coverage runs an instrumented native Swift test process without a JVM. `SWIFTVIDEO_CORE_COVERAGE` excludes real Android media tests from this process. The Android renderer facade is excluded from this specific percentage because it needs an initialized Android app/JVM; it is exercised by the separate instrumentation suite. The native core percentage must not be described as coverage of the entire Android backend.
+
+JaCoCo measures the generated Kotlin bytecode for the two Swift-authored `SwiftVideoMedia3` implementation files. It is a separate measurement, not Swift source-line coverage. Dependencies, generated bridge support, fixtures, tools, and the example UI are excluded from the library percentages. The three percentages are not averaged.
+
+## Reproduce Apple tests
+
+From the repository root:
+
+```sh
+swift test --disable-xctest --enable-code-coverage
+swift test --package-path Example --disable-xctest
+swift Tools/CheckHeaders.swift
+```
+
+For iOS, use the `xcodebuild` command in [apple.yml](../.github/workflows/apple.yml), selecting an installed simulator. It selects the six Swift Testing suites explicitly, writes an `.xcresult`, exports `xccov` JSON, and checks coverage with `Tools/Coverage.swift`.
+
+Local verification used Xcode 27.1, the iOS 26.5 Simulator, and macOS 26.6. CI selects Xcode 26.6 on `macos-26`. Apple video tests require a Metal-capable rendering environment.
+
+## Reproduce Android tests
+
+The complete commands live in [android.yml](../.github/workflows/android.yml). Install Skip 1.9.19 or later with a matching Swift Android toolchain/SDK. The verified configuration is Swift 6.3.2, NDK r27d, Gradle 9.8.2, and an API 34 arm64 emulator.
+
+The workflow performs these steps in order:
+
+1. Generate Skip metadata with `SKIP_DYNAMIC_LIBRARIES=1 swift build --build-system native --scratch-path .build-media3 --target SwiftVideoTests`.
+2. Build the native `SwiftVideo` library and Swift Testing bundle into the generated module's JNI directories.
+3. Run `:SwiftVideo:connectedDebugAndroidTest` in an Android app with Media3 and an initialized JVM.
+4. Run a separate instrumented native Swift core suite, pull `.profraw` files, and process them with the matching NDK `llvm-profdata` and `llvm-cov`.
+5. Generate the Media3 JaCoCo XML report and enforce both Android coverage gates.
+6. Compile and package the example editor APK from the same Swift sources.
+
+Use the NDK LLVM tools matching the Swift Android SDK. A different LLVM version can reject its profile format. On a host with a newer incompatible Apple SDK, select a compatible host SDK using process-scoped `DEVELOPER_DIR` and `SDKROOT`; no global Xcode setting is required.
+
+After editing Swift-authored Media3 code, clean that generated module before rebuilding if Kotlin's incremental cache retains stale internal visibility metadata. Do not patch generated Kotlin or Gradle output to fix a Swift source problem.
+
+## Limits of verification
+
+The recorded Android results use an emulator, not a matrix of physical phones. Hardware codec availability, thermal behavior, memory limits, and sustained export throughput require release-build testing on your target devices. No frame-rate or GPU-utilization performance claim is inferred from line coverage. Manual editor checks complement the tests; there is no automated cross-platform UI coverage percentage.

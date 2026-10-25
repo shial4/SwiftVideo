@@ -1,0 +1,18 @@
+# Copyright 2026 Software Deck Pty Ltd
+# SPDX-License-Identifier: Apache-2.0
+
+# Skip configuration for SwiftVideo module
+#
+# Kotlin dependencies and Gradle build options for this module can be configured here
+#build:
+#  contents:
+#    - block: 'dependencies'
+#      contents:
+#        - 'implementation("androidx.compose.runtime:runtime")'
+
+# this is a natively-compiled Skip Fuse module
+skip:
+  mode: 'native'
+  # The composition API is consumed by compiled Swift on both platforms.
+  # Android service bridges are explicitly owned by the renderer module.
+  bridging: false

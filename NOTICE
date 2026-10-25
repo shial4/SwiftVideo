@@ -1,0 +1,17 @@
+SwiftVideo
+Copyright 2026 Software Deck Pty Ltd
+
+First-party Swift source, tests, documentation, and example content are licensed
+under the Apache License, Version 2.0. See LICENSE.
+
+Skip-generated application shells retain their generator's notices. Dependencies
+retain their own copyrights and licenses. They are not relicensed by this file.
+See Documentation/ThirdParty for the release-specific dependency inventory,
+license texts, and immutable corresponding-source links.
+
+The example's coastal artwork was generated for this project. Its sample videos
+and soundtrack are generated from project-owned inputs by Swift source in Tools.
+See Example/ASSETS.md for provenance and reproduction instructions.
+
+The editor's timeline layout is inspired by common mobile video editing tools.
+SwiftVideo is not affiliated with or endorsed by CapCut or ByteDance.

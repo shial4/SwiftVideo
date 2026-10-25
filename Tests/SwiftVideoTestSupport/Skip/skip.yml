@@ -1,0 +1,6 @@
+# Copyright 2026 Software Deck Pty Ltd
+# SPDX-License-Identifier: Apache-2.0
+
+skip:
+  mode: 'transpiled'
+  bridging: true

@@ -1,0 +1,16 @@
+# Copyright 2026 Software Deck Pty Ltd
+# SPDX-License-Identifier: Apache-2.0
+
+skip:
+  mode: 'transpiled'
+  bridging: true
+
+build:
+  contents:
+    - block: 'android'
+      contents:
+        - 'buildTypes { getByName("debug") { enableAndroidTestCoverage = true } }'
+    - block: 'dependencies'
+      contents:
+        - 'implementation("androidx.media3:media3-transformer:1.11.1")'
+        - 'implementation("androidx.media3:media3-effect:1.11.1")'

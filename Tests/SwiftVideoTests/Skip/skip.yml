@@ -1,0 +1,14 @@
+# Copyright 2026 Software Deck Pty Ltd
+# SPDX-License-Identifier: Apache-2.0
+
+# Skip configuration for SwiftVideoTests module
+
+build:
+  contents:
+    - block: 'android'
+      contents:
+        - 'sourceSets { getByName("androidTest") { assets.srcDir("src/test/assets") } }'
+        - 'buildTypes { getByName("debug") { enableAndroidTestCoverage = true } }'
+
+skip:
+  mode: 'native'

@@ -1,0 +1,18 @@
+{
+  "covered" : 326,
+  "executable" : 362,
+  "files" : [
+    {
+      "covered" : 63,
+      "executable" : 72,
+      "file" : "Sources/SwiftVideoMedia3/Media3Effects.kt"
+    },
+    {
+      "covered" : 263,
+      "executable" : 290,
+      "file" : "Sources/SwiftVideoMedia3/Media3ExportSession.kt"
+    }
+  ],
+  "linePercent" : 90.05524861878453,
+  "suite" : "android-media3"
+}
