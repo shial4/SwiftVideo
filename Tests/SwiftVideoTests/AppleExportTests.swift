@@ -54,7 +54,8 @@ import Testing
         let (events, continuation) = AsyncStream<ExportProgress>.makeStream()
         let collecting = Task { var result: [ExportProgress] = []; for await event in events { result.append(event) }; return result }
         let exporter = VideoExporter()
-        try await exporter.export(project, to: destination, settings: ExportSettings(resolution: .hd1080, videoBitRate: 4_000_000)) {
+        try await exporter.export(project, to: destination,
+            settings: ExportSettings(resolution: VideoSize(width: 320, height: 180), videoBitRate: 500_000)) {
             continuation.yield($0)
         }
         continuation.finish()
@@ -64,20 +65,20 @@ import Testing
 
         let asset = AVURLAsset(url: destination)
         let track = try #require(try await asset.loadTracks(withMediaType: .video).first)
-        #expect(try await track.load(.naturalSize) == CGSize(width: 1920, height: 1080))
+        #expect(try await track.load(.naturalSize) == CGSize(width: 320, height: 180))
         #expect(abs(try await asset.load(.duration).seconds - 2) < 0.04)
         #expect(abs(try await track.load(.nominalFrameRate) - 30) < 0.1)
         let first = try await frame(asset, at: 0.5)
         let second = try await frame(asset, at: 1.5)
-        let redPixel = pixel(first, x: 960, y: 600)
-        let bluePixel = pixel(second, x: 960, y: 600)
+        let redPixel = pixel(first, x: first.width / 2, y: first.height * 5 / 9)
+        let bluePixel = pixel(second, x: second.width / 2, y: second.height * 5 / 9)
         #expect(redPixel.0 > 180 && redPixel.2 < 80)
         #expect(bluePixel.2 > 180 && bluePixel.0 < 80)
-        let overlay = pixel(second, x: 1632, y: 864)
+        let overlay = pixel(second, x: second.width * 85 / 100, y: second.height * 4 / 5)
         #expect(overlay.1 > 180 && overlay.0 < 80 && overlay.2 < 80)
         let leftTitle = try #require(whiteCentroid(first))
         let rightTitle = try #require(whiteCentroid(second))
-        #expect(rightTitle > leftTitle + 150)
+        #expect(rightTitle > leftTitle + Double(first.width) * 0.08)
 
         let audioTrack = try #require(try await asset.loadTracks(withMediaType: .audio).first)
         let outputClip = MediaClip(source: .audio(destination), duration: two)
