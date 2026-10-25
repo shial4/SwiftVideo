@@ -18,7 +18,8 @@ public final class Media3TestSupport {
     public static func copyFixture(name: String) throws -> String {
         #if SKIP
         let context = ProcessInfo.processInfo.androidContext
-        let file = File(context.getCacheDir(), name)
+        // Tests run concurrently; never truncate a fixture another test is decoding.
+        let file = File.createTempFile("swiftvideo-fixture-", "-" + name, context.getCacheDir())
         let input = context.getAssets().open("swift/video/Resources/Milestone/" + name)
         defer { input.close() }
         let output = FileOutputStream(file)

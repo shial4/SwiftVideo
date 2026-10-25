@@ -97,4 +97,5 @@ jobs:
         with:
           name: android-test-results
           path: .build-coverage
+          include-hidden-files: true
           retention-days: 14

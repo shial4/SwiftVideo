@@ -8,6 +8,25 @@ import SwiftVideoTestSupport
 @testable import SwiftVideo
 
 @Suite struct AndroidExportTests {
+    @Test func fixtureCopiesHaveIndependentContents() throws {
+        let first = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "green.png"))
+        let second = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "green.png"))
+        defer {
+            try? FileManager.default.removeItem(at: first)
+            try? FileManager.default.removeItem(at: second)
+        }
+        try #require(first != second)
+        let expected = try Data(contentsOf: second)
+        try #require(!expected.isEmpty)
+
+        try Data().write(to: first)
+
+        #expect(try Data(contentsOf: second) == expected)
+    }
+}
+
+// Share the serialized rendering suite: hosted emulators have limited codec/GPU capacity.
+extension RenderBehaviorTests {
     @Test func milestoneExportsRealMedia3Composition() async throws {
         let red = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "red.mp4"))
         let blue = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "blue.mp4"))

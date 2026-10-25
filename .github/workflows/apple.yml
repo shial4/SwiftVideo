@@ -54,4 +54,5 @@ jobs:
         with:
           name: apple-test-results
           path: .build-coverage
+          include-hidden-files: true
           retention-days: 14
