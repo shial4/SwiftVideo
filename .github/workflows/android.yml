@@ -20,6 +20,10 @@ jobs:
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
       SWIFT_VERSION: '6.3.2'
+      # Keep the ephemeral runner's unrelated packages out of toolchain setup.
+      HOMEBREW_NO_AUTO_UPDATE: '1'
+      HOMEBREW_NO_INSTALL_UPGRADE: '1'
+      HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK: '1'
     steps:
       - uses: actions/checkout@v7
         with:
