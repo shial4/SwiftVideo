@@ -14,6 +14,8 @@ The 0.0.1 verification snapshot was measured on October 25, 2026. Coverage repor
 
 See the checked-in [iOS](Coverage/ios.json), [Android core](Coverage/android-core.json), and [Media3](Coverage/android-media3.json) reports. These are release snapshots. GitHub Actions uploads reports for each run; README workflow badges link to the current result.
 
+Manual editor checks covered macOS, iOS Simulator, and Android Emulator. The final Android example export was independently decoded as an 8-second, 1920x1080, 30 fps MP4 with audio; inspected frames confirmed the image/title scene and captioned picture-in-picture scene.
+
 ## What the tests verify
 
 - Rational frame/time arithmetic, overflow, input validation, and JSON round trips.
@@ -52,14 +54,14 @@ Local verification used Xcode 27.1, the iOS 26.5 Simulator, and macOS 26.6. CI s
 
 ## Reproduce Android tests
 
-The complete commands live in [android.yml](../.github/workflows/android.yml). Install Skip 1.9.19 or later with a matching Swift Android toolchain/SDK. The verified configuration is Swift 6.3.2, NDK r27d, Gradle 9.8.2, and an API 34 arm64 emulator.
+The complete commands live in [android.yml](../.github/workflows/android.yml). Install Skip 1.9.19 or later with a matching Swift Android toolchain/SDK. The local verification configuration is Swift 6.3.2, NDK r27d, Gradle 9.8.2, and an API 34 arm64 emulator. Hosted CI uses `macos-26-intel` and x86_64 Android binaries because GitHub's Apple Silicon runners do not support nested virtualization. On Apple Silicon development machines, use `--arch aarch64`, an arm64 emulator, and the matching `aarch64-unknown-linux-android28` coverage binary path.
 
 The workflow performs these steps in order:
 
 1. Generate Skip metadata with `SKIP_DYNAMIC_LIBRARIES=1 swift build --build-system native --scratch-path .build-media3 --target SwiftVideoTests`.
 2. Build the native `SwiftVideo` library and Swift Testing bundle into the generated module's JNI directories.
-3. Run `:SwiftVideo:connectedDebugAndroidTest` in an Android app with Media3 and an initialized JVM.
-4. Run a separate instrumented native Swift core suite, pull `.profraw` files, and process them with the matching NDK `llvm-profdata` and `llvm-cov`.
+3. Run a separate instrumented native Swift core suite.
+4. Run `:SwiftVideo:connectedDebugAndroidTest` in an Android app with Media3 and an initialized JVM, then pull the core `.profraw` files and process them with the matching NDK `llvm-profdata` and `llvm-cov`.
 5. Generate the Media3 JaCoCo XML report and enforce both Android coverage gates.
 6. Compile and package the example editor APK from the same Swift sources.
 
