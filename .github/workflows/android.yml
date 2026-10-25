@@ -14,7 +14,8 @@ concurrency:
   cancel-in-progress: true
 jobs:
   tests:
-    runs-on: macos-26
+    # Apple Silicon hosted runners cannot start a nested Android VM.
+    runs-on: macos-26-intel
     timeout-minutes: 90
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
@@ -40,21 +41,21 @@ jobs:
           echo "ANDROID_MODULE=$PWD/${modules[0]}" >> "$GITHUB_ENV"
       - name: Compile native library and test bundle
         run: |
-          skip android build --swift-version "$SWIFT_VERSION" --arch aarch64 --scratch-path .build-android \
+          skip android build --swift-version "$SWIFT_VERSION" --arch x86_64 --scratch-path .build-android \
             --product SwiftVideo -d "$ANDROID_MODULE/build/jni-libs"
-          skip android test --swift-version "$SWIFT_VERSION" --arch aarch64 --scratch-path .build-android \
+          skip android test --swift-version "$SWIFT_VERSION" --arch x86_64 --scratch-path .build-android \
             --testing-library testing --build-test-libs "$ANDROID_MODULE/build/test-jni-libs"
       - name: Run both Android test layers
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
-          arch: arm64-v8a
+          arch: x86_64
           target: google_apis
           profile: pixel_6
           disable-animations: true
           emulator-options: -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect
           script: |
-            skip android test --swift-version "$SWIFT_VERSION" --arch aarch64 --scratch-path .build-android-coverage --testing-library testing --no-cleanup --remote-folder /data/local/tmp/swiftvideo-coverage --env 'LLVM_PROFILE_FILE=/data/local/tmp/swiftvideo-coverage/coverage-%m.profraw' -Xswiftc -DSWIFTVIDEO_CORE_COVERAGE -Xswiftc -profile-generate -Xswiftc -profile-coverage-mapping
+            skip android test --swift-version "$SWIFT_VERSION" --arch x86_64 --scratch-path .build-android-coverage --testing-library testing --no-cleanup --remote-folder /data/local/tmp/swiftvideo-coverage --env 'LLVM_PROFILE_FILE=/data/local/tmp/swiftvideo-coverage/coverage-%m.profraw' -Xswiftc -DSWIFTVIDEO_CORE_COVERAGE -Xswiftc -profile-generate -Xswiftc -profile-coverage-mapping
             (cd "$ANDROID_MODULE/.." && SKIP_BRIDGE_ANDROID_BUILD_DISABLED=1 skip gradle :SwiftVideo:connectedDebugAndroidTest)
             mkdir -p .build-coverage/android
             adb shell 'cd /data/local/tmp/swiftvideo-coverage && tar -cf /data/local/tmp/swiftvideo-profiles.tar coverage-*.profraw'
@@ -66,7 +67,7 @@ jobs:
           ndk_tool=$(find "$HOME/.swiftpm" "$HOME/Library/org.swift.swiftpm" -path '*swift-6.3.2*android-ndk-r27d*/bin/llvm-profdata' -type f 2>/dev/null | head -1)
           test -n "$ndk_tool"
           "$ndk_tool" merge -sparse .build-coverage/android/*.profraw -o .build-coverage/android/coverage.profdata
-          "$(dirname "$ndk_tool")/llvm-cov" export .build-android-coverage/aarch64-unknown-linux-android28/debug/libSwiftVideo.so \
+          "$(dirname "$ndk_tool")/llvm-cov" export .build-android-coverage/x86_64-unknown-linux-android28/debug/libSwiftVideo.so \
             -instr-profile=.build-coverage/android/coverage.profdata > .build-coverage/android/core-raw.json
           swift Tools/Coverage.swift android-core .build-coverage/android/core-raw.json .build-coverage/android/core.json 90
           curl -fL https://repo.maven.apache.org/maven2/org/jacoco/org.jacoco.cli/0.8.13/org.jacoco.cli-0.8.13-nodeps.jar -o "$RUNNER_TEMP/jacoco.jar"
@@ -84,7 +85,7 @@ jobs:
           ln -s ../../plugins/outputs Example/.build-host/Build/Intermediates.noindex/BuildToolPluginIntermediates
           editor_modules=(Example/.build-host/plugins/outputs/*/SwiftVideoEditor/destination/skipstone/SwiftVideoEditor)
           editor_jni="$PWD/${editor_modules[0]}/build/jni-libs"
-          (cd Example && skip android build --swift-version "$SWIFT_VERSION" --arch aarch64 \
+          (cd Example && skip android build --swift-version "$SWIFT_VERSION" --arch x86_64 \
             --scratch-path .build-android --product SwiftVideoEditor -d "$editor_jni")
           SKIP_DYNAMIC_LIBRARIES=1 SKIP_BRIDGE_ANDROID_BUILD_DISABLED=1 \
             BUILT_PRODUCTS_DIR="$PWD/Example/.build-host/Build/Products/Debug" gradle --no-daemon -p Example/Android :app:assembleDebug
