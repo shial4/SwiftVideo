@@ -232,6 +232,7 @@ final class EditorStore {
             do {
                 let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
                     ?? FileManager.default.temporaryDirectory
+                try FileManager.default.createDirectory(at: documents, withIntermediateDirectories: true)
                 let output = documents.appendingPathComponent("SwiftVideo-\(UUID().uuidString.prefix(8)).mp4")
                 try await VideoExporter().export(snapshot, to: output,
                     settings: ExportSettings(resolution: VideoSize(width: height * 16 / 9, height: height))) { [weak self] event in
