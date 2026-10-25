@@ -61,8 +61,10 @@ jobs:
           arch: x86_64
           target: google_apis
           profile: pixel_6
+          cores: 4
           disable-animations: true
-          emulator-options: -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect
+          # The default 2.5 GB caused system-wide memory pressure and export stalls.
+          emulator-options: -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -memory 6144
           script: bash Tools/TestAndroid.sh
       - name: Report and gate coverage
         run: |

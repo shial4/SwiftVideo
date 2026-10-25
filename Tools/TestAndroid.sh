@@ -40,5 +40,6 @@ adb shell 'cd /data/local/tmp/swiftvideo-coverage && tar -cf /data/local/tmp/swi
 adb pull /data/local/tmp/swiftvideo-profiles.tar "$reports/profiles.tar"
 
 # Direct Gradle output makes compilation and device-test progress visible in CI.
+adb shell cat /proc/meminfo > "$reports/meminfo-before-instrumentation.txt" || true
 SKIP_BRIDGE_ANDROID_BUILD_DISABLED=1 gradle --console=plain -p "$ANDROID_MODULE/.." \
     :SwiftVideo:connectedDebugAndroidTest
