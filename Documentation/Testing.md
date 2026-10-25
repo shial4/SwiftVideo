@@ -33,7 +33,7 @@ Android Media3 exports share the serialized `RenderBehaviorTests` suite so concu
 
 Routine composition tests on both platforms render at 320x180. They verify decoded pixels, overlay placement, relative text motion, timing, and audio fades with much less rendering work than a full HD export. The separate manual example checks cover 1080p output.
 
-The hosted Android emulator uses two virtual CPU cores and 6 GB of RAM, with VM acceleration required. Emulator 36.6.11 is pinned to match the version used for local verification. CI uses the same composition tests and Media3 timeout as local tests.
+CI compiles Android binaries on macOS and runs them on an Ubuntu KVM emulator with two virtual CPU cores and 4 GB of RAM. Emulator 36.6.11 is pinned to match the version used for local verification. CI uses the same composition tests and Media3 timeout as local tests. The device-test command has a five-minute deadline so an unresponsive emulator cannot hold the job indefinitely.
 
 Apple has additional renderer-specific failure and text-orientation tests, which explain its higher test count. The orientation test independently checks an asymmetric glyph in decoded output; it reproduced the iOS inversion before the fix and passes on both Apple targets. The Android instrumentation runner appears as one JUnit wrapper; `swt-events.jsonl` records the individual Swift Testing results.
 
@@ -63,16 +63,17 @@ Local verification used Xcode 27.1, the iOS 26.5 Simulator, and macOS 26.6. CI s
 
 ## Reproduce Android tests
 
-The complete commands live in [android.yml](../.github/workflows/android.yml). Install Skip 1.9.19 or later with a matching Swift Android toolchain/SDK. The local verification configuration is Swift 6.3.2, NDK r27d, Gradle 9.8.2, and an API 34 arm64 emulator. Hosted CI uses `macos-26-intel` and x86_64 Android binaries because GitHub's Apple Silicon runners do not support nested virtualization. On Apple Silicon development machines, use `--arch aarch64`, an arm64 emulator, and the matching `aarch64-unknown-linux-android28` coverage binary path.
+The complete commands live in [android.yml](../.github/workflows/android.yml). Use an existing Skip installation with a matching Swift Android toolchain/SDK. The local verification configuration is Swift 6.3.2, NDK r27d, Gradle 9.8.2, and an API 34 arm64 emulator. Hosted CI cross-compiles x86_64 Android binaries on `macos-26-intel`, then transfers them to `ubuntu-24.04` for execution. Xcode's compiler builds host metadata, including the Apple AVKit preview; Swift 6.3.2 builds Android binaries. The emulator runner needs only ADB and the packaged binaries; it does not install Swift. On Apple Silicon development machines, use `--arch aarch64` for native builds, `ANDROID_ARCH=aarch64` when packaging, and an arm64 emulator.
 
 The workflow performs these steps in order:
 
-1. Generate Skip metadata with `SKIP_DYNAMIC_LIBRARIES=1 swift build --build-system native --scratch-path .build-media3 --target SwiftVideoTests`.
+1. Generate Skip metadata with `SKIP_DYNAMIC_LIBRARIES=1 xcrun swift build --build-system native --scratch-path .build-media3 --target SwiftVideoTests`.
 2. Build the native `SwiftVideo` library and Swift Testing bundle into the generated module's JNI directories.
-3. Run a separate instrumented native Swift core suite and pull its `.profraw` files while the emulator is running.
-4. Run `:SwiftVideo:connectedDebugAndroidTest` in an Android app with Media3 and an initialized JVM. [TestAndroid.sh](../Tools/TestAndroid.sh) retains Swift Testing events, logcat, and available JUnit reports even when a test fails, while preserving the failing exit status.
+3. [BuildAndroidTests.sh](../Tools/BuildAndroidTests.sh) builds the instrumented native core executable, runtime libraries, and Media3 test APK, and packages their matching coverage metadata. The macOS job also compiles the example editor APK.
+4. On the emulator host, [TestAndroid.sh](../Tools/TestAndroid.sh) runs the core executable and Android instrumentation APK, pulls native profiles and JaCoCo data, and retains Swift Testing events and logcat even when a test fails. It checks the JUnit result explicitly because Android's instrumentation command can exit zero after test failures.
 5. Process the core profiles with the matching NDK `llvm-profdata` and `llvm-cov`, generate the Media3 JaCoCo XML report, and enforce both Android coverage gates.
-6. Compile and package the example editor APK from the same Swift sources.
+
+For local use after generating metadata and building the JNI libraries, set `ANDROID_MODULE` to the generated `SwiftVideo` Gradle module and `SWIFT_VERSION` to the installed version. Run `bash Tools/BuildAndroidTests.sh`, then `bash Tools/TestAndroid.sh` with an emulator connected. Both scripts accept `ANDROID_TEST_ARTIFACTS` to override the default `.build-android-tests` directory. Standard `ANDROID_SERIAL` selects a specific connected device.
 
 Use the NDK LLVM tools matching the Swift Android SDK. A different LLVM version can reject its profile format. On a host with a newer incompatible Apple SDK, select a compatible host SDK using process-scoped `DEVELOPER_DIR` and `SDKROOT`; no global Xcode setting is required.
 
