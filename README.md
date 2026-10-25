@@ -1,148 +1,164 @@
 <!-- Copyright 2026 Software Deck Pty Ltd; SPDX-License-Identifier: Apache-2.0 -->
 # SwiftVideo
 
+**Compose video. Stay in Swift.**
+
+A declarative video composition library for **iOS, macOS, and Android**. Turn footage, images, text, and audio into finished videos with a SwiftUI-style DSL, precise timeline editing, and GPU-backed rendering.
+
+[![Release](https://img.shields.io/github/v/release/shial4/SwiftVideo)](https://github.com/shial4/SwiftVideo/releases)
+[![Swift 6.3+](https://img.shields.io/badge/Swift-6.3%2B-F05138?logo=swift&logoColor=white)](Package.swift)
 [![Apple tests](https://github.com/shial4/SwiftVideo/actions/workflows/apple.yml/badge.svg)](https://github.com/shial4/SwiftVideo/actions/workflows/apple.yml)
 [![Android tests](https://github.com/shial4/SwiftVideo/actions/workflows/android.yml/badge.svg)](https://github.com/shial4/SwiftVideo/actions/workflows/android.yml)
-[![Release](https://img.shields.io/github/v/release/shial4/SwiftVideo)](https://github.com/shial4/SwiftVideo/releases)
 [![Documentation](https://img.shields.io/badge/Documentation-Read%20the%20docs-blue)](Documentation/README.md)
-[![Swift 6.3+](https://img.shields.io/badge/Swift-6.3%2B-F05138?logo=swift&logoColor=white)](Package.swift)
-[![iOS 17+](https://img.shields.io/badge/iOS-17%2B-black?logo=apple)](Package.swift)
-[![Android 9+](https://img.shields.io/badge/Android-API%2028%2B-3DDC84?logo=android&logoColor=white)](Documentation/Testing.md)
-[![Skip Fuse](https://img.shields.io/badge/Skip-Fuse-5C4EE5)](https://skip.dev)
 [![Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue)](LICENSE)
 
-**Compose, edit, animate, and export video in Swift. One timeline model for iOS, macOS, and Android.**
+[Quick start](#quick-start) | [Install](#install) | [iOS](#native-ios-and-macos) | [Skip](#skip-for-ios-and-android) | [Kotlin](#native-android-and-kotlin) | [API reference](Documentation/APIReference.md)
 
-[Install](#install) | [Quick start](#quick-start) | [Documentation](Documentation/README.md) | [API reference](Documentation/APIReference.md) | [Example editor](Example) | [Tests and coverage](Documentation/Testing.md)
+![SwiftVideo Studio: preview, timeline editing, text overlays, filters, and export](Documentation/Images/editor.gif)
 
-![SwiftVideo editor: playback, timeline editing, filters, overlays, and export](Documentation/Images/editor.gif)
+Built with SwiftVideo: [run the example editor on iOS or Android](Example/README.md), or [view the exported composition](Documentation/Images/composition.gif).
 
 ## Why SwiftVideo?
 
-- **Use Swift throughout.** Native Swift models, actors, editing, and animation evaluation. Android codecs run through a small Swift-authored Skip service.
-- **Compose like SwiftUI.** Build immutable tracks and clips with a result builder, fluent modifiers, conditionals, and loops. Use the values in SwiftUIComponents or any Swift app.
-- **Render on the GPU.** Metal-backed Core Image on Apple and OpenGL through Media3 on Android handle transforms, filters, and layer composition.
-- **Edit predictable timelines.** Exact rational time, immutable Codable snapshots, atomic edit batches, and preserved effect timing after splits and trims.
-- **Export real media.** AVFoundation and Core Image on Apple; Media3 Transformer on Android. Progress, cancellation, and protected output files are built in.
-
-## Install
-
-```swift
-// Package.swift
-.package(url: "https://github.com/shial4/SwiftVideo.git", from: "0.0.1")
-
-// Your target's dependencies:
-.product(name: "SwiftVideo", package: "SwiftVideo")
-```
-
-| Platform | Requirements |
-| --- | --- |
-| iOS / iPadOS | iOS 17+, Swift 6.3+ |
-| macOS | macOS 14+, Swift 6.3+ |
-| Android | API 28+, Skip Fuse app, matching Swift Android SDK/toolchain |
-
-Android requires an initialized Skip app context and the generated Media3 JVM module. See the [build instructions](Documentation/Testing.md); a standalone Swift command-line process does not provide Android media services.
-
-## Documentation
-
-**[Read the full documentation](Documentation/README.md)** on GitHub, including the [usage guide](Documentation/Guide.md), [public API reference](Documentation/APIReference.md), and [complete composition recipes](Documentation/Recipes.md).
-
-The documentation covers setup, SwiftUI integration, image/title scenes, commentary video and captions, animation, audio, timeline editing, export/cancellation, project persistence, GPU/CPU responsibilities, platform limits, and troubleshooting. Select your dependency's release tag in GitHub to read matching documentation.
+- **A timeline that reads like your UI.** Compose tracks and clips with builders, modifiers, conditionals, and loops. Keep immutable project values in SwiftUI state or your own model.
+- **One Swift composition, three platforms.** Use the same API with AVFoundation on Apple and Media3 through Skip Fuse on Android.
+- **GPU-backed visuals.** Metal-backed Core Image and Media3's OpenGL pipeline handle transforms, filters, and compositing. Text is prepared once for each export.
+- **Editing with predictable results.** Rational time, atomic edit batches, and split/trim operations preserve source offsets and effect timing.
+- **Export with control.** Async/await, progress, cancellation, and destination protection are built in. Projects are Codable, Hashable, and Sendable.
 
 ## Quick start
 
+Add a title to five seconds of footage and export an MP4:
+
 ```swift
+import Foundation
 import SwiftVideo
 
-let duration = try VideoTime(value: 5, timescale: 1)
-let project = VideoProject {
-    MediaTrack("Footage") {
-        MediaClip.video(inputURL, duration: duration)
+func exportTitle(inputURL: URL, to outputURL: URL) async throws {
+    let duration = try VideoTime(value: 5, timescale: 1)
+    let project = VideoProject {
+        MediaTrack("Footage") {
+            MediaClip.video(inputURL, duration: duration)
+        }
+        MediaTrack("Title") {
+            MediaClip.text("Your story", duration: duration,
+                           style: TextStyle(fontSize: 96))
+                .zIndex(1)
+                .transform(VisualTransform(y: 0.8, width: 0.9, height: 0.15))
+        }
     }
-    MediaTrack("Title") {
-        MediaClip.text("Your story", duration: duration, style: TextStyle(fontSize: 96))
-            .zIndex(1)
-            .transform(VisualTransform(y: 0.8, width: 0.9, height: 0.15))
-    }
-}
 
-let exporter = VideoExporter()
-try await exporter.export(project, to: outputURL,
-                          settings: ExportSettings(resolution: .hd1080)) { progress in
-    print(progress.fraction)
+    let exporter = VideoExporter()
+    try await exporter.export(project, to: outputURL,
+                              settings: ExportSettings(resolution: .hd1080))
 }
 ```
 
-`inputURL` must reference readable media and `outputURL` must be a new local file. Progress callbacks are `@Sendable`; hop to `MainActor` when updating UI. Cancel the calling task or use `await exporter.cancel()`.
+Supply a readable local video with at least five seconds of footage and an unused output URL ending in `.mp4`. Call the function from an async context, such as a SwiftUI task or a UIKit action's `Task`. See [progress and cancellation](Documentation/Recipes.md#cancellable-export-from-swiftui), or build an [image and text title scene](Documentation/Recipes.md#image-and-text-title-scene) and [commentary video with timed captions](Documentation/Recipes.md#commentary-video-and-timed-captions).
 
-### A title scene, picture-in-picture, and captions
+## Install
+
+SwiftVideo is distributed through **Swift Package Manager**. Add the repository dependency and the **`SwiftVideo`** product to the target that uses it:
 
 ```swift
-let two = try VideoTime(value: 2, timescale: 1)
-let six = try VideoTime(value: 6, timescale: 1)
-let project = VideoProject {
-    MediaTrack("Background") {
-        MediaClip.video(footageURL, duration: six)
-    }
-    MediaTrack("Overlays") {
-        MediaClip.image(photoURL, duration: two)
-            .zIndex(1)
-            .transform(VisualTransform(x: 0.2, width: 0.3, height: 0.7, contentMode: .fill))
-        MediaClip.text("A new perspective", duration: two)
-            .zIndex(2)
-            .transform(VisualTransform(x: 0.65, width: 0.6, height: 0.2))
-        MediaClip.video(commentaryURL, duration: two)
-            .starting(at: two).zIndex(1)
-            .transform(VisualTransform(x: 0.8, y: 0.25, width: 0.3, height: 0.3))
-        MediaClip.text("Here is what happens next.", duration: two)
-            .starting(at: two).zIndex(2)
-            .transform(VisualTransform(y: 0.9, width: 0.9, height: 0.12))
-    }
-}
+// swift-tools-version: 6.3
+import PackageDescription
+
+let package = Package(
+    name: "MyVideoFeature",
+    platforms: [.iOS(.v17), .macOS(.v14)],
+    products: [
+        .library(name: "MyVideoFeature", targets: ["MyVideoFeature"])
+    ],
+    dependencies: [
+        .package(url: "https://github.com/shial4/SwiftVideo.git", from: "0.0.1")
+    ],
+    targets: [
+        .target(name: "MyVideoFeature", dependencies: [
+            .product(name: "SwiftVideo", package: "SwiftVideo")
+        ])
+    ]
+)
 ```
 
-Clip times use the project timeline. Video source time starts at zero unless you add `.sourceStarting(at:)`. Captions are ordinary timed text clips. [The bundled demo](Example/Sources/SwiftVideoEditor/EditorDocument.swift) adds animation, music, and several captions to this pattern.
+Then `import SwiftVideo`. For an existing package, merge these dependency entries into its manifest. Android applications also need the Skip setup below.
 
-### Use with SwiftUI state
-
-Store `VideoProject` in an `@Observable` model or `@State`, and pass a snapshot to `VideoExporter` from a task. Builders only create values; they perform no media I/O. Modifiers preserve clip identity. When rebuilding from view inputs, pass stable `id:` values from your model so selection and edits continue to target the same clips.
-
-The library has no SwiftUI dependency. Rendering and editing actors work outside the main actor; only UI updates and Apple's one-time text preparation use it. The example debounces preview exports and cancels superseded work. See the [SwiftUI integration guide](Documentation/Guide.md#integrate-with-swiftuicomponents-or-another-swiftui-app).
-
-### Split, trim, and arrange
-
-```swift
-let track = MediaTrack(name: "Footage")
-let editor = try VideoEditor(project: VideoProject(tracks: [track]))
-let arranged = try await editor.apply([
-    .mergeSequentially(clips, trackID: track.id, start: .zero)
-])
-let first = arranged.tracks[0].clips[0]
-let edited = try await editor.apply([
-    .split(first.id, at: try VideoTime(value: 2, timescale: 1), rightID: UUID())
-])
-```
-
-A failed batch leaves the previous project intact. Splits use project time; trims keep a range relative to the clip's beginning. Both preserve source offsets and the original animation and audio envelope. [Editing semantics](Documentation/Guide.md#timeline-and-editing).
-
-## Capabilities
-
-| Video and images | Text and animation | Audio and export |
+| Your project | Requirements | Integration |
 | --- | --- | --- |
-| Multiple overlapping tracks | Text with font, alignment, color, shadow | Mix music and video audio |
-| Split, trim, offset, sequential clips | Position, scale, rotation, opacity keyframes | Gain, mute, stereo pan, fades |
-| Crop, fit, fill, stretch, rotation | Linear, ease-in, ease-out, smooth, step | H.264 / HEVC, configurable bitrate |
-| Brightness, contrast, saturation, blur, sepia | Image overlays and picture-in-picture | Resolution, frame rate, progress, cancellation |
+| Native iOS / iPadOS | iOS 17+, Swift 6.3+ | SwiftPM or Xcode; SwiftUI and UIKit supported |
+| Native macOS | macOS 14+, Swift 6.3+ | SwiftPM or Xcode; SwiftUI and AppKit supported |
+| Shared iOS + Android | Apple requirements above; Android API 28+ | Skip Fuse with a matching Swift Android SDK |
+| Native Android / Kotlin | API 28+, Skip build toolchain for the adapter | Generated Kotlin bridge and packaged native libraries |
 
-![Exported composition with animated text and picture-in-picture](Documentation/Images/composition.gif)
+### Native iOS and macOS
 
-Apple supports MP4/MOV and rational frame rates. Android supports MP4 and integer frame rates. Output is SDR; device encoder limits and platform font/color differences apply. Use local font files for portable typography. See [platform limits](Documentation/Guide.md#platform-architecture-and-limits) and [GPU/CPU responsibilities](Documentation/Guide.md#rendering-and-performance).
+1. In Xcode, choose **File > Add Package Dependencies** and enter `https://github.com/shial4/SwiftVideo.git`.
+2. Select **Up to Next Major Version**, starting at **0.0.1**, and add the **SwiftVideo** product to your app target.
+3. Add `import SwiftVideo` and use the [quick start](#quick-start) from your SwiftUI, UIKit, or AppKit code.
 
-## Example editor
+Use Xcode's Swift toolchain for Apple builds. You do not need an Android SDK, JDK, or emulator to use the Apple renderer. Your app owns media selection, file permissions, playback, and sharing. [Native app integration](Documentation/Integration.md#native-ios-and-macos).
 
-[**SwiftVideo Studio**](Example) is a dark, timeline-based editor inspired by familiar mobile video tools. It includes bundled coastal footage, an original ambient soundtrack, editable titles, filters, transforms, picture-in-picture, undo/redo, scrubbing, playback, and 720p/1080p export. Its preview and export both use the library's rendering engine.
+### Skip for iOS and Android
 
-Open `Example/Project.xcworkspace` and run **SwiftVideoEditor App**, or follow the [iOS and Android instructions](Example/README.md). The example edits bundled media and keeps the current project in memory; it is a demonstration app, not a full media-management product.
+Add the same SwiftPM dependency to your **Skip Fuse app's shared `Package.swift`** and link `SwiftVideo` to its native Swift target. Keep that target's `Sources/<Target>/Skip/skip.yml` in native mode:
+
+```yaml
+skip:
+  mode: 'native'
+```
+
+Use `import SwiftVideo` and the same composition code on both platforms. Keep your generated Skip app launcher and build integration: Android rendering needs the initialized application context, the generated Media3 JVM module, and the native Swift libraries.
+
+Start with the [working iOS + Android example](Example/README.md), or follow the [Skip integration guide](Documentation/Integration.md#skip-for-ios-and-android). Skip Lite callers need a bridged native wrapper; the SwiftVideo DSL is not directly transpiled to Kotlin.
+
+### Native Android and Kotlin
+
+**Version 0.0.1 ships a Swift package, not a Maven artifact or a directly callable Kotlin DSL.** You can use it behind a small Skip Fuse wrapper while keeping your Android UI in Kotlin or Compose:
+
+1. Create a native Skip framework that depends on SwiftVideo.
+2. Expose a small Swift API using bridge-friendly inputs such as file paths, text, and durations. Enable Skip's `kotlincompat` bridging for that wrapper.
+3. Export the generated Android libraries with `skip export` and integrate their dependencies and native libraries into your Gradle app.
+4. Initialize the Skip application context, then call the generated API from a Kotlin coroutine.
+
+The [Kotlin integration walkthrough](Documentation/Integration.md#native-android-and-kotlin) includes a Swift export wrapper, a Kotlin call, and packaging guidance. The composition and rendering implementation stays in this library.
+
+## What you can build
+
+| Feature | Included |
+| --- | --- |
+| Title scenes and captions | Image overlays, timed text, font/color/alignment/shadow, custom font files |
+| Commentary and picture-in-picture | Overlapping video tracks, crop, fit/fill/stretch, position, rotation, opacity |
+| Animation and effects | Keyframes with easing; brightness, contrast, saturation, blur, and sepia |
+| Timeline editing | Split, trim, offset, sequential arrangement, atomic edit batches |
+| Soundtracks | Video audio and music mixing, gain, mute, stereo pan, fades |
+| Export | H.264 / HEVC, configurable resolution/frame rate/bitrate, progress and cancellation |
+
+Apple supports MP4/MOV and rational frame rates; Android supports MP4 and integer frame rates. Output is SDR, codec support depends on the device, and platform fonts/colors can differ. The library exports compositions; it does not include a live timeline player. [Full platform limits](Documentation/Guide.md#platform-architecture-and-limits).
+
+### Built for SwiftUI workflows
+
+Store `VideoProject` in `@State` or an `@Observable` model and export an immutable snapshot. Builders perform no media I/O, modifiers preserve identity, and editing/export actors keep their mutable state isolated. When rebuilding from view inputs, supply stable clip and track IDs from your model.
+
+Use the library with SwiftUIComponents or any SwiftUI app; its public core has no SwiftUI dependency. Update UI on `MainActor` from `@Sendable` progress callbacks. The example editor debounces preview exports and cancels superseded work. [SwiftUI integration](Documentation/Guide.md#integrate-with-swiftuicomponents-or-another-swiftui-app) and [export model recipe](Documentation/Recipes.md#cancellable-export-from-swiftui).
+
+### Rendering and performance
+
+Visual transforms, filters, and layer composition run through GPU-backed pipelines. Timeline validation, animation evaluation, one-time text preparation, and audio processing use the CPU where required. Encoding uses platform media APIs and available codecs; hardware acceleration and throughput depend on the device.
+
+Choose a smaller resolution for previews and the required delivery resolution for final exports. The example uses 640 x 360 previews; render tests use 320 x 180 fixtures while checking decoded video and audio. [Rendering architecture and performance guidance](Documentation/Guide.md#rendering-and-performance).
+
+## Documentation and examples
+
+| Resource | Start here for |
+| --- | --- |
+| [Full documentation](Documentation/README.md) | Topic index and library workflow |
+| [Integration guide](Documentation/Integration.md) | SwiftPM, native Apple apps, Skip, and Kotlin |
+| [Usage guide](Documentation/Guide.md) | Timelines, editing, effects, audio, export, and persistence |
+| [API reference](Documentation/APIReference.md) | Public types, defaults, validation, and errors |
+| [Composition recipes](Documentation/Recipes.md) | Image/title scenes, video-in-video, captions, crossfades, and SwiftUI |
+| [SwiftVideo Studio example](Example/README.md) | Shared editor with playback, undo/redo, scrubbing, and 720p/1080p export |
+
+Documentation is hosted in this GitHub repository. Select your dependency's release tag to read matching docs; `main` follows current development.
 
 ## Tests and coverage
 
@@ -150,16 +166,16 @@ Open `Example/Project.xcworkspace` and run **SwiftVideoEditor App**, or follow t
 [![Android Swift coverage](https://img.shields.io/badge/Android%20Swift%20core-94.8%25-brightgreen)](Documentation/Coverage/android-core.json)
 [![Media3 coverage](https://img.shields.io/badge/Media3%20bridge-90.1%25-green)](Documentation/Coverage/android-media3.json)
 
-Coverage badges describe the **0.0.1 verification snapshot**, not a live third-party coverage service. CI runs both platforms and uploads fresh reports. [Exact scope, thresholds, results, and reproduction](Documentation/Testing.md).
+Apple and Android CI exercise timeline rules, serialization, atomic edits, cancellation, destination protection, and real media exports. Integration tests independently decode frames and PCM audio to check placement, motion, filters, opacity, duration, and fades.
 
-Tests exercise rational time, validation, serialization, atomic edits, split/trim continuity, audio envelopes, cancellation, destination protection, and real exported media. Integration tests independently decode frames and PCM audio to verify composition, motion, filters, opacity, resolution, duration, and fades.
+These coverage badges are the **0.0.1 verification snapshot**; the workflow badges above show live CI status. Android Swift core and Media3 bridge coverage measure separate layers. [Scope, thresholds, reports, and test commands](Documentation/Testing.md).
 
-```sh
-swift test --disable-xctest --enable-code-coverage
-swift test --package-path Example --disable-xctest
-swift Tools/CheckHeaders.swift
-```
+## Help and contribute
+
+[Report a bug or request a feature](https://github.com/shial4/SwiftVideo/issues). Include your platform, SwiftVideo version, and a small reproducible composition for bugs. For code changes, follow the [test guide](Documentation/Testing.md) and include a test for the behavior you change.
+
+If SwiftVideo is useful to you, **star the repository** to support the project and help other developers discover it.
 
 ## License
 
-Copyright 2026 Software Deck Pty Ltd. First-party work is licensed under [Apache 2.0](LICENSE). See [NOTICE](NOTICE), [dependency licenses and corresponding source](Documentation/ThirdParty), and [example asset provenance](Example/ASSETS.md). SwiftVideo is not affiliated with CapCut or ByteDance.
+Copyright 2026 Software Deck Pty Ltd. Licensed under [Apache 2.0](LICENSE). See [NOTICE](NOTICE), [dependency licenses and corresponding source](Documentation/ThirdParty), and [example asset provenance](Example/ASSETS.md). SwiftVideo is not affiliated with CapCut or ByteDance.

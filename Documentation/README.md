@@ -9,6 +9,7 @@ Start with [installation and your first export](../README.md#install), then foll
 
 | Page | Contents |
 | --- | --- |
+| [Integration guide](Integration.md) | SwiftPM, native iOS/macOS, shared Skip apps, and a native Android/Kotlin wrapper |
 | [Usage guide](Guide.md) | Installation, timeline semantics, editing, effects, audio, export, SwiftUI integration, persistence, and performance |
 | [Public API reference](APIReference.md) | Public types, constructors, defaults, methods, validation rules, renderer contracts, and errors |
 | [Composition recipes](Recipes.md) | Complete functions for an image/title scene, commentary video with captions, crossfades, and a cancellable SwiftUI export model |
