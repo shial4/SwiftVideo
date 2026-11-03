@@ -42,6 +42,7 @@ public final class Media3PreviewSession {
     private var plan: JSONObject?
     private var folder: File?
     private var surfaceView: SurfaceView?
+    private var surfaceCallback: PreviewSurfaceCallback?
     private var surface: Surface?
     private var surfaceSize = Size(0, 0)
     private var wantsPlayback = false
@@ -88,7 +89,8 @@ public final class Media3PreviewSession {
                     self.lastFramePosition = Int64(frames * 1000 / plan.getDouble("frameRate"))
                     self.requestedPosition = self.clamped(self.requestedPosition)
                     self.state.set(2)
-                    self.rebuildPlayer()
+                    if let view = self.surfaceView { self.configureSurfaceView(view) }
+                    else { self.rebuildPlayer() }
                     self.pollPosition()
                 }
             } catch {
@@ -177,19 +179,22 @@ public final class Media3PreviewSession {
     }
     public func pause() {
         #if SKIP
-        handler.post { self.wantsPlayback = false; self.player?.pause(); self.playing.set(false) }
+        handler.post {
+            self.wantsPlayback = false
+            self.player?.pause()
+            self.capturePosition()
+            self.playing.set(false)
+        }
         #endif
     }
     public func release() {
         #if SKIP
         cancelled.set(true)
-        handler.post {
-            self.player?.release()
-            self.player = nil
-            self.generation += 1
+        onMain {
+            self.clearSurfaceView()
+            self.releasePlayer()
             self.composition = nil
             self.plan = nil
-            self.surfaceView = nil
             self.surface = nil
             self.playing.set(false)
             self.deleteFolder(self.folder)
@@ -203,36 +208,81 @@ public final class Media3PreviewSession {
     #if SKIP
     // SKIP @nobridge
     public func attachSurfaceView(_ view: SurfaceView) {
-        handler.post {
-            guard !self.cancelled.get() else { return }
+        onMain {
+            guard !self.cancelled.get(), self.surfaceView !== view else { return }
             self.capturePosition()
+            self.clearSurfaceView()
+            self.releasePlayer()
             self.surfaceView = view
             self.surface = nil
-            self.rebuildPlayer()
+            let callback = PreviewSurfaceCallback(changed: { holder, format, width, height in
+                self.updateViewSurface(holder, format: format, width: width, height: height)
+            }, destroyed: { holder in
+                guard self.surfaceView?.getHolder() === holder else { return }
+                self.capturePosition()
+                self.surface = nil
+                // SurfaceHolder requires all drawing to stop before this callback
+                // returns. Release the frame processor before its writer closes.
+                self.releasePlayer()
+            })
+            self.surfaceCallback = callback
+            view.getHolder().addCallback(callback)
+            self.configureSurfaceView(view)
         }
     }
     // SKIP @nobridge
     public func detachSurfaceView(_ view: SurfaceView) {
-        handler.post {
+        onMain {
             guard self.surfaceView === view else { return }
             self.capturePosition()
-            self.surfaceView = nil
-            self.generation += 1
-            self.player?.release()
-            self.player = nil
+            self.clearSurfaceView()
+            self.surface = nil
+            self.releasePlayer()
         }
     }
     /// Native output surface integration, including offscreen pixel inspection.
     // SKIP @nobridge
     public func attachSurface(_ surface: Surface, width: Int, height: Int) {
-        handler.post {
+        onMain {
             guard !self.cancelled.get() else { return }
             self.capturePosition()
-            self.surfaceView = nil
+            self.clearSurfaceView()
             self.surface = surface
             self.surfaceSize = Size(width, height)
             self.rebuildPlayer()
         }
+    }
+
+    private func onMain(_ action: @escaping () -> Void) {
+        if Looper.myLooper() === Looper.getMainLooper() { action() }
+        else { handler.post { action() } }
+    }
+
+    private func clearSurfaceView() {
+        if let surfaceCallback { surfaceView?.getHolder().removeCallback(surfaceCallback) }
+        surfaceCallback = nil
+        surfaceView = nil
+    }
+
+    private func configureSurfaceView(_ view: SurfaceView) {
+        guard let plan else { return }
+        let holder = view.getHolder()
+        holder.setFormat(android.graphics.PixelFormat.RGBA_8888)
+        holder.setFixedSize(plan.getInt("width"), plan.getInt("height"))
+        let frame = holder.getSurfaceFrame()
+        updateViewSurface(holder, format: android.graphics.PixelFormat.RGBA_8888,
+                          width: frame.width(), height: frame.height())
+    }
+
+    private func updateViewSurface(_ holder: SurfaceHolder, format: Int, width: Int, height: Int) {
+        guard !cancelled.get(), surfaceView?.getHolder() === holder, let plan else { return }
+        let output = holder.getSurface()
+        let ready = output.isValid() && format == android.graphics.PixelFormat.RGBA_8888
+            && width == plan.getInt("width") && height == plan.getInt("height")
+        capturePosition()
+        surface = ready ? output : nil
+        surfaceSize = Size(width, height)
+        rebuildPlayer()
     }
 
     private func clamped(_ value: Int64) -> Int64 { plan == nil ? max(0, value) : min(lastFramePosition, max(0, value)) }
@@ -245,12 +295,9 @@ public final class Media3PreviewSession {
     private func rebuildPlayer() {
         seekVersion += 1
         seekPending = false
-        generation += 1
+        releasePlayer()
         let currentGeneration = generation
-        player?.release()
-        player = nil
-        hasRenderedFirstFrame = false
-        guard state.get() == 2, let composition, surfaceView != nil || surface != nil else { return }
+        guard state.get() == 2, let composition, let surface else { return }
         do {
             let builder = CompositionPlayer.Builder(ProcessInfo.processInfo.androidContext)
                 .setLooper(Looper.getMainLooper())
@@ -268,23 +315,23 @@ public final class Media3PreviewSession {
                 self.hasRenderedFirstFrame = true
                 if self.wantsPlayback && !self.seekPending && !self.atEnd { self.player?.play() }
             }))
-            if let surfaceView, let plan {
-                // Match the SDR frame writer before it starts dequeuing images.
-                // Changing format after playback begins can close in-flight
-                // ImageWriter images in Media3 1.12.0-alpha02.
-                surfaceView.getHolder().setFormat(android.graphics.PixelFormat.RGBA_8888)
-                surfaceView.getHolder().setFixedSize(plan.getInt("width"), plan.getInt("height"))
-                player.setVideoSurfaceView(surfaceView)
-            }
-            else if let surface {
-                player.setVideoSurfaceHolder(PreviewSurfaceHolder(surface: surface,
-                    width: surfaceSize.getWidth(), height: surfaceSize.getHeight()))
-            }
+            // Keep Media3's format negotiation on a fixed holder. The session
+            // owns view callbacks and drains the old player before replacing
+            // its surface, avoiding writer closure with a GPU frame in flight.
+            player.setVideoSurfaceHolder(PreviewSurfaceHolder(surface: surface,
+                width: surfaceSize.getWidth(), height: surfaceSize.getHeight()))
             player.setComposition(composition, requestedPosition)
             player.prepare()
             // Prepare the first paused frame before starting the clock. Otherwise
             // a short timeline can end and pause before its first GPU output.
         } catch { fail(String(describing: error)) }
+    }
+
+    private func releasePlayer() {
+        generation += 1
+        player?.release()
+        player = nil
+        hasRenderedFirstFrame = false
     }
     private func pollPosition() {
         guard state.get() == 2 else { return }
@@ -335,7 +382,22 @@ public final class Media3PreviewSession {
 }
 
 #if SKIP
-/// Adapts a fixed offscreen surface to the holder required by Media3's frame writer.
+private final class PreviewSurfaceCallback: SurfaceHolder.Callback {
+    private let changed: (SurfaceHolder, Int, Int, Int) -> Void
+    private let destroyed: (SurfaceHolder) -> Void
+    init(changed: @escaping (SurfaceHolder, Int, Int, Int) -> Void,
+         destroyed: @escaping (SurfaceHolder) -> Void) {
+        self.changed = changed
+        self.destroyed = destroyed
+    }
+    override func surfaceCreated(holder: SurfaceHolder) {}
+    override func surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
+        changed(holder, format, width, height)
+    }
+    override func surfaceDestroyed(holder: SurfaceHolder) { destroyed(holder) }
+}
+
+/// Adapts a fixed surface to the holder required by Media3's frame writer.
 private final class PreviewSurfaceHolder: SurfaceHolder {
     private let surface: Surface
     private let handler = Handler(Looper.getMainLooper())

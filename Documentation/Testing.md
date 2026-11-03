@@ -10,25 +10,44 @@ preview audio trims without changing the source or original render plan. Its
 default disk budget replaces the fixed 64 MiB limit. These changes are not yet
 released or integrated into the consuming app. Playback now waits for the first
 rendered-frame callback, and completion waits for Media3 to drain pending video
-output. The displayed position remains bounded by the project duration.
+output. The displayed position remains bounded by the project duration. Surface
+callbacks now stop the old player before destruction and preserve playback intent
+and the exact paused playhead when the surface or its view is replaced.
 
-Local checks on November 3, 2026 passed all 40 macOS tests, Android bridge/native
+Local checks on November 4, 2026 passed all 40 macOS tests, Android bridge/native
 library/test APK builds, and the 64-file header check. The final API 33 arm64
-instrumentation run completed 54 tests in 195.298 seconds with the same six
+instrumentation run completed 55 tests in 245.629 seconds with the same six
 known color and legacy paused-seek issues. Short 34 ms and 100 ms clips, all four
 gap/trim cases, mixed-media final-frame playback, all 20 audio playback/seek
 cases, shared-range byte comparisons, the 362-second cache, source-duration
 rejection, quota failure, cancellation, and cleanup checks passed. The unchanged
 player failed both short-clip cases with zero captured frames at completion and
 one frame after a one-second diagnostic wait; that wait does not change the
-assertion. Media3 coverage is 1,045 / 1,187 executable lines, 88.04%, above the
+assertion. Media3 coverage is 1,109 / 1,228 executable lines, 90.31%, above the
 75% gate. No tolerance or failing assertion was weakened.
+
+The surface regression captures real rendered frames through the public
+SurfaceView adapter. It alternates twelve surface and view replacements during
+playback, checks late disposal of an older view, and repeats both replacements
+while paused. Before the fix it reproduced the app's `Image is already closed`
+frame-processing exception. The final regression passes in 7.268 seconds, with
+new frames and the exact paused position retained.
+
+A disposable build of the consuming Skip Fuse app passed its complete phone
+rotation workflow against this local library. The rendered title and playback
+clock survive both rotations, pause and seeking remain usable, and the saved
+project remains byte-for-byte unchanged. The app's published dependency pin has
+not changed.
 
 [Apple CI for the audio-cache commit](https://github.com/shial4/SwiftVideo/actions/runs/41641865959)
 passed 40 host tests, 40 iOS tests, five example-model tests, and the iOS example
 build, with 1,147 / 1,205 covered iOS lines (95.19%). The Apple reference test
 confirms every sample in the new long-offset fixture. The subsequent transport
-change is Android-only; its hosted Android result remains unverified.
+change passed [Apple CI](https://github.com/shial4/SwiftVideo/actions/runs/41644916740).
+Its [Android build retry](https://github.com/shial4/SwiftVideo/actions/runs/41644916753)
+passed, but the runtime step reached its five-minute deadline without a completed
+instrumentation result. Captured events include an extractor timeout and the
+known reference-color failures. The complete hosted Android gate is still failing.
 
 ## 0.1.0-alpha.2 verification
 

@@ -8,6 +8,56 @@ import SwiftVideoTestSupport
 @testable import SwiftVideo
 
 extension RenderBehaviorTests {
+    @Test func surfaceViewRecreationPreservesFramesAndPlayback() async throws {
+        let image = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "green.png"))
+        defer { try? FileManager.default.removeItem(at: image) }
+        let project = VideoProject(canvas: VideoSize(width: 320, height: 180), tracks: [
+            MediaTrack(clips: [MediaClip(source: .image(image), duration: try VideoTime(value: 120, timescale: 1))])
+        ])
+        let json = try AndroidVideoRenderer.serializedPlan(project,
+            settings: ExportSettings(resolution: project.canvas, frameRate: .fps30))
+        let probe = Media3PreviewProbe()
+        defer { probe.release() }
+        try probe.start(json: json, useSurfaceView: true, sample: AndroidRenderPlan.visualSampler(for: project))
+        probe.play()
+
+        func waitForFrames(after count: Int, atLeast position: Int64, playing: Bool) async throws {
+            let deadline = ContinuousClock.now.advanced(by: .seconds(8))
+            var receivedFrame = false
+            while ContinuousClock.now < deadline {
+                try #require(probe.status() >= 0, "Surface lifecycle failed: \(probe.failureMessage())")
+                let pixels = probe.pixels()
+                if probe.frameCount() > count, probe.positionMilliseconds() >= position,
+                   probe.isPlaying() == playing, pixels.count == 6,
+                   pixels[0] < 40, pixels[1] > 210, pixels[2] < 40 {
+                    receivedFrame = true
+                    break
+                }
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            try #require(receivedFrame, "No correct frame after surface recreation: frames \(probe.frameCount()), position \(probe.positionMilliseconds()), playing \(probe.isPlaying()), pixels \(probe.pixels())")
+        }
+
+        try await waitForFrames(after: 0, atLeast: 100, playing: true)
+        for index in 0..<12 {
+            let count = probe.frameCount()
+            let position = probe.positionMilliseconds()
+            probe.replaceSurface(replaceView: index % 2 == 1)
+            try await waitForFrames(after: count, atLeast: position + 50, playing: true)
+        }
+        probe.pause()
+        let deadline = ContinuousClock.now.advanced(by: .seconds(2))
+        while probe.isPlaying() && ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
+        try #require(!probe.isPlaying())
+        let position = probe.positionMilliseconds()
+        for replaceView in [false, true] {
+            let count = probe.frameCount()
+            probe.replaceSurface(replaceView: replaceView)
+            try await waitForFrames(after: count, atLeast: position, playing: false)
+            #expect(probe.positionMilliseconds() == position, "A paused surface replacement must retain its exact playhead")
+        }
+    }
+
     @Test(arguments: [Int64(0), 1000], [Int64(0), 250])
     func continuousVideoPreviewCrossesInitialGap(startMilliseconds: Int64, sourceStartMilliseconds: Int64) async throws {
         try await verifyContinuousVideoPreview(startMilliseconds: startMilliseconds,

@@ -95,6 +95,15 @@ playback and for Media3's ended state before reporting completion. Pending video
 output can finish after the clock reaches the project duration; the displayed
 position stays at that duration while output drains.
 
+The unreleased session owns the attached view's surface callbacks. It releases
+the old player before `surfaceDestroyed` returns, then rebuilds against the new
+surface with the saved playhead and playback intent. View attachment, detachment,
+and release run immediately when called on the main looper; calls from other
+threads are dispatched to it. Call `detachSurfaceView` from the view's main-thread
+disposal callback. A late detach for an older view cannot detach its replacement.
+Media3 negotiates its output format through a fixed holder, so its frame writer
+cannot close an in-flight image in response to the view's lifecycle callbacks.
+
 ## Native Android and Kotlin
 
 This is an adapter integration, not a published SwiftVideo Maven dependency. Version 0.0.1 does not ship a Kotlin facade or prebuilt AARs. You build and own the small public wrapper; SwiftVideo owns the composition and export implementation. The walkthrough below illustrates that boundary and must be built and tested with your Android app.

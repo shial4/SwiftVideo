@@ -6,13 +6,18 @@ import Foundation
 #if SKIP
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.graphics.Canvas
 import android.graphics.PixelFormat
+import android.graphics.Rect
 import android.media.ImageReader
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
+import android.view.Surface
+import android.view.SurfaceHolder
+import android.view.SurfaceView
 import androidx.media3.common.__
 import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.util.Size
@@ -43,6 +48,8 @@ public final class Media3PreviewProbe {
     private let firstFrameTime = AtomicLong(-1)
     private var player: CompositionPlayer?
     private var reader: ImageReader?
+    private var viewHolder: PreviewProbeViewHolder?
+    private var surfaceView: PreviewProbeSurfaceView?
     private var background: File?
     private var session: Media3PreviewSession?
     private let visualStats = AtomicIntegerArray(4)
@@ -98,7 +105,8 @@ public final class Media3PreviewProbe {
     }
 
     /// Captures the production preview session without replacing its renderer.
-    public func start(json: String, sample: @escaping @Sendable (String, Double) -> [Double]) throws {
+    public func start(json: String, useSurfaceView: Bool = false,
+                      sample: @escaping @Sendable (String, Double) -> [Double]) throws {
         #if SKIP
         guard state.compareAndSet(0, 1) else { throw IllegalStateException("Preview probe already started") }
         let started = SystemClock.elapsedRealtime()
@@ -114,7 +122,15 @@ public final class Media3PreviewProbe {
         handler.post {
             guard !self.cancelled.get() else { return }
             let reader = self.makeReader(started: started, label: "production composition")
-            session.attachSurface(reader.getSurface(), width: 320, height: 180)
+            if useSurfaceView {
+                let holder = PreviewProbeViewHolder(surface: reader.getSurface())
+                let view = PreviewProbeSurfaceView(holder: holder)
+                self.viewHolder = holder
+                self.surfaceView = view
+                session.attachSurfaceView(view)
+            } else {
+                session.attachSurface(reader.getSurface(), width: 320, height: 180)
+            }
         }
         try session.start(json: json, sample: sample)
         #endif
@@ -146,15 +162,36 @@ public final class Media3PreviewProbe {
     }
 
     /// Replaces the output surface as a responsive layout would, keeping playback.
-    public func replaceSurface() {
+    public func replaceSurface(replaceView: Bool = false) {
         #if SKIP
         handler.post {
             guard !self.cancelled.get(), let session = self.session else { return }
             let previous = self.reader
             let reader = self.makeReader(started: SystemClock.elapsedRealtime(), label: "surface replacement")
-            session.attachSurface(reader.getSurface(), width: 320, height: 180)
-            // attachSurface queues player release before this old reader closes.
-            self.handler.post { previous?.close() }
+            if let holder = self.viewHolder {
+                let previousView = self.surfaceView
+                if replaceView, let previousView { session.detachSurfaceView(previousView) }
+                // Android destroys/recreates a view's surface on rotation. The
+                // old producer must stop before surfaceDestroyed returns.
+                holder.destroy()
+                previous?.setOnImageAvailableListener(nil, nil)
+                previous?.close()
+                if replaceView {
+                    let holder = PreviewProbeViewHolder(surface: reader.getSurface())
+                    let view = PreviewProbeSurfaceView(holder: holder)
+                    self.viewHolder = holder
+                    self.surfaceView = view
+                    session.attachSurfaceView(view)
+                    // A late disposal of the old view must not detach the new one.
+                    if let previousView { session.detachSurfaceView(previousView) }
+                } else {
+                    holder.create(surface: reader.getSurface())
+                }
+            } else {
+                session.attachSurface(reader.getSurface(), width: 320, height: 180)
+                // The offscreen API queues player release before the old reader closes.
+                self.handler.post { previous?.close() }
+            }
         }
         #endif
     }
@@ -258,6 +295,8 @@ public final class Media3PreviewProbe {
             self.composition = nil
             self.reader?.close()
             self.reader = nil
+            self.viewHolder = nil
+            self.surfaceView = nil
             self.background?.delete()
             self.background = nil
             self.state.set(3)
@@ -349,6 +388,63 @@ public final class Media3PreviewProbe {
     }
     #endif
 }
+
+#if SKIP
+/// A real SurfaceView API boundary backed by captured buffers, with controllable
+/// holder events instead of a test Activity or an authored Android manifest.
+private final class PreviewProbeSurfaceView: SurfaceView {
+    private let outputHolder: PreviewProbeViewHolder
+    init(holder: PreviewProbeViewHolder) {
+        self.outputHolder = holder
+        super.init(ProcessInfo.processInfo.androidContext)
+    }
+    override func getHolder() -> SurfaceHolder { outputHolder }
+}
+
+private final class PreviewProbeViewHolder: SurfaceHolder {
+    private var outputSurface: Surface
+    private let handler = Handler(Looper.getMainLooper())
+    private let callbacks = java.util.ArrayList<SurfaceHolder.Callback>()
+    private var width = 320
+    private var height = 180
+    private var pixelFormat = PixelFormat.RGBA_8888
+    init(surface: Surface) { self.outputSurface = surface }
+    func destroy() {
+        for callback in java.util.ArrayList(callbacks) { callback.surfaceDestroyed(self) }
+    }
+    func create(surface: Surface) {
+        self.outputSurface = surface
+        for callback in java.util.ArrayList(callbacks) {
+            callback.surfaceCreated(self)
+            callback.surfaceChanged(self, PixelFormat.RGBA_8888, 320, 180)
+        }
+    }
+    override func addCallback(callback: SurfaceHolder.Callback) { callbacks.add(callback); return }
+    override func removeCallback(callback: SurfaceHolder.Callback) { callbacks.remove(callback); return }
+    override func getSurface() -> Surface { outputSurface }
+    override func getSurfaceFrame() -> Rect { Rect(0, 0, width, height) }
+    override func isCreating() -> Bool { false }
+    override func setType(type: Int) {}
+    override func setKeepScreenOn(keepScreenOn: Bool) {}
+    override func setSizeFromLayout() {}
+    override func setFixedSize(width: Int, height: Int) {
+        self.width = width
+        self.height = height
+        changed()
+    }
+    override func setFormat(format: Int) { self.pixelFormat = format; changed() }
+    override func lockCanvas() -> Canvas { throw UnsupportedOperationException("Captured surface") }
+    override func lockCanvas(dirty: Rect?) -> Canvas { throw UnsupportedOperationException("Captured surface") }
+    override func unlockCanvasAndPost(canvas: Canvas) { throw UnsupportedOperationException("Captured surface") }
+    private func changed() {
+        handler.post {
+            for callback in java.util.ArrayList(self.callbacks) {
+                callback.surfaceChanged(self, self.pixelFormat, self.width, self.height)
+            }
+        }
+    }
+}
+#endif
 
 #if SKIP
 private final class PreviewProbeListener: Player.Listener {
