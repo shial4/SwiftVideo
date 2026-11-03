@@ -378,6 +378,11 @@ extension RenderBehaviorTests {
             try await Task.sleep(for: .milliseconds(25))
         }
         probe.pause()
+        let pausedDeadline = ContinuousClock.now.advanced(by: .seconds(1))
+        while probe.isPlaying() && ContinuousClock.now < pausedDeadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        try #require(!probe.isPlaying())
         let resumed = probe.audioRMS()
         #expect(probe.positionMilliseconds() >= 2050)
         try #require(resumed.count == 3 && resumed[2] >= 0, "Missing resumed PCM: \(resumed)")
@@ -385,11 +390,17 @@ extension RenderBehaviorTests {
         let beforeReplacement = probe.frameCount()
         let positionBeforeReplacement = probe.positionMilliseconds()
         probe.play()
+        let playingDeadline = ContinuousClock.now.advanced(by: .seconds(1))
+        while !probe.isPlaying() && ContinuousClock.now < playingDeadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        try #require(probe.isPlaying())
         probe.replaceSurface()
         let replacementDeadline = ContinuousClock.now.advanced(by: .seconds(5))
         while (probe.frameCount() <= beforeReplacement || probe.positionMilliseconds() <= positionBeforeReplacement + 100)
                 && ContinuousClock.now < replacementDeadline {
             try #require(probe.status() >= 0, "Surface replacement failed: \(probe.failureMessage())")
+            #expect(probe.isPlaying(), "Surface replacement must not report a user pause")
             try await Task.sleep(for: .milliseconds(20))
         }
         probe.pause()

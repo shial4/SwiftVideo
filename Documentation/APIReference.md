@@ -18,7 +18,7 @@ Available in `0.1.0-alpha.1` on Android only. Sources: [AndroidVideoPreview.swif
 | `play()`, `pause()` | Schedule transport changes on the Android main looper; playback intent survives preparation and surface replacement. Playing after the end restarts the timeline. |
 | `seek(milliseconds: Int64)` | Clamp to the displayable timeline range, retain the requested position during preparation, and coalesce changes over 16 ms. Paused seeks rebuild the player. |
 | `positionMilliseconds() -> Int64` | Most recently observed or requested position, not a frame-delivery acknowledgement. |
-| `isPlaying() -> Bool` | Active playback intent while a player exists; may be true while buffering or before the first frame. |
+| `isPlaying() -> Bool` | Playback intent, including buffering and surface replacement. Pausing, completion, release, and failure stop it. |
 | `release()` | Idempotently cancel work and schedule player/cache cleanup. Observe released status if waiting for cancellation cleanup. |
 | `temporaryDirectoryPath() -> String` | Session scratch path for diagnostics; applications must not mutate its contents. |
 

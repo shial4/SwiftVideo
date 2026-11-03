@@ -46,6 +46,29 @@ import SwiftVideoTestSupport
 
 // Share the serialized rendering suite: hosted emulators have limited codec/GPU capacity.
 extension RenderBehaviorTests {
+    @Test(arguments: [30, 40])
+    func singleFrameExportHasDurationAndDecodes(timescale: Int32) async throws {
+        let source = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "green.png"))
+        let output = source.deletingLastPathComponent().appendingPathComponent("single-frame-\(UUID()).mp4")
+        defer {
+            try? FileManager.default.removeItem(at: source)
+            try? FileManager.default.removeItem(at: output)
+        }
+        let duration = try VideoTime(value: 1, timescale: timescale)
+        let size = VideoSize(width: 320, height: 180)
+        let project = VideoProject(canvas: size, tracks: [MediaTrack(clips: [
+            MediaClip(source: .image(source), duration: duration)
+        ])])
+        try await VideoExporter().export(project, to: output,
+            settings: ExportSettings(resolution: size, videoBitRate: 500_000))
+        let frame = try Media3TestSupport.frameStats(path: output.path, timeUs: 0)
+        #expect(frame[0] == 320 && frame[1] == 180)
+        #expect(abs(frame[2] - duration.seconds * 1000) <= 1,
+                "A one-frame MP4 must retain its requested duration: \(frame[2]) ms")
+        #expect(frame[4] > 180 && frame[3] < 80 && frame[5] < 80,
+                "The one-frame MP4 must decode its image: \(Array(frame[3...5]))")
+    }
+
     @Test(arguments: [0, 1, 2])
     func imageExportPreservesPrimaryColors(channel: Int) async throws {
         var rgb = [0, 0, 0]

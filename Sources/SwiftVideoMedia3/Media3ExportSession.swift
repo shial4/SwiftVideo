@@ -58,6 +58,9 @@ public final class Media3ExportSession {
                     .setVideoMimeType(plan.getString("codec") == "hevc" ? MimeTypes.VIDEO_H265 : MimeTypes.VIDEO_H264)
                     .setAudioMimeType(MimeTypes.AUDIO_AAC)
                     .setEncoderFactory(encoder)
+                    // A single frame has no previous sample from which the muxer
+                    // can infer its duration. The composition owns the endpoint.
+                    .setMuxerFactory(InAppMp4Muxer.Factory().setVideoDurationUs(plan.getLong("durationUs")))
                     .addListener(ExportListener(completed: { self.finish(error: nil) }, failed: { message in self.finish(error: message) }))
                     .build()
                 self.transformer = transformer

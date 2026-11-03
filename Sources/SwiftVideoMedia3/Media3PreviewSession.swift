@@ -126,6 +126,7 @@ public final class Media3PreviewSession {
         return 0
         #endif
     }
+    /// Playback intent, retained while a surface is replaced or a player buffers.
     public func isPlaying() -> Bool {
         #if SKIP
         return playing.get()
@@ -218,7 +219,6 @@ public final class Media3PreviewSession {
             self.generation += 1
             self.player?.release()
             self.player = nil
-            self.playing.set(false)
         }
     }
     /// Native output surface integration, including offscreen pixel inspection.
@@ -248,7 +248,6 @@ public final class Media3PreviewSession {
         let currentGeneration = generation
         player?.release()
         player = nil
-        playing.set(false)
         guard state.get() == 2, let composition, surfaceView != nil || surface != nil else { return }
         do {
             let builder = CompositionPlayer.Builder(ProcessInfo.processInfo.androidContext)
@@ -285,7 +284,7 @@ public final class Media3PreviewSession {
             player.pause()
         }
         position.set(atEnd ? durationMilliseconds : current)
-        playing.set(!seekPending && !atEnd && player != nil && wantsPlayback)
+        playing.set(!seekPending && !atEnd && wantsPlayback)
         handler.postDelayed({ self.pollPosition() }, Int64(33))
     }
     private func pcmBoundaries(positionUs: Int64) -> [String: [Int64]] {
