@@ -45,8 +45,8 @@ minus a 256 MiB reserve, capped at 2,147,483,647 bytes per session. Decoding sti
 reads the compressed prefix, and gaps between distant clips remain in the cache.
 The app and published alpha.2 still use the earlier whole-source cache.
 
-The unreleased Media3 1.12.0-alpha02 API 33 diagnostic run executes 54 tests with six
-remaining issues: four video-color assertions and two baseline paused-seek
+The November 4 Media3 1.12.0-alpha02 API 33 diagnostic run completes 55 tests in
+180.083 seconds with six remaining issues: four video-color assertions and two baseline paused-seek
 controls. Production preview uses `DefaultGlFrameProcessor` and passes continuous
 video playback after a gap, including all four gap/source-trim cases. All 20 audio
 trim/seek cases pass across raw PCM, standalone
@@ -155,15 +155,19 @@ the video-color discrepancy. The permanent control uses the default decoder.
 
 `Media3SurfaceProbe` independently decodes the first source frame into a
 SurfaceTexture and reads its dataspace after the frame-available callback and
-`updateTexImage`. On API 33 it reports 260, the platform's legacy
+`updateTexImage`. It also samples the left and right quarter points through a
+pass-through external-texture shader, without a Media3 frame processor, effect,
+transfer function, or encoder. On API 33 it reports 260, the platform's legacy
 [HAL_DATASPACE_BT709](https://android.googlesource.com/platform/system/core/+/refs/heads/android13-release/libsystem/include/system/graphics-base-v1.0.h)
 encoding. The regression accepts that encoding and V0_BT709 (281083904), but
 rejects unknown and BT.601 dataspaces. The API is unavailable before Android 13;
-older versions still run the decoder metadata and independent pixel checks.
-This narrows the failure: the decoder output and an independently acquired
-surface retain BT.709 metadata, while Media3's pre-encoder texture has BT.601-like
-pixels. It does not prove which graphics component ignores or misinterprets the
-metadata, or establish physical-device behavior.
+older versions still run the independent texture and decoder pixel checks.
+The independent texture's first-frame red is `[232, 0, 2]`, exactly matching the
+Media3 pre-encoder sample; its blue is `[1, 0, 242]`. The color shift therefore
+already exists in the emulator's decoded external texture, before Media3 effects
+and encoding, despite the correct BT.709 dataspace. This does not identify which
+decoder or graphics component misinterprets the metadata, or establish
+physical-device behavior.
 
 Keep the four video-color assertions active. Do not compensate every video with
 a color filter or increase tolerance. Physical-device verification and a

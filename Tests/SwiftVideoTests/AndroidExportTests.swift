@@ -124,8 +124,11 @@ extension RenderBehaviorTests {
         defer { try? FileManager.default.removeItem(at: source); try? FileManager.default.removeItem(at: output) }
         // SurfaceTexture exposes dataspace from API 33. Older systems still run
         // the decoder input/output metadata and decoded-pixel checks below.
-        let surfaceDataSpace = try Media3SurfaceProbe.dataSpace(path: source.path)
-        if let surfaceDataSpace {
+        let decodedSurface = try Media3SurfaceProbe.firstFrame(path: source.path)
+        try #require(decodedSurface.count == 7)
+        let surfaceDataSpace = decodedSurface[0]
+        print("Independent SurfaceTexture: dataspace, left RGB, right RGB = \(decodedSurface)")
+        if surfaceDataSpace >= 0 {
             // Android can return legacy HAL_DATASPACE_BT709 (260) or its V0
             // encoding. Both specify limited-range BT.709 with SDR transfer.
             #expect(surfaceDataSpace == 260 || surfaceDataSpace == 281_083_904,
@@ -149,7 +152,7 @@ extension RenderBehaviorTests {
             let after = try Media3TestSupport.frameStats(path: output.path, timeUs: timeUs)
             for channel in 10...12 {
                 #expect(abs(after[channel] - before[channel]) <= 8,
-                        "Reference Media3 at \(timeUs) channel \(channel - 10): source \(before[channel]), export \(after[channel]); decoder output tags \(reference.decoderOutputColorInfo()); independent surface dataspace \(String(describing: surfaceDataSpace)); pre-encoder working-space samples \(samples)")
+                        "Reference Media3 at \(timeUs) channel \(channel - 10): source \(before[channel]), export \(after[channel]); decoder output tags \(reference.decoderOutputColorInfo()); independent surface dataspace and RGB \(decodedSurface); pre-encoder working-space samples \(samples)")
             }
         }
     }
