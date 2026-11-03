@@ -59,7 +59,7 @@ The public SwiftVideo module has bridging disabled; its result-builder API is in
 
 ### Experimental Android preview
 
-Pin `0.1.0-alpha.2` explicitly to use the Media3 `1.12.0-alpha02` preview. Install Android SDK 37 and use compile/target SDK 37 in the consuming app. The minimum supported API remains 28. Declare the SDK in the app's own `Sources/<AppModule>/Skip/skip.yml`, as in the [example configuration](../Example/Sources/SwiftVideoEditor/Skip/skip.yml); a dependency's setting alone does not override an earlier version-catalog default:
+Pin `0.1.0-alpha.3` explicitly to use the Media3 `1.12.0-alpha02` preview. Install Android SDK 37 and use compile/target SDK 37 in the consuming app. The minimum supported API remains 28. Declare the SDK in the app's own `Sources/<AppModule>/Skip/skip.yml`, as in the [example configuration](../Example/Sources/SwiftVideoEditor/Skip/skip.yml); a dependency's setting alone does not override an earlier version-catalog default:
 
 ```yaml
 settings:
@@ -81,21 +81,24 @@ This alpha supplies a low-level renderer, not a SwiftUI preview view. A Swift-au
 
 Controls requested during preparation are retained. Prepared status means the composition is ready; a surface and player are still required to display frames. Rapid seeks are coalesced over 16 ms and rebuild the player to obtain the requested paused frame. Surfaces remain owned by the caller, which must keep them alive until detached or the session is released. Keep source files readable throughout the session.
 
-Preview decodes audio sources into session-owned PCM files to preserve trim and seek boundaries. The cumulative decoded cache is limited to 64 MiB; exceeding it fails preparation with a message and removes temporary files. Cancellation and cleanup complete asynchronously. This is not yet suitable for arbitrary long-form audio. Apple preview remains the application's responsibility, and the example editor continues to preview exported movies. See the [API contract](APIReference.md#experimental-android-preview) and [known verification limits](Testing.md#010-alpha2-verification).
-
-The unreleased branch caches only the bounding source range used by each URL,
+Preview decodes audio sources into session-owned PCM files to preserve trim and
+seek boundaries. It caches only the bounding source range used by each URL,
 with a whole-second origin and adjusted audio trims. Its disk budget reserves
 256 MiB of available space and caps the session at 2,147,483,647 bytes. It still
 decodes the compressed prefix and stores gaps between distant source ranges;
-this is not a streaming audio implementation. These changes are not included in
-`0.1.0-alpha.2`.
+this is not a streaming audio implementation. Exceeding the budget fails
+preparation with a message and removes temporary files. Cancellation and cleanup
+complete asynchronously. Apple preview remains the application's responsibility,
+and the example editor continues to preview exported movies. See the
+[API contract](APIReference.md#experimental-android-preview) and
+[known verification limits](Testing.md#010-alpha3-verification).
 
-The unreleased preview also waits for the first-frame callback before starting
+The preview waits for the first-frame callback before starting
 playback and for Media3's ended state before reporting completion. Pending video
 output can finish after the clock reaches the project duration; the displayed
 position stays at that duration while output drains.
 
-The unreleased session owns the attached view's surface callbacks. It releases
+The session owns the attached view's surface callbacks. It releases
 the old player before `surfaceDestroyed` returns, then rebuilds against the new
 surface with the saved playhead and playback intent. View attachment, detachment,
 and release run immediately when called on the main looper; calls from other

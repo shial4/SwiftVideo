@@ -3,12 +3,11 @@
 
 [Documentation index](README.md) | [Public API reference](APIReference.md)
 
-## Unreleased preview verification
+## 0.1.0-alpha.3 verification
 
 The cache now retains the bounding source range used by each URL and adjusts
 preview audio trims without changing the source or original render plan. Its
-default disk budget replaces the fixed 64 MiB limit. These changes are not yet
-released or integrated into the consuming app. Playback now waits for the first
+default disk budget replaces the fixed 64 MiB limit. Playback now waits for the first
 rendered-frame callback, and completion waits for Media3 to drain pending video
 output. The displayed position remains bounded by the project duration. Surface
 callbacks now stop the old player before destruction and preserve playback intent
@@ -23,7 +22,8 @@ cases, shared-range byte comparisons, the 362-second cache, source-duration
 rejection, quota failure, cancellation, and cleanup checks passed. The unchanged
 player failed both short-clip cases with zero captured frames at completion and
 one frame after a one-second diagnostic wait; that wait does not change the
-assertion. Media3 coverage is 1,111 / 1,229 executable lines, 90.40%, above the
+assertion. [Media3 coverage](Coverage/0.1.0-alpha.3/android-media3.json) is
+1,111 / 1,229 executable lines, 90.40%, above the
 75% gate. No tolerance or failing assertion was weakened.
 
 The surface regression captures real rendered frames through the public

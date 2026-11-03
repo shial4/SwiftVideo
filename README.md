@@ -85,15 +85,15 @@ Then `import SwiftVideo`. For an existing package, merge these dependency entrie
 
 ### Android preview alpha
 
-`0.1.0-alpha.2` adds experimental direct composition playback on Android with Media3 `1.12.0-alpha02`. Opt in with an exact version:
+`0.1.0-alpha.3` provides experimental direct composition playback on Android with Media3 `1.12.0-alpha02`. Opt in with an exact version:
 
 ```swift
-.package(url: "https://github.com/shial4/SwiftVideo.git", exact: "0.1.0-alpha.2")
+.package(url: "https://github.com/shial4/SwiftVideo.git", exact: "0.1.0-alpha.3")
 ```
 
-The alpha requires Android compile/target SDK 37; minimum Android API 28 and Apple deployment targets are unchanged. It fixes playback after timeline gaps and adds seek-aware audio preparation and lifecycle handling. The second alpha preserves single-frame MP4 duration and playback intent across surface replacement, and configures replacement surfaces before rendering starts. It exposes a low-level Android preview session; applications must provide the surface adapter. The example editor still previews exported movies.
+The alpha requires Android compile/target SDK 37; minimum Android API 28 and Apple deployment targets are unchanged. It fixes playback after timeline gaps, preserves single-frame MP4 duration, and adds seek-aware audio preparation. The third alpha waits for rendered frames at playback boundaries, stops the old frame processor before a surface is destroyed, and retains the exact paused playhead across surface replacement. It exposes a low-level Android preview session; applications must provide the surface adapter. The example editor still previews exported movies.
 
-This prerelease retains known Android export-color and legacy paused-seek diagnostic failures. Its preview audio cache decodes complete sources with a cumulative 64 MiB limit. See [preview integration](Documentation/Integration.md#experimental-android-preview) and [alpha verification](Documentation/Testing.md#010-alpha2-verification) before adopting it.
+This prerelease retains known Android export-color and legacy paused-seek diagnostic failures. Its preview audio cache stores the source ranges used by the composition within a bounded disk budget; it still decodes compressed prefixes and stores gaps between distant ranges. See [preview integration](Documentation/Integration.md#experimental-android-preview) and [alpha verification](Documentation/Testing.md#010-alpha3-verification) before adopting it.
 
 | Your project | Requirements | Integration |
 | --- | --- | --- |

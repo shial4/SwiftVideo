@@ -1,7 +1,7 @@
 <!-- Copyright 2026 Software Deck Pty Ltd; SPDX-License-Identifier: Apache-2.0 -->
 # SwiftVideo documentation
 
-SwiftVideo is a Swift video composition library for iOS 17+, macOS 14+, and Android API 28+ through Skip Fuse. This documentation describes the public `SwiftVideo` product and experimental Android preview in 0.1.0-alpha.2. The alpha requires compile/target SDK 37 and Media3 1.12.0-alpha02. Select the 0.0.1 tag for stable-release documentation.
+SwiftVideo is a Swift video composition library for iOS 17+, macOS 14+, and Android API 28+ through Skip Fuse. This documentation describes the public `SwiftVideo` product and experimental Android preview in 0.1.0-alpha.3. The alpha requires compile/target SDK 37 and Media3 1.12.0-alpha02. Select the 0.0.1 tag for stable-release documentation.
 
 Start with [installation and your first export](../README.md#install), then follow the [usage guide](Guide.md). The pages below render directly on GitHub and are included in the package checkout.
 
