@@ -51,6 +51,19 @@ The saved project remained byte-for-byte unchanged. The captured app-process
 log contained no frame-processing exceptions. This used a disposable emulator;
 physical dual-screen behavior remains unverified.
 
+The alpha also exposes `SwiftVideoMedia3` as an explicit package product for
+preview surface adapters. A clean consumer iOS build exposed missing bridge type
+metadata when the adapter relied on SwiftVideo's Android-only transitive
+dependency. With the explicit product dependency, the consuming app and its
+Swift-authored UI test target compile for arm64 and x86_64 iOS simulators. All 40
+host tests and the standalone Apple bridge-target build pass. Native Android
+compilation and consumer APK packaging also pass. The rebuilt app passes its
+API 33 phone rotation workflow, preserving rendered title pixels, playback,
+pause, seek, and the complete saved project. Its captured process log contains
+no linkage failures or frame-processing exceptions.
+The iOS UI test has compiled but has not run: the local CoreSimulator version is
+older than the installed Xcode requires.
+
 [Apple CI for the audio-cache commit](https://github.com/shial4/SwiftVideo/actions/runs/41641865959)
 passed 40 host tests, 40 iOS tests, five example-model tests, and the iOS example
 build, with 1,147 / 1,205 covered iOS lines (95.19%). The Apple reference test

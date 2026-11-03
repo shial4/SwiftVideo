@@ -79,6 +79,18 @@ On Android, retain `AndroidVideoPreview(project:settings:)` for an immutable pro
 
 This alpha supplies a low-level renderer, not a SwiftUI preview view. A Swift-authored transpiled platform adapter must attach a `SurfaceView` through `Media3PreviewSession.attachSurfaceView(_:)` and detach that same view when it leaves the UI. Android surface types are deliberately excluded from the native Swift bridge. The native owner and generated JVM adapter must refer to the same session. The [test probe](../Tests/SwiftVideoTestSupport/Media3PreviewProbe.swift) demonstrates surface attachment and replacement; it is not an app UI component.
 
+Add the `SwiftVideoMedia3` product to the target that imports the session in its
+surface adapter, alongside its existing `SwiftVideo` dependency:
+
+```swift
+.product(name: "SwiftVideoMedia3", package: "SwiftVideo")
+```
+
+Keep this dependency unconditional. Skip needs its type metadata when generating
+the adapter during an Apple build too. Depending only on `SwiftVideo` leaves the
+Android-only module out of a clean Apple dependency graph and fails bridge
+generation. Ordinary composition and export clients only need `SwiftVideo`.
+
 Controls requested during preparation are retained. Prepared status means the composition is ready; a surface and player are still required to display frames. Rapid seeks are coalesced over 16 ms and rebuild the player to obtain the requested paused frame. Surfaces remain owned by the caller, which must keep them alive until detached or the session is released. Keep source files readable throughout the session.
 
 Preview decodes audio sources into session-owned PCM files to preserve trim and

@@ -14,6 +14,7 @@ let package = Package(
     platforms: [.iOS(.v17), .macOS(.v14)],
     products: [
         .library(name: "SwiftVideo", type: needsAndroidMetadata ? .dynamic : nil, targets: ["SwiftVideo"]),
+        .library(name: "SwiftVideoMedia3", type: needsAndroidMetadata ? .dynamic : nil, targets: ["SwiftVideoMedia3"]),
         .executable(name: "SwiftVideoExample", targets: ["SwiftVideoExample"]),
     ],
     dependencies: [
