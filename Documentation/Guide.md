@@ -10,7 +10,8 @@ Swift application without adding UI dependencies to the composition engine.
 
 Requires Swift 6.3 or later, iOS 17 or macOS 14, and a matching Swift Android SDK
 for Android builds. Android applications use Skip Fuse with an initialized Skip
-Android context. Media3 Transformer 1.11.1 provides the Android media backend.
+Android context. The alpha uses Media3 1.12.0-alpha02 for the Android media backend
+and requires compile/target SDK 37. Minimum Android API 28 is unchanged.
 
 ## Use from a Swift package
 
@@ -193,7 +194,7 @@ An explicit video bitrate overrides the quality-based bitrate estimate. Resoluti
 1. Add the `SwiftVideo` product to the target that owns editing state. The library has no dependency on SwiftUIComponents.
 2. Keep the current `VideoProject` in your app's observable model. Use `VideoEditor.apply` for edits and publish the returned snapshot on `MainActor`.
 3. Start export in a cancellable `Task`. The progress callback can run off the main actor; dispatch UI updates to `MainActor`.
-4. Play the resulting URL with your platform's player. SwiftVideo exports compositions; it does not supply a live timeline player. The example renders a lower-resolution preview after edits and then plays it.
+4. Play the resulting URL with your platform's player. The example renders a lower-resolution preview after edits and then plays it. The alpha also exposes [experimental direct Android preview](Integration.md#experimental-android-preview) for apps that provide a surface adapter.
 5. Keep access to imported files valid until export finishes. The caller owns media picking, security-scoped access, file lifetime, permissions, and destination selection.
 
 See the working [EditorStore](../Example/Sources/SwiftVideoEditor/EditorStore.swift) for snapshot history, debounced preview generation, cancellation, and progress handling. [EditorDocument](../Example/Sources/SwiftVideoEditor/EditorDocument.swift) shows a complete composition.

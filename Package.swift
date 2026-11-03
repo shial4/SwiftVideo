@@ -33,6 +33,7 @@ let package = Package(
             .product(name: "SkipBridge", package: "skip-bridge", condition: androidDependency)
         ], plugins: [.plugin(name: "skipstone", package: "skip")]),
         .target(name: "SwiftVideoTestSupport", dependencies: [
+            .target(name: "SwiftVideoMedia3", condition: androidDependency),
             .product(name: "SkipFoundation", package: "skip-foundation", condition: androidDependency),
             .product(name: "SkipBridge", package: "skip-bridge", condition: androidDependency)
         ], path: "Tests/SwiftVideoTestSupport", plugins: [.plugin(name: "skipstone", package: "skip")]),

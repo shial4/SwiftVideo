@@ -83,6 +83,18 @@ let package = Package(
 
 Then `import SwiftVideo`. For an existing package, merge these dependency entries into its manifest. Android applications also need the Skip setup below.
 
+### Android preview alpha
+
+`0.1.0-alpha.1` adds experimental direct composition playback on Android with Media3 `1.12.0-alpha02`. Opt in with an exact version:
+
+```swift
+.package(url: "https://github.com/shial4/SwiftVideo.git", exact: "0.1.0-alpha.1")
+```
+
+The alpha requires Android compile/target SDK 37; minimum Android API 28 and Apple deployment targets are unchanged. It fixes playback after timeline gaps and adds seek-aware audio preparation and lifecycle handling. It exposes a low-level Android preview session; applications must provide the surface adapter. The example editor still previews exported movies.
+
+This prerelease retains known Android export-color and legacy paused-seek diagnostic failures. Its preview audio cache decodes complete sources with a cumulative 64 MiB limit. See [preview integration](Documentation/Integration.md#experimental-android-preview) and [alpha verification](Documentation/Testing.md#010-alpha1-verification) before adopting it.
+
 | Your project | Requirements | Integration |
 | --- | --- | --- |
 | Native iOS / iPadOS | iOS 17+, Swift 6.3+ | SwiftPM or Xcode; SwiftUI and UIKit supported |
@@ -133,7 +145,7 @@ The [Kotlin integration walkthrough](Documentation/Integration.md#native-android
 | Soundtracks | Video audio and music mixing, gain, mute, stereo pan, fades |
 | Export | H.264 / HEVC, configurable resolution/frame rate/bitrate, progress and cancellation |
 
-Apple supports MP4/MOV and rational frame rates; Android supports MP4 and integer frame rates. Output is SDR, codec support depends on the device, and platform fonts/colors can differ. The library exports compositions; it does not include a live timeline player. [Full platform limits](Documentation/Guide.md#platform-architecture-and-limits).
+Apple supports MP4/MOV and rational frame rates; Android supports MP4 and integer frame rates. Output is SDR, codec support depends on the device, and platform fonts/colors can differ. The stable release exports compositions; the alpha additionally exposes experimental direct Android preview. [Full platform limits](Documentation/Guide.md#platform-architecture-and-limits).
 
 ### Built for SwiftUI workflows
 

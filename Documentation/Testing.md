@@ -3,6 +3,28 @@
 
 [Documentation index](README.md) | [Public API reference](APIReference.md)
 
+## 0.1.0-alpha.1 verification
+
+The Media3 `1.12.0-alpha02` candidate was checked on November 3, 2026 with compile/target SDK 37 and an API 33 arm64 emulator.
+
+| Check | Observed result |
+| --- | --- |
+| macOS library and example model | 39 library tests and 5 example tests pass |
+| Android native Swift core | 31 tests pass; [707 / 751 lines, 94.14%](Coverage/0.1.0-alpha.1/android-core.json) |
+| Android instrumentation | 50 tests complete in 209.79 seconds with six known failing assertions |
+| Media3 bytecode coverage | [993 / 1,136 lines, 87.41%](Coverage/0.1.0-alpha.1/android-media3.json) |
+| Android bridge, native library, test APK | Builds pass |
+| Android example consumer | Native build, APK packaging, and launch pass; packaged compile/target SDK 37, minimum API 28 |
+| Generic iOS example | Build passes |
+
+Both measured Android coverage thresholds pass. The complete Android test gate remains failing because of the assertions below; coverage does not make that suite green. These local results do not establish a passing release CI run.
+
+The 50-test Android diagnostic run recorded six issues: four BT.709 export-color assertions and two legacy paused-seek control assertions. Those assertions remain enabled. The production preview checks passed mixed-media playback, all four gap/source-trim cases, animation, rapid seeking, surface replacement, and 16 audio trim/seek cases. Cache tests passed source onset, exact sample counts, reuse, quota enforcement, cancellation, and release cleanup. See [fixture provenance and diagnostics](../Tests/SwiftVideoTests/Resources/Milestone/README.md).
+
+The direct preview is experimental and is not integrated into the example editor. Its whole-source PCM cache has a cumulative 64 MiB limit. Physical-device behavior is unverified. Interactive iOS tests are currently unavailable locally because the installed CoreSimulator framework does not match Xcode; a generic build does not replace those tests. A stable release requires stable dependencies and verification of its final commit against the gates below.
+
+## 0.0.1 verification snapshot
+
 The 0.0.1 verification snapshot was measured on October 25, 2026. Coverage reports contain executable-line counts, not estimates.
 
 | Target | Observed result | Coverage |
@@ -45,7 +67,7 @@ The iOS report includes executable first-party `Sources/SwiftVideo` code for tha
 
 Android core coverage runs an instrumented native Swift test process without a JVM. `SWIFTVIDEO_CORE_COVERAGE` excludes real Android media tests from this process. The Android renderer facade is excluded from this specific percentage because it needs an initialized Android app/JVM; it is exercised by the separate instrumentation suite. The native core percentage must not be described as coverage of the entire Android backend.
 
-JaCoCo measures the generated Kotlin bytecode for the two Swift-authored `SwiftVideoMedia3` implementation files. It is a separate measurement, not Swift source-line coverage. Dependencies, generated bridge support, fixtures, tools, and the example UI are excluded from the library percentages. The three percentages are not averaged.
+JaCoCo measures the generated Kotlin bytecode for the Swift-authored `SwiftVideoMedia3` implementation. It is a separate measurement, not Swift source-line coverage. Dependencies, generated bridge support, fixtures, tools, and the example UI are excluded from the library percentages. The three percentages are not averaged.
 
 ## Reproduce Apple tests
 
@@ -80,6 +102,8 @@ Use the NDK LLVM tools matching the Swift Android SDK. A different LLVM version 
 For a CI instrumentation failure, download the `android-test-results` artifact. `android/swt-events.jsonl` identifies individual Swift tests and recorded issues; `android/logcat.txt` contains Android runtime diagnostics. The single JUnit wrapper failure alone does not identify which Swift test failed. If the job fails before the emulator test step starts, use the workflow step's build/setup log instead.
 
 After editing Swift-authored Media3 code, clean that generated module before rebuilding if Kotlin's incremental cache retains stale internal visibility metadata. Do not patch generated Kotlin or Gradle output to fix a Swift source problem.
+
+The alpha's local example build required `-Pkotlin.incremental=false` on the Gradle command after changing SDK versions: incremental compilation had retained stale SkipLib and SkipFoundation metadata. This is a process-scoped rebuild option, not a project setting or dependency source change. The example declares SDK 37 in its own Skip configuration, as described in [preview integration](Integration.md#experimental-android-preview).
 
 ## Limits of verification
 

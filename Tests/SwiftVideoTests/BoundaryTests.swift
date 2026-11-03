@@ -122,6 +122,22 @@ import Testing
         #expect(throws: VideoError.self) { try VideoProject(tracks: [MediaTrack(clips: [clip])]).validate() }
     }
 
+    @Test func androidSamplerKeepsTrimmedAnimationClockAndRejectsInvalidTimes() async throws {
+        let clip = MediaClip(source: .text("A", TextStyle()), start: try time(1), duration: try time(4),
+            animations: [KeyframeAnimation(property: .opacity, keyframes: [
+                Keyframe(time: .zero, value: 0), Keyframe(time: try time(4), value: 1)
+            ])])
+        let editor = try VideoEditor(project: VideoProject(tracks: [MediaTrack(clips: [clip])]))
+        let trimmed = try await editor.apply([.trim(clip.id, keeping: VideoTimeRange(start: time(1), duration: time(1)))])
+        let sample = AndroidRenderPlan.visualSampler(for: trimmed)
+        #expect(sample(clip.id.uuidString, 2_000_000)[4] == 0.25)
+        #expect(sample(clip.id.uuidString, 2_500_000)[4] == 0.375)
+        for invalid in [-1, .nan, .infinity, Double(Int64.max), 1_999_999, 3_000_000] {
+            #expect(sample(clip.id.uuidString, invalid)[4] == 0)
+        }
+        #expect(sample("missing", 2_000_000)[4] == 0)
+    }
+
     @Test func androidPlanPreservesOrderTrimmedEnvelopesAndScaledText() async throws {
         let duration = try time(4)
         let audio = MediaClip(source: .audio(URL(fileURLWithPath: "/music.wav")), duration: duration,

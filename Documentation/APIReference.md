@@ -5,6 +5,25 @@
 
 Import `SwiftVideo` to use the public API below. `Foundation` supplies `URL`, `UUID`, and JSON encoding in the examples. Constructors build values unless marked `throws`; use `VideoProject.validate()` to validate a complete project. Validation does not open media files or guarantee device codec support.
 
+## Experimental Android preview
+
+Available in `0.1.0-alpha.1` on Android only. Sources: [AndroidVideoPreview.swift](../Sources/SwiftVideo/AndroidVideoPreview.swift) and [Media3PreviewSession.swift](../Sources/SwiftVideoMedia3/Media3PreviewSession.swift).
+
+`AndroidVideoPreview(project: VideoProject, settings: ExportSettings) throws` owns a preview of one immutable project snapshot. It rejects invalid or empty projects and unsupported Android export settings before starting. Asynchronous preparation failures are reported by `session.failureMessage()`. The owner releases its session in `deinit`.
+
+| Session member | Contract |
+| --- | --- |
+| `currentStatus() -> Int` | `0` idle, `1` preparing, `2` composition prepared, `3` released, `-1` failed. Prepared does not imply that a frame has reached a surface. |
+| `failureMessage() -> String` | Preparation or player failure detail. |
+| `play()`, `pause()` | Schedule transport changes on the Android main looper; playback intent survives preparation and surface replacement. Playing after the end restarts the timeline. |
+| `seek(milliseconds: Int64)` | Clamp to the displayable timeline range, retain the requested position during preparation, and coalesce changes over 16 ms. Paused seeks rebuild the player. |
+| `positionMilliseconds() -> Int64` | Most recently observed or requested position, not a frame-delivery acknowledgement. |
+| `isPlaying() -> Bool` | Active playback intent while a player exists; may be true while buffering or before the first frame. |
+| `release()` | Idempotently cancel work and schedule player/cache cleanup. Observe released status if waiting for cancellation cleanup. |
+| `temporaryDirectoryPath() -> String` | Session scratch path for diagnostics; applications must not mutate its contents. |
+
+The transpiled Android boundary also exposes `attachSurfaceView(_:)`, `detachSurfaceView(_:)`, and `attachSurface(_:width:height:)`. These Android-typed methods are not bridged to native Swift. Applications provide the platform view adapter; no SwiftUI view is included. See [integration and limits](Integration.md#experimental-android-preview).
+
 ## Time and frame rates
 
 Source: [VideoTime.swift](../Sources/SwiftVideo/VideoTime.swift).

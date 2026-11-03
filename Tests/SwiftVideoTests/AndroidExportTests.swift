@@ -8,6 +8,25 @@ import SwiftVideoTestSupport
 @testable import SwiftVideo
 
 @Suite struct AndroidExportTests {
+    @Test func taggedColorFixtureReachesAndroidExtractor() throws {
+        let source = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "bt709.mp4"))
+        defer { try? FileManager.default.removeItem(at: source) }
+        // MediaFormat: BT.709 = 1, limited range = 2, SDR video transfer = 3.
+        #expect(try Media3TestSupport.videoColorInfo(path: source.path) == [1, 2, 3])
+        // Anchor the inspection path to the fixture's authored colors, not only
+        // before/after equality through the same decoder.
+        for timeUs: Int64 in [500_000, 3_500_000] {
+            let pixels = try Media3TestSupport.frameStats(path: source.path, timeUs: timeUs)
+            let left = timeUs < 2_500_000 ? [255.0, 0, 0] : [0.0, 255, 0]
+            for channel in 0..<3 {
+                #expect(abs(pixels[10 + channel] - left[channel]) <= 8,
+                        "BT.709 source left color at \(timeUs): \(Array(pixels[10...12]))")
+                #expect(abs(pixels[6 + channel] - (channel == 2 ? 255 : 0)) <= 8,
+                        "BT.709 source right color at \(timeUs): \(Array(pixels[6...8]))")
+            }
+        }
+    }
+
     @Test func fixtureCopiesHaveIndependentContents() throws {
         let first = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "green.png"))
         let second = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "green.png"))
@@ -27,6 +46,105 @@ import SwiftVideoTestSupport
 
 // Share the serialized rendering suite: hosted emulators have limited codec/GPU capacity.
 extension RenderBehaviorTests {
+    @Test(arguments: [0, 1, 2])
+    func imageExportPreservesPrimaryColors(channel: Int) async throws {
+        var rgb = [0, 0, 0]
+        rgb[channel] = 255
+        let source = URL(fileURLWithPath: try Media3TestSupport.solidImage(red: rgb[0], green: rgb[1], blue: rgb[2]))
+        let video = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "red.mp4"))
+        let direct = source.deletingLastPathComponent().appendingPathComponent("primary-direct-\(UUID()).mp4")
+        let layered = source.deletingLastPathComponent().appendingPathComponent("primary-layered-\(UUID()).mp4")
+        let background = source.deletingLastPathComponent().appendingPathComponent("primary-background-\(UUID()).mp4")
+        let mixed = source.deletingLastPathComponent().appendingPathComponent("primary-mixed-\(UUID()).mp4")
+        defer { for file in [source, video, direct, layered, background, mixed] { try? FileManager.default.removeItem(at: file) } }
+        let reference = Media3ReferenceExport()
+        defer { reference.cancel() }
+        try reference.start(source: source.path, destination: direct.path, imageDurationMilliseconds: 1000)
+        let deadline = ContinuousClock.now.advanced(by: .seconds(30))
+        while reference.status() == 1 && ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(50)) }
+        try #require(reference.status() == 2, "Primary color control: \(reference.failureMessage())")
+        let working = reference.frameSamples()
+        try #require(working.count == 8 && abs(working[0] - 500_000) < 10_000)
+        for component in 0..<3 {
+            #expect(abs(working[component + 1] - Double(rgb[component])) <= 1,
+                    "Image input must retain primary colors before encoding: \(working)")
+        }
+        let duration = try VideoTime(value: 1, timescale: 1)
+        let project = VideoProject(canvas: VideoSize(width: 320, height: 180), tracks: [
+            MediaTrack(clips: [MediaClip(source: .image(source), duration: duration)])
+        ])
+        let backgroundProject = VideoProject(canvas: project.canvas,
+            background: VideoColor(red: Double(rgb[0]) / 255, green: Double(rgb[1]) / 255, blue: Double(rgb[2]) / 255),
+            tracks: [MediaTrack(clips: [MediaClip(source: .image(source), duration: duration,
+                transform: VisualTransform(opacity: 0))])])
+        let half = try VideoTime(value: 1, timescale: 2)
+        let mixedProject = VideoProject(canvas: project.canvas, background: backgroundProject.background,
+            tracks: backgroundProject.tracks + [MediaTrack(clips: [MediaClip(source: .video(video),
+                start: half, duration: half, sourceStart: try VideoTime(value: 1, timescale: 4))])])
+        for (destination, composition) in [(layered, project), (background, backgroundProject), (mixed, mixedProject)] {
+            try await VideoExporter().export(composition, to: destination,
+                settings: ExportSettings(resolution: project.canvas, videoBitRate: 4_000_000))
+        }
+        for file in [direct, layered, background, mixed] {
+            let tags = try Media3TestSupport.videoColorInfo(path: file.path)
+            let result = try Media3TestSupport.frameStats(path: file.path, timeUs: file == mixed ? 250_000 : 500_000)
+            for component in 0..<3 {
+                #expect(abs(result[3 + component] - Double(rgb[component])) <= 8,
+                        "Primary \(channel), \(file.lastPathComponent), color tags \(tags), expected \(rgb), decoded \(Array(result[3...5])), pre-encoder \(working)")
+            }
+        }
+    }
+
+    @Test func referenceMedia3PreservesDecodedColor() async throws {
+        let source = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "bt709.mp4"))
+        let output = source.deletingLastPathComponent().appendingPathComponent("reference-\(UUID()).mp4")
+        defer { try? FileManager.default.removeItem(at: source); try? FileManager.default.removeItem(at: output) }
+        let reference = Media3ReferenceExport()
+        defer { reference.cancel() }
+        try reference.start(source: source.path, destination: output.path)
+        let deadline = ContinuousClock.now.advanced(by: .seconds(60))
+        while reference.status() == 1 && ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        try #require(reference.status() == 2, "Reference export: \(reference.failureMessage())")
+        #expect(reference.decoderColorInfo() == [1, 2, 3], "Media3 must pass the fixture's BT.709 limited-range SDR tags to its decoder")
+        let samples = reference.frameSamples()
+        try #require(samples.count == 8 && abs(samples[0] - 500_000) < 10_000 && abs(samples[4] - 3_500_000) < 10_000,
+                     "Missing pre-encoder frame samples: \(samples)")
+        for timeUs in [Int64(500_000), 3_500_000] {
+            let before = try Media3TestSupport.frameStats(path: source.path, timeUs: timeUs)
+            let after = try Media3TestSupport.frameStats(path: output.path, timeUs: timeUs)
+            for channel in 10...12 {
+                #expect(abs(after[channel] - before[channel]) <= 8,
+                        "Reference Media3 at \(timeUs) channel \(channel - 10): source \(before[channel]), export \(after[channel]); pre-encoder working-space samples \(samples)")
+            }
+        }
+    }
+
+    @Test(arguments: [0, 3])
+    func decodedStillPreservesSourceColor(start: Int) async throws {
+        let source = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "bt709.mp4"))
+        defer { try? FileManager.default.removeItem(at: source) }
+        let timeUs = Int64(start) * 1_000_000 + 500_000
+        let before = try Media3TestSupport.frameStats(path: source.path, timeUs: timeUs)
+        let image = URL(fileURLWithPath: try Media3TestSupport.copyFrame(path: source.path, timeUs: timeUs))
+        defer { try? FileManager.default.removeItem(at: image) }
+        let destination = source.deletingLastPathComponent().appendingPathComponent("still-\(UUID()).mp4")
+        defer { try? FileManager.default.removeItem(at: destination) }
+        let size = VideoSize(width: Int(before[0]), height: Int(before[1]))
+        let project = VideoProject(canvas: size, tracks: [MediaTrack(clips: [
+            MediaClip(source: .image(image), duration: try VideoTime(value: 1, timescale: 1))
+        ])])
+        try await VideoExporter().export(project, to: destination,
+            settings: ExportSettings(resolution: size, videoBitRate: 4_000_000))
+        let after = try Media3TestSupport.frameStats(path: destination.path, timeUs: 500_000)
+        #expect(after[0] == before[0] && after[1] == before[1])
+        for channel in 10...12 {
+            #expect(abs(after[channel] - before[channel]) <= 8,
+                    "Still at \(start)s channel \(channel - 10): source \(before[channel]), export \(after[channel])")
+        }
+    }
+
     @Test func milestoneExportsRealMedia3Composition() async throws {
         let red = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "red.mp4"))
         let blue = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "blue.mp4"))
