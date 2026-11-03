@@ -25,11 +25,21 @@ public final class Media3PreviewAudioCache {
     private let folder: File
     private let maximumBytes: Int64
     private var usedBytes: Int64 = 0
-    private var sources: [String: String] = [:]
+    private struct SourceRange {
+        let startUs: Int64
+        let endUs: Int64
+    }
+    private struct CachedSource {
+        let url: String
+        let range: SourceRange
+    }
+    private var sources: [String: CachedSource] = [:]
 
-    public init(folder: File, maximumBytes: Int64 = 64 * 1024 * 1024) {
+    public init(folder: File, maximumBytes: Int64? = nil) {
         self.folder = folder
-        self.maximumBytes = maximumBytes
+        // PCM is streamed to disk, not accumulated in memory. Keep free space for
+        // the app and bound the session below the signed RIFF size supported here.
+        self.maximumBytes = maximumBytes ?? min(Int64(2_147_483_647), max(Int64(44), folder.getUsableSpace() - 256 * 1024 * 1024))
     }
 
     public func prepare(_ original: JSONObject, cancelled: () -> Bool) throws -> JSONObject {
@@ -38,24 +48,48 @@ public final class Media3PreviewAudioCache {
         }
         let plan = JSONObject(original.toString())
         let clips = plan.getJSONArray("clips")
+        var ranges: [String: SourceRange] = [:]
+        for index in 0..<clips.length() {
+            let clip = clips.getJSONObject(index)
+            let kind = clip.getString("kind")
+            if (kind != "audio" && kind != "video") || clip.getBoolean("muted") { continue }
+            let source = clip.getString("url")
+            let start = clip.getLong("sourceStartUs")
+            let duration = clip.getLong("durationUs")
+            guard start >= 0, duration > 0, start <= Int64.max - duration else {
+                throw IllegalArgumentException("Invalid preview audio source range")
+            }
+            // Whole-second origins are exact PCM frame boundaries at every sample
+            // rate. Clip-level fractional trims remain owned by Media3.
+            let origin = start / 1_000_000 * 1_000_000
+            let previous = ranges[source]
+            ranges[source] = SourceRange(startUs: min(previous?.startUs ?? origin, origin),
+                                         endUs: max(previous?.endUs ?? 0, start + duration))
+        }
         for index in 0..<clips.length() {
             try checkCancellation(cancelled)
             let clip = clips.getJSONObject(index)
             let kind = clip.getString("kind")
             if (kind != "audio" && kind != "video") || clip.getBoolean("muted") { continue }
             let source = clip.getString("url")
-            let prepared: String
-            if let cached = sources[source] { prepared = cached }
+            guard let range = ranges[source] else { continue }
+            let prepared: CachedSource
+            if let cached = sources[source], cached.range.startUs <= range.startUs, cached.range.endUs >= range.endUs {
+                prepared = cached
+            }
             else {
-                prepared = try decode(source, cancelled: cancelled)
+                prepared = CachedSource(url: try decode(source, range: range, cancelled: cancelled), range: range)
                 sources[source] = prepared
             }
-            if prepared != source { clip.put("audioURL", prepared) }
+            if prepared.url != source {
+                clip.put("audioURL", prepared.url)
+                clip.put("audioSourceStartUs", clip.getLong("sourceStartUs") - prepared.range.startUs)
+            }
         }
         return plan
     }
 
-    private func decode(_ source: String, cancelled: () -> Bool) throws -> String {
+    private func decode(_ source: String, range: SourceRange, cancelled: () -> Bool) throws -> String {
         let context = ProcessInfo.processInfo.androidContext
         var extractor = MediaExtractorCompat(context)
         defer { extractor.release() }
@@ -149,9 +183,8 @@ public final class Media3PreviewAudioCache {
                 }
                 sampleRate = nextRate
                 channels = nextChannels
-                if sourceDurationUs > 0 {
-                    sourceEndFrame = ceil(Double(sourceDurationUs) * Double(sampleRate) / 1_000_000)
-                }
+                let endUs = sourceDurationUs > 0 ? min(sourceDurationUs, range.endUs) : range.endUs
+                sourceEndFrame = ceil(Double(max(Int64(0), endUs - range.startUs)) * Double(sampleRate) / 1_000_000)
                 encoding = decoded.containsKey(MediaFormat.KEY_PCM_ENCODING)
                     ? decoded.getInteger(MediaFormat.KEY_PCM_ENCODING) : AudioFormat.ENCODING_PCM_16BIT
                 guard encoding == AudioFormat.ENCODING_PCM_16BIT || encoding == AudioFormat.ENCODING_PCM_FLOAT else {
@@ -169,11 +202,14 @@ public final class Media3PreviewAudioCache {
                     // priming is removed. Keep contiguous decoded samples together,
                     // anchored to the source track's actual starting timestamp.
                     let availableFrames = (maximumBytes - usedBytes - 44) / Int64(channels * 2)
-                    let timestamp = (Double(sourceStartUs) * Double(sampleRate) / 1_000_000).rounded() + Double(decodedFrames)
-                    guard timestamp <= Double(availableFrames) else {
+                    let timestamp = (Double(sourceStartUs) * Double(sampleRate) / 1_000_000).rounded()
+                        + Double(decodedFrames) - Double(range.startUs / 1_000_000) * Double(sampleRate)
+                    guard availableFrames >= 0 else {
                         throw IllegalStateException("Decoded preview audio exceeds the cache size limit")
                     }
-                    let start = Int64(max(-Double(count), timestamp))
+                    // A source may begin after this entire cached span. Retain
+                    // only the requested silence, not its unused leading offset.
+                    let start = Int64(min(max(-Double(count), timestamp), min(sourceEndFrame, Double(availableFrames) + 1)))
                     let skip = min(count, max(Int64(0), framesWritten - start))
                     decodedFrames += count
                     if skip < count {

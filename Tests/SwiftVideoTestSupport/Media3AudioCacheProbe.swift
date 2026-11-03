@@ -20,13 +20,19 @@ public final class Media3AudioCacheProbe {
         #endif
     }
 
-    public static func prepare(source: String, directory: String, maximumBytes: Int64, cancelAfterCheck: Int) throws -> [String] {
+    public static func prepare(source: String, directory: String, maximumBytes: Int64, cancelAfterCheck: Int,
+                               sourceStartUs: Int64 = 0, durationUs: Int64 = 2_000_000,
+                               secondSourceStartUs: Int64? = nil) throws -> [String] {
         #if SKIP
         let clips = JSONArray()
-        for _ in 0..<2 { clips.put(JSONObject().put("kind", "audio").put("muted", false).put("url", source)) }
+        for start in [sourceStartUs, secondSourceStartUs ?? sourceStartUs] {
+            clips.put(JSONObject().put("kind", "audio").put("muted", false).put("url", source)
+                .put("sourceStartUs", start).put("durationUs", durationUs))
+        }
         let plan = JSONObject().put("clips", clips)
         let original = plan.toString()
-        let cache = Media3PreviewAudioCache(folder: File(directory), maximumBytes: maximumBytes)
+        // Negative requests the production disk-budget policy for integration tests.
+        let cache = Media3PreviewAudioCache(folder: File(directory), maximumBytes: maximumBytes < 0 ? nil : maximumBytes)
         var checks = 0
         let prepared = try cache.prepare(plan, cancelled: {
             checks += 1

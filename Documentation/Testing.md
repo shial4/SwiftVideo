@@ -3,6 +3,22 @@
 
 [Documentation index](README.md) | [Public API reference](APIReference.md)
 
+## Unreleased audio cache verification
+
+The cache now retains the bounding source range used by each URL and adjusts
+preview audio trims without changing the source or original render plan. Its
+default disk budget replaces the fixed 64 MiB limit. These changes are not yet
+released or integrated into the consuming app.
+
+Local checks on November 3, 2026 passed all 40 macOS tests, Android bridge/native
+library/test APK builds, and the 64-file header check. The API 33 arm64
+instrumentation run completed 53 tests in 204.297 seconds with the same six
+known color and legacy paused-seek issues. All 20 audio playback/seek cases,
+shared-range byte comparisons, the 362-second cache, source-duration rejection,
+quota failure, cancellation, and cleanup checks passed. No tolerance or failing
+assertion was weakened. The Apple reference test confirms every sample in the
+new long-offset fixture. Release coverage has not been remeasured for this work.
+
 ## 0.1.0-alpha.2 verification
 
 This follow-up preserves single-frame MP4 duration, keeps playback intent during surface replacement, and configures SDR surfaces before attaching the player. Local checks ran on November 3, 2026 with Media3 `1.12.0-alpha02`, compile/target SDK 37, and an API 33 arm64 emulator.
@@ -18,7 +34,7 @@ This follow-up preserves single-frame MP4 duration, keeps playback intent during
 
 The six local failures remain four BT.709 export-color assertions and two legacy paused-seek assertions. Production preview, gap/source-trim, audio-boundary, surface replacement, and cache checks pass locally. No failing assertion was disabled. The shared Swift core is unchanged from the [alpha.1 coverage measurement](Coverage/0.1.0-alpha.1/android-core.json); that measurement was not repeated for this follow-up.
 
-These local results do not establish a passing hosted Android CI run. The [alpha.1 hosted run](https://github.com/shial4/SwiftVideo/actions/runs/41616294181) also encountered short-source gap failures and hit its runtime deadline; those differences from the local emulator remain unresolved. The full Android test gate is still failing. Physical-device and interactive iOS verification remain outstanding, and the whole-source preview audio cache still has a cumulative 64 MiB limit. This is an experimental prerelease; stable release gates below still apply.
+The [alpha.2 hosted Android run](https://github.com/shial4/SwiftVideo/actions/runs/41632246965) built successfully and completed 51 instrumentation tests in 237.333 seconds with eight issues: the six above plus two short-video preview cases at timeline start zero, with source trims of zero and 250 ms. Both reported zero rendered frames. The 31 native Swift core tests passed. Unlike the earlier [alpha.1 run](https://github.com/shial4/SwiftVideo/actions/runs/41616294181), this run completed without reaching its runtime deadline. These differences from the local emulator remain unresolved. The full Android test gate is still failing. Physical-device and interactive iOS verification remain outstanding, and the published alpha's whole-source preview audio cache still has a cumulative 64 MiB limit. This is an experimental prerelease; stable release gates below still apply.
 
 ## 0.1.0-alpha.1 verification
 

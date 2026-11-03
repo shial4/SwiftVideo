@@ -301,7 +301,7 @@ public final class Media3PreviewSession {
             let clip = clips.getJSONObject(index)
             let kind = clip.getString("kind")
             if kind != "audio" && kind != "video" { continue }
-            let start = clip.getLong("sourceStartUs")
+            let start = clip.optLong("audioSourceStartUs", clip.getLong("sourceStartUs"))
             let duration = clip.getLong("durationUs")
             let seek = min(duration, max(Int64(0), positionUs - clip.getLong("startUs")))
             let url = clip.optString("audioURL", clip.getString("url"))

@@ -83,6 +83,13 @@ Controls requested during preparation are retained. Prepared status means the co
 
 Preview decodes audio sources into session-owned PCM files to preserve trim and seek boundaries. The cumulative decoded cache is limited to 64 MiB; exceeding it fails preparation with a message and removes temporary files. Cancellation and cleanup complete asynchronously. This is not yet suitable for arbitrary long-form audio. Apple preview remains the application's responsibility, and the example editor continues to preview exported movies. See the [API contract](APIReference.md#experimental-android-preview) and [known verification limits](Testing.md#010-alpha2-verification).
 
+The unreleased branch caches only the bounding source range used by each URL,
+with a whole-second origin and adjusted audio trims. Its disk budget reserves
+256 MiB of available space and caps the session at 2,147,483,647 bytes. It still
+decodes the compressed prefix and stores gaps between distant source ranges;
+this is not a streaming audio implementation. These changes are not included in
+`0.1.0-alpha.2`.
+
 ## Native Android and Kotlin
 
 This is an adapter integration, not a published SwiftVideo Maven dependency. Version 0.0.1 does not ship a Kotlin facade or prebuilt AARs. You build and own the small public wrapper; SwiftVideo owns the composition and export implementation. The walkthrough below illustrates that boundary and must be built and tested with your Android app.

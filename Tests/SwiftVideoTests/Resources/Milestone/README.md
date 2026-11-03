@@ -22,19 +22,37 @@ stereo frames at 48 kHz. The offset fixture begins with exactly 12,000 silent
 frames; the other begins immediately with the tone. This timeline-aware check
 also confirms the original M4A contains exactly 96,000 frames.
 
+`red-with-late-music.mp4` reuses every encoded sample from the offset fixture.
+Only three version-0 timeline fields change: the movie and audio-track durations
+become 362 seconds, and the audio track's leading empty edit becomes 360 seconds.
+Its SHA-256 is
+`24167f844f64c05237b4fff908f9b10249840918e8c60fbe2b52c95c37cab1d3`.
+The video remains 2.25 seconds, so preview exercises this fixture as audio.
+An Apple asset-reader check explicitly selects the authored audio range from
+360 to 362 seconds and verifies all 96,000 stereo frames byte-for-byte against
+`red-with-music.mp4`. Explicit selection avoids Apple's shorter inferred duration
+after this long empty edit.
+
 The cache tests check source reuse, exact frame counts, starting silence or
 audio, byte-preserving source ownership, cancellation, and quota failure cleanup.
 The preview lifecycle test releases during preparation and checks scratch-folder
-removal. The cache currently decodes complete sources with a cumulative 64 MiB
-limit. It is used by the alpha library preview session and the app.
+removal. The unreleased cache retains one bounding source range per URL, rounding
+its origin down to a whole second and preserving clip-level fractional trims.
+Two different clips share the union of their ranges. The long-offset fixture
+checks both a small cached excerpt and a complete 362-second timeline exceeding
+the released alpha's 64 MiB limit. The new default quota uses available disk space
+minus a 256 MiB reserve, capped at 2,147,483,647 bytes per session. Decoding still
+reads the compressed prefix, and gaps between distant clips remain in the cache.
+The app and published alpha.2 still use the earlier whole-source cache.
 
-The Media3 1.12.0-alpha02 API 33 diagnostic run executes 51 tests with six
+The unreleased Media3 1.12.0-alpha02 API 33 diagnostic run executes 53 tests with six
 remaining issues: four video-color assertions and two baseline paused-seek
 controls. Production preview uses `DefaultGlFrameProcessor` and passes continuous
-video playback after a gap, including all four gap/source-trim cases. All 16 audio
+video playback after a gap, including all four gap/source-trim cases. All 20 audio
 trim/seek cases pass across raw PCM, standalone
-AAC, embedded AAC, and delayed embedded AAC. Cache onset, exact frame counts,
-source reuse, quota and cancellation cleanup, and release during preparation
+AAC, embedded AAC, and embedded AAC with short and long source offsets.
+Cache onset, exact frame counts, shared ranges, source-duration rejection,
+quota and cancellation cleanup, and release during preparation
 also pass. The cache's 0.001 RMS and preview's 0.01 RMS tolerances are unchanged.
 
 `AACFixtureReference` contains timeline-correct RMS values independently measured

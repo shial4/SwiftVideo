@@ -27,7 +27,6 @@ extension RenderBehaviorTests {
         var squares = [0.0, 0.0]
         var counts = [0, 0]
         var leadingPeak = 0.0
-        let onset = Double(reference.offsetFrames) / 48000
         while let sample = output.copyNextSampleBuffer() {
             let time = CMSampleBufferGetPresentationTimeStamp(sample).seconds
             let count = CMSampleBufferGetNumSamples(sample)
@@ -40,11 +39,13 @@ extension RenderBehaviorTests {
             }
             try #require(status == noErr)
             for frame in 0..<count {
-                let t = time + Double(frame) / 48000
+                let position = frames + frame
                 let value = Double(values[frame * 2]) / 32768
-                if t < onset { leadingPeak = max(leadingPeak, abs(value)) }
-                if t >= onset && t < onset + 0.05 { squares[0] += value * value; counts[0] += 1 }
-                if t >= 0.5 && t < 0.55 { squares[1] += value * value; counts[1] += 1 }
+                if position < reference.offsetFrames { leadingPeak = max(leadingPeak, abs(value)) }
+                if position >= reference.offsetFrames && position < reference.offsetFrames + 2400 {
+                    squares[0] += value * value; counts[0] += 1
+                }
+                if position >= 24_000 && position < 26_400 { squares[1] += value * value; counts[1] += 1 }
             }
             frames += count
         }
@@ -54,6 +55,45 @@ extension RenderBehaviorTests {
         #expect(counts.allSatisfy { $0 == 2400 })
         #expect(abs(sqrt(squares[0] / Double(counts[0])) - AACFixtureReference.initialRMS) < 0.000_01)
         #expect(abs(sqrt(squares[1] / Double(counts[1])) - reference.middleRMS) < 0.000_01)
+    }
+
+    @Test func longOffsetAACMatchesOriginalPCM() async throws {
+        func decode(_ name: String, start: Int64) async throws -> Data {
+            let url = try #require(Bundle.module.url(forResource: name, withExtension: "mp4"))
+            let asset = AVURLAsset(url: url)
+            let tracks = try await asset.loadTracks(withMediaType: .audio)
+            let reader = try AVAssetReader(asset: asset)
+            // Inspect the authored edit range explicitly. Apple's inferred asset
+            // duration can trim the last AAC packet after a long empty edit.
+            reader.timeRange = CMTimeRange(start: CMTime(value: start, timescale: 1), duration: CMTime(value: 2, timescale: 1))
+            let output = AVAssetReaderAudioMixOutput(audioTracks: tracks, audioSettings: [
+                AVFormatIDKey: kAudioFormatLinearPCM, AVLinearPCMBitDepthKey: 16,
+                AVLinearPCMIsFloatKey: false, AVLinearPCMIsBigEndianKey: false,
+                AVLinearPCMIsNonInterleaved: false, AVSampleRateKey: 48000, AVNumberOfChannelsKey: 2
+            ])
+            reader.add(output)
+            try #require(reader.startReading())
+            defer { reader.cancelReading() }
+            var data = Data()
+            while let sample = output.copyNextSampleBuffer() {
+                #expect(abs(CMSampleBufferGetPresentationTimeStamp(sample).seconds
+                            - Double(start) - Double(data.count / 4) / 48000) < 0.000_001)
+                let block = try #require(CMSampleBufferGetDataBuffer(sample))
+                let size = CMBlockBufferGetDataLength(block)
+                var bytes = Data(count: size)
+                let status = bytes.withUnsafeMutableBytes {
+                    CMBlockBufferCopyDataBytes(block, atOffset: 0, dataLength: size, destination: $0.baseAddress!)
+                }
+                try #require(status == noErr)
+                data.append(bytes)
+            }
+            try #require(reader.status == .completed)
+            #expect(data.count == 96_000 * 4)
+            return data
+        }
+        let reference = try await decode("red-with-music", start: 0)
+        let delayed = try await decode("red-with-late-music", start: 360)
+        #expect(delayed == reference, "The long-offset fixture must retain every original decoded sample")
     }
 }
 #endif

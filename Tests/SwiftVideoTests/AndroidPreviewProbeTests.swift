@@ -141,6 +141,28 @@ extension RenderBehaviorTests {
         #expect(!FileManager.default.fileExists(atPath: directory))
     }
 
+    @Test(arguments: [Int64(1_500_000), 2_500_000])
+    func previewAudioCacheRejectsRangesBeyondSource(sourceStartUs: Int64) async throws {
+        let source = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "music.m4a"))
+        defer { try? FileManager.default.removeItem(at: source) }
+        let project = VideoProject(canvas: VideoSize(width: 320, height: 180), tracks: [
+            MediaTrack(clips: [MediaClip(source: .audio(source), duration: try VideoTime(value: 1, timescale: 1),
+                sourceStart: try VideoTime(value: sourceStartUs, timescale: 1_000_000))])
+        ])
+        let preview = try AndroidVideoPreview(project: project, settings: ExportSettings())
+        defer { preview.session.release() }
+        let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+        while preview.session.currentStatus() == 1 && ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(preview.session.currentStatus() == -1,
+                "A source range partly or wholly beyond the audio must fail preparation")
+        #expect(!preview.session.failureMessage().isEmpty)
+        let directory = preview.session.temporaryDirectoryPath()
+        try #require(!directory.isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: directory))
+    }
+
     @Test(arguments: AACFixtureReference.all)
     func previewAudioCacheReusesSourcesAndCleansFailedWrites(reference: AACFixtureReference) throws {
         let fixture = reference.name
@@ -152,7 +174,8 @@ extension RenderBehaviorTests {
         let success = root.appendingPathComponent("success")
         try FileManager.default.createDirectory(at: success, withIntermediateDirectories: true)
         let paths = try Media3AudioCacheProbe.prepare(source: source.absoluteString, directory: success.path,
-            maximumBytes: 64 * 1024 * 1024, cancelAfterCheck: 0)
+            maximumBytes: 64 * 1024 * 1024, cancelAfterCheck: 0,
+            durationUs: 2_000_000 + Int64(reference.offsetFrames) * 1_000_000 / 48_000)
         try #require(paths.count == 3 && Set(paths).count == 1)
         let decoded = try #require(URL(string: paths[0]))
         #expect(try FileManager.default.contentsOfDirectory(atPath: success.path) == [decoded.lastPathComponent])
@@ -176,6 +199,20 @@ extension RenderBehaviorTests {
             #expect(abs(sqrt(squares / 2400) - AACFixtureReference.initialRMS) < 0.01,
                     "Audio must begin immediately after the intentional source offset")
         }
+        let excerpt = root.appendingPathComponent("excerpt")
+        try FileManager.default.createDirectory(at: excerpt, withIntermediateDirectories: true)
+        // The full source exceeds this budget. Combine two distinct source
+        // ranges and compare their shared cache with the whole-source decode.
+        let excerptPaths = try Media3AudioCacheProbe.prepare(source: source.absoluteString, directory: excerpt.path,
+            maximumBytes: 192_044, cancelAfterCheck: 0, sourceStartUs: 1_000_001, durationUs: 500_000,
+            secondSourceStartUs: 1_250_001)
+        try #require(excerptPaths.count == 3 && Set(excerptPaths).count == 1)
+        let excerptURL = try #require(URL(string: excerptPaths[0]))
+        let excerptWave = try Data(contentsOf: excerptURL)
+        let expectedFrames = 36_001 // ceil(750001 us * 48000 Hz)
+        #expect(excerptWave.count == 44 + expectedFrames * 4)
+        #expect(excerptWave.dropFirst(44) == wave[(44 + 48_000 * 4)..<(44 + (48_000 + expectedFrames) * 4)],
+                "A cached source window must preserve exact PCM, including AAC priming and source offsets")
         for cancellation in [false, true] {
             let directory = root.appendingPathComponent(cancellation ? "cancel" : "limit")
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -191,6 +228,41 @@ extension RenderBehaviorTests {
         #expect(try Data(contentsOf: source) == original)
     }
 
+    @Test func previewAudioCacheHandlesLongSilentPrefixes() throws {
+        let source = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "red-with-late-music.mp4"))
+        let reference = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "red-with-music.mp4"))
+        let root = source.deletingLastPathComponent().appendingPathComponent("long-audio-cache-\(UUID())")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { for url in [source, reference, root] { try? FileManager.default.removeItem(at: url) } }
+        #expect(Media3AudioCacheProbe.legacyTiming(source: source.absoluteString, trackID: 2, profile: 2)
+                == [2112, 192, 360_000_000, 362_000_000])
+        func prepare(_ source: URL, name: String, limit: Int64, start: Int64, duration: Int64) throws -> URL {
+            let folder = root.appendingPathComponent(name)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            let paths = try Media3AudioCacheProbe.prepare(source: source.absoluteString, directory: folder.path,
+                maximumBytes: limit, cancelAfterCheck: 0, sourceStartUs: start, durationUs: duration)
+            try #require(paths.count == 3 && Set(paths).count == 1)
+            return try #require(URL(string: paths[0]))
+        }
+        let referenceURL = try prepare(reference, name: "reference", limit: 384_044, start: 0, duration: 2_000_000)
+        let expected = try Data(contentsOf: referenceURL).dropFirst(44)
+        let excerptURL = try prepare(source, name: "excerpt", limit: 192_044, start: 360_250_001, duration: 500_000)
+        let excerpt = try Data(contentsOf: excerptURL).dropFirst(44)
+        #expect(excerpt == expected.prefix(36_001 * 4), "An unused six-minute source prefix must not consume the cache budget")
+
+        let fullURL = try prepare(source, name: "full", limit: -1, start: 0, duration: 362_000_000)
+        let file = try FileHandle(forReadingFrom: fullURL)
+        defer { try? file.close() }
+        let size = try file.seekToEnd()
+        #expect(size == 44 + 362 * 48_000 * 4)
+        #expect(size > 64 * 1024 * 1024, "The production disk budget must permit this valid longer timeline")
+        try file.seek(toOffset: 44 + 360 * 48_000 * 4 - 400)
+        let onsetData = try file.read(upToCount: 400 + expected.count)
+        let onset = try #require(onsetData)
+        #expect(onset.prefix(400).allSatisfy { $0 == 0 })
+        #expect(onset.dropFirst(400) == expected, "Long source offsets must preserve exact audio onset and PCM")
+    }
+
     @Test func pcmPacketCutsPreserveFramesOffsetsAndEndMarkers() {
         #expect(PcmBoundaryProbe.segments(cuts: [200_000, 250_500, 300_000], compressed: false)
                 == [200_000, 204, 204, 0, 251_000, 196, 8, 1])
@@ -203,16 +275,17 @@ extension RenderBehaviorTests {
                 == [200_000, 400, 8, 1])
     }
 
-    @Test(arguments: [Int64(0), 250_000, 250_001, 300_000], ["music.wav", "music.m4a", "red-with-music.mp4", "red-with-offset-music.mp4"])
+    @Test(arguments: [Int64(0), 250_000, 250_001, 300_000], ["music.wav", "music.m4a", "red-with-music.mp4", "red-with-offset-music.mp4", "red-with-late-music.mp4"])
     func previewAudioTrimKeepsFadeTiming(sourceStartMicroseconds: Int64, fixture: String) async throws {
         let image = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "green.png"))
         let audio = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: fixture))
         defer { for url in [image, audio] { try? FileManager.default.removeItem(at: url) } }
-        let sourceOffset: Int64 = fixture == "red-with-offset-music.mp4" ? 250_000 : 0
+        let sourceOffset: Int64 = fixture == "red-with-late-music.mp4" ? 360_000_000 :
+            (fixture == "red-with-offset-music.mp4" ? 250_000 : 0)
         func time(_ milliseconds: Int64) throws -> VideoTime { try VideoTime(value: milliseconds, timescale: 1000) }
         let project = VideoProject(canvas: VideoSize(width: 320, height: 180), tracks: [
             MediaTrack(clips: [MediaClip(source: .image(image), duration: try time(2500))]),
-            MediaTrack(clips: [MediaClip(source: fixture.hasSuffix("mp4") ? .video(audio) : .audio(audio), start: try time(500),
+            MediaTrack(clips: [MediaClip(source: fixture.hasSuffix("mp4") && fixture != "red-with-late-music.mp4" ? .video(audio) : .audio(audio), start: try time(500),
                 duration: try time(1500), sourceStart: try VideoTime(value: sourceOffset + sourceStartMicroseconds, timescale: 1_000_000),
                 audio: AudioSettings(volume: 0.5, fadeIn: try time(250), fadeOut: try time(250)))])
         ])
@@ -231,9 +304,10 @@ extension RenderBehaviorTests {
         probe.pause()
         try #require(probe.positionMilliseconds() >= 2050)
         let sound = probe.audioRMS()
-        let source = try Media3TestSupport.audioRMS(path: audio.path)
         try #require(sound.count == 3 && sound.allSatisfy { $0 >= 0 })
-        let peak = source[1] * 0.5
+        let sourceRMS = fixture == "red-with-late-music.mp4" ? AACFixtureReference.all[0].middleRMS :
+            try Media3TestSupport.audioRMS(path: audio.path)[1]
+        let peak = sourceRMS * 0.5
         // RMS of a linear ramp from a to b is sqrt((a*a + a*b + b*b) / 3).
         // Probe windows cover clip-relative 0...50 ms and 1437.5...1487.5 ms.
         let expected = [peak * sqrt(0.04 / 3), peak, peak * sqrt(0.0775 / 3)]

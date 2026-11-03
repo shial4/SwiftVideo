@@ -117,10 +117,10 @@ public final class Media3CompositionBuilder {
             guard let timing = mediaTiming[clip.getString("id")], timing.hasAudio else { continue }
             let start = clip.getLong("startUs")
             let length = clip.getLong("durationUs")
-            let sourceStart = clip.getLong("sourceStartUs")
+            let sourceStart = clip.optLong("audioSourceStartUs", clip.getLong("sourceStartUs"))
             let audioURL = clip.optString("audioURL", clip.getString("url"))
-            let audioTiming = audioURL == clip.getString("url") ? timing : try validateMedia(
-                JSONObject(clip.toString()).put("url", audioURL).put("kind", "audio"))
+            let audioTiming = kind == "audio" || audioURL == clip.getString("url") ? timing : try validateMedia(
+                JSONObject(clip.toString()).put("url", audioURL).put("kind", "audio").put("sourceStartUs", sourceStart))
             let item = MediaItem.Builder().setUri(audioURL)
                 .setClippingConfiguration(MediaItem.ClippingConfiguration.Builder().setStartPositionUs(sourceStart)
                     .setEndPositionUs(sourceStart + length).build()).build()
@@ -149,7 +149,12 @@ public final class Media3CompositionBuilder {
     private func validateMedia(_ clip: JSONObject) throws -> MediaTiming {
         let extractor = MediaExtractor()
         defer { extractor.release() }
-        extractor.setDataSource(ProcessInfo.processInfo.androidContext, Uri.parse(clip.getString("url")), nil)
+        // A prepared audio clip uses the cache's timeline, including any source
+        // edit-list offset. Validate that exact file and its adjusted trim.
+        let audio = clip.getString("kind") == "audio"
+        let source = audio ? clip.optString("audioURL", clip.getString("url")) : clip.getString("url")
+        let sourceStart = audio ? clip.optLong("audioSourceStartUs", clip.getLong("sourceStartUs")) : clip.getLong("sourceStartUs")
+        extractor.setDataSource(ProcessInfo.processInfo.androidContext, Uri.parse(source), nil)
         var videoDuration: Int64 = -1
         var audioDuration: Int64 = -1
         for index in 0..<extractor.getTrackCount() {
@@ -159,8 +164,8 @@ public final class Media3CompositionBuilder {
             if mime.hasPrefix("video/") { videoDuration = max(videoDuration, duration) }
             if mime.hasPrefix("audio/") { audioDuration = max(audioDuration, duration) }
         }
-        let duration = clip.getString("kind") == "video" ? videoDuration : audioDuration
-        guard duration >= clip.getLong("sourceStartUs") + clip.getLong("durationUs") else {
+        let duration = audio ? audioDuration : videoDuration
+        guard duration >= sourceStart + clip.getLong("durationUs") else {
             throw IllegalArgumentException("Missing media track or source range exceeds its duration: " + clip.getString("id"))
         }
         return MediaTiming(duration: max(videoDuration, audioDuration), hasAudio: audioDuration >= 0)
