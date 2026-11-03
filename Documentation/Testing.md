@@ -43,6 +43,14 @@ clock survive both rotations, pause and seeking remain usable, and the saved
 project remains byte-for-byte unchanged. The app's published dependency pin has
 not changed.
 
+The subsequent paused-clock fix at `3bee402` passed the app's complete API 34
+foldable workflow: open, book, tabletop, closed, and restored-open layouts;
+playback and seeking in both book and closed postures; hinge and header bounds;
+rendered title pixels; delete, undo, and redo; and folded inspector access.
+The saved project remained byte-for-byte unchanged. The captured app-process
+log contained no frame-processing exceptions. This used a disposable emulator;
+physical dual-screen behavior remains unverified.
+
 [Apple CI for the audio-cache commit](https://github.com/shial4/SwiftVideo/actions/runs/41641865959)
 passed 40 host tests, 40 iOS tests, five example-model tests, and the iOS example
 build, with 1,147 / 1,205 covered iOS lines (95.19%). The Apple reference test
@@ -55,7 +63,10 @@ known reference-color failures. The complete hosted Android gate is still failin
 The surface-callback commit subsequently passed
 [Apple CI](https://github.com/shial4/SwiftVideo/actions/runs/41658377164), including
 40 host tests, 40 iOS tests, five example-model tests, and the iOS example build.
-Its Android build and runtime verification are still in progress.
+Its [Android run](https://github.com/shial4/SwiftVideo/actions/runs/41658377247)
+completed bridge generation, native compilation, and test APK packaging, then
+reached the build job's 45-minute limit while compiling the example editor.
+The compiler was still advancing; the dependent device-test job was skipped.
 
 ## 0.1.0-alpha.2 verification
 
