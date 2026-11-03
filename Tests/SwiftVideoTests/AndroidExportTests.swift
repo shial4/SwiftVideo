@@ -8,25 +8,6 @@ import SwiftVideoTestSupport
 @testable import SwiftVideo
 
 @Suite struct AndroidExportTests {
-    @Test func taggedColorFixtureReachesAndroidExtractor() throws {
-        let source = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "bt709.mp4"))
-        defer { try? FileManager.default.removeItem(at: source) }
-        // MediaFormat: BT.709 = 1, limited range = 2, SDR video transfer = 3.
-        #expect(try Media3TestSupport.videoColorInfo(path: source.path) == [1, 2, 3])
-        // Anchor the inspection path to the fixture's authored colors, not only
-        // before/after equality through the same decoder.
-        for timeUs: Int64 in [500_000, 3_500_000] {
-            let pixels = try Media3TestSupport.frameStats(path: source.path, timeUs: timeUs)
-            let left = timeUs < 2_500_000 ? [255.0, 0, 0] : [0.0, 255, 0]
-            for channel in 0..<3 {
-                #expect(abs(pixels[10 + channel] - left[channel]) <= 8,
-                        "BT.709 source left color at \(timeUs): \(Array(pixels[10...12]))")
-                #expect(abs(pixels[6 + channel] - (channel == 2 ? 255 : 0)) <= 8,
-                        "BT.709 source right color at \(timeUs): \(Array(pixels[6...8]))")
-            }
-        }
-    }
-
     @Test func fixtureCopiesHaveIndependentContents() throws {
         let first = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "green.png"))
         let second = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "green.png"))
@@ -46,6 +27,25 @@ import SwiftVideoTestSupport
 
 // Share the serialized rendering suite: hosted emulators have limited codec/GPU capacity.
 extension RenderBehaviorTests {
+    @Test func taggedColorFixtureReachesAndroidExtractor() throws {
+        let source = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "bt709.mp4"))
+        defer { try? FileManager.default.removeItem(at: source) }
+        // MediaFormat: BT.709 = 1, limited range = 2, SDR video transfer = 3.
+        #expect(try Media3TestSupport.videoColorInfo(path: source.path) == [1, 2, 3])
+        // Anchor the inspection path to the fixture's authored colors, not only
+        // before/after equality through the same decoder.
+        for timeUs: Int64 in [500_000, 3_500_000] {
+            let pixels = try Media3TestSupport.frameStats(path: source.path, timeUs: timeUs)
+            let left = timeUs < 2_500_000 ? [255.0, 0, 0] : [0.0, 255, 0]
+            for channel in 0..<3 {
+                #expect(abs(pixels[10 + channel] - left[channel]) <= 8,
+                        "BT.709 source left color at \(timeUs): \(Array(pixels[10...12]))")
+                #expect(abs(pixels[6 + channel] - (channel == 2 ? 255 : 0)) <= 8,
+                        "BT.709 source right color at \(timeUs): \(Array(pixels[6...8]))")
+            }
+        }
+    }
+
     @Test(arguments: [30, 40])
     func singleFrameExportHasDurationAndDecodes(timescale: Int32) async throws {
         let source = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "green.png"))

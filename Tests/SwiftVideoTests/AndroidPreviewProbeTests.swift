@@ -50,6 +50,11 @@ extension RenderBehaviorTests {
         while probe.isPlaying() && ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
         try #require(!probe.isPlaying())
         let position = probe.positionMilliseconds()
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(probe.positionMilliseconds() == position, "A paused playhead must remain stable after the player clock settles")
+        probe.pause()
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(probe.positionMilliseconds() == position, "Pausing again must preserve the same snapshot")
         for replaceView in [false, true] {
             let count = probe.frameCount()
             probe.replaceSurface(replaceView: replaceView)
@@ -556,8 +561,22 @@ extension RenderBehaviorTests {
         let finalPixels = probe.pixels()
         #expect(finalPixels.count == 6 && finalPixels[0] > 210 && finalPixels[2] < 40,
                 "Playback must render the final video segment: \(finalPixels)")
-        let beforeReplay = probe.frameCount()
+        let completedPosition = probe.positionMilliseconds()
+        let beforeCompletedReplacement = probe.frameCount()
+        probe.pause()
         probe.replaceSurface()
+        let completedReplacementDeadline = ContinuousClock.now.advanced(by: .seconds(5))
+        while probe.frameCount() <= beforeCompletedReplacement && ContinuousClock.now < completedReplacementDeadline {
+            try #require(probe.status() >= 0, "Completed surface replacement failed: \(probe.failureMessage())")
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        try #require(probe.frameCount() > beforeCompletedReplacement)
+        let completedPixels = probe.pixels()
+        #expect(completedPixels.count == 6 && completedPixels[0] > 210 && completedPixels[2] < 40,
+                "Replacing the completed surface must retain the final video segment: \(completedPixels)")
+        #expect(probe.positionMilliseconds() == completedPosition && !probe.isPlaying(),
+                "Replacing the completed surface must retain the completed playhead")
+        let beforeReplay = probe.frameCount()
         probe.play()
         let replayDeadline = ContinuousClock.now.advanced(by: .seconds(5))
         while (probe.frameCount() <= beforeReplay || probe.positionMilliseconds() >= 1000 || !probe.isPlaying())

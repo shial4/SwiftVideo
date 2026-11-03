@@ -103,6 +103,9 @@ threads are dispatched to it. Call `detachSurfaceView` from the view's main-thre
 disposal callback. A late detach for an older view cannot detach its replacement.
 Media3 negotiates its output format through a fixed holder, so its frame writer
 cannot close an in-flight image in response to the view's lifecycle callbacks.
+While paused, the session retains its playhead snapshot even if Media3's clock
+settles asynchronously. Surface replacement after completion restores the final
+frame while the public playhead remains at the project duration.
 
 ## Native Android and Kotlin
 

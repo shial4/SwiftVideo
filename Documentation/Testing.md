@@ -16,25 +16,29 @@ and the exact paused playhead when the surface or its view is replaced.
 
 Local checks on November 4, 2026 passed all 40 macOS tests, Android bridge/native
 library/test APK builds, and the 64-file header check. The final API 33 arm64
-instrumentation run completed 55 tests in 245.629 seconds with the same six
+instrumentation run completed 55 tests in 217.808 seconds with the same six
 known color and legacy paused-seek issues. Short 34 ms and 100 ms clips, all four
 gap/trim cases, mixed-media final-frame playback, all 20 audio playback/seek
 cases, shared-range byte comparisons, the 362-second cache, source-duration
 rejection, quota failure, cancellation, and cleanup checks passed. The unchanged
 player failed both short-clip cases with zero captured frames at completion and
 one frame after a one-second diagnostic wait; that wait does not change the
-assertion. Media3 coverage is 1,109 / 1,228 executable lines, 90.31%, above the
+assertion. Media3 coverage is 1,111 / 1,229 executable lines, 90.40%, above the
 75% gate. No tolerance or failing assertion was weakened.
 
 The surface regression captures real rendered frames through the public
 SurfaceView adapter. It alternates twelve surface and view replacements during
 playback, checks late disposal of an older view, and repeats both replacements
 while paused. Before the fix it reproduced the app's `Image is already closed`
-frame-processing exception. The final regression passes in 7.268 seconds, with
-new frames and the exact paused position retained.
+frame-processing exception. A later run exposed a 1 ms paused-clock change after
+Media3 settled its asynchronous pause. The session now retains its own paused
+snapshot instead of resampling that clock. The regression passes in 5.272 seconds,
+including repeated pause calls and both paused replacement paths. The mixed-media
+test also verifies that replacing a completed surface preserves the final video
+frame and completed playhead before replaying from the start.
 
 A disposable build of the consuming Skip Fuse app passed its complete phone
-rotation workflow against this local library. The rendered title and playback
+rotation workflow against the surface-callback commit `5ff9a68`. The rendered title and playback
 clock survive both rotations, pause and seeking remain usable, and the saved
 project remains byte-for-byte unchanged. The app's published dependency pin has
 not changed.
@@ -48,6 +52,10 @@ Its [Android build retry](https://github.com/shial4/SwiftVideo/actions/runs/4164
 passed, but the runtime step reached its five-minute deadline without a completed
 instrumentation result. Captured events include an extractor timeout and the
 known reference-color failures. The complete hosted Android gate is still failing.
+The surface-callback commit subsequently passed
+[Apple CI](https://github.com/shial4/SwiftVideo/actions/runs/41658377164), including
+40 host tests, 40 iOS tests, five example-model tests, and the iOS example build.
+Its Android build and runtime verification are still in progress.
 
 ## 0.1.0-alpha.2 verification
 
@@ -114,7 +122,7 @@ Manual editor checks covered macOS, iOS Simulator, and Android Emulator. The fin
 
 The media fixtures are deterministic red/blue videos, a green image, and synthesized audio. Pixel and PCM measurements use platform decoders independently of the compositor. Tests allow codec/color conversion tolerances; they do not compare byte-identical compressed files across platforms.
 
-Android Media3 exports share the serialized `RenderBehaviorTests` suite so concurrent tests do not compete for the hosted emulator's graphics and codec resources. Core and fixture tests remain parallel.
+Android Media3 rendering and source-frame decoding share the serialized `RenderBehaviorTests` suite so concurrent tests do not compete for the hosted emulator's graphics and codec resources. Core and fixture file-copy tests remain parallel.
 
 Routine composition tests on both platforms render at 320x180. They verify decoded pixels, overlay placement, relative text motion, timing, and audio fades with much less rendering work than a full HD export. The separate manual example checks cover 1080p output.
 

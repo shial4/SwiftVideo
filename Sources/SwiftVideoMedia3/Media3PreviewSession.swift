@@ -180,9 +180,9 @@ public final class Media3PreviewSession {
     public func pause() {
         #if SKIP
         handler.post {
-            self.wantsPlayback = false
             self.player?.pause()
             self.capturePosition()
+            self.wantsPlayback = false
             self.playing.set(false)
         }
         #endif
@@ -288,8 +288,12 @@ public final class Media3PreviewSession {
     private func clamped(_ value: Int64) -> Int64 { plan == nil ? max(0, value) : min(lastFramePosition, max(0, value)) }
 
     private func capturePosition() {
-        if !seekPending { requestedPosition = clamped(player?.getCurrentPosition() ?? requestedPosition) }
-        position.set(requestedPosition)
+        // Media3's asynchronous pause can settle its clock after this snapshot.
+        // Keep the session's paused playhead authoritative across later callbacks.
+        if wantsPlayback && !seekPending && !atEnd {
+            requestedPosition = clamped(player?.getCurrentPosition() ?? requestedPosition)
+        }
+        position.set(atEnd ? durationMilliseconds : requestedPosition)
     }
 
     private func rebuildPlayer() {
@@ -335,12 +339,13 @@ public final class Media3PreviewSession {
     }
     private func pollPosition() {
         guard state.get() == 2 else { return }
-        let current = seekPending ? requestedPosition : (player?.getCurrentPosition() ?? requestedPosition)
+        let current = wantsPlayback && !seekPending ? (player?.getCurrentPosition() ?? requestedPosition) : requestedPosition
         if !seekPending, let player, !atEnd,
            player.getPlaybackState() == Player.STATE_ENDED {
             // The clock can reach the end while GPU output is still pending.
             // Let Media3 drain that output before completing the transport.
             atEnd = true
+            requestedPosition = lastFramePosition
             wantsPlayback = false
             player.pause()
         }
