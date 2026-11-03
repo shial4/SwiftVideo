@@ -5,6 +5,14 @@
 
 ## 0.1.0-alpha.3 verification
 
+[SwiftVideo 0.1.0-alpha.3](https://github.com/shial4/SwiftVideo/releases/tag/0.1.0-alpha.3)
+is published at `a811b8ad63eac0f90898dd3a81631f2c45bf9d6f`. The consuming app
+pins that release and explicitly declares the `SwiftVideoMedia3` product.
+Its 150 host tests, iOS and Android builds, complete phone rotation workflow,
+featured-template editing/export/reopening workflow, and isolated iPhone/iPad
+startup checks pass against the published tag. Startup checks do not exercise
+complete iOS editing interactions.
+
 The cache now retains the bounding source range used by each URL and adjusts
 preview audio trims without changing the source or original render plan. Its
 default disk budget replaces the fixed 64 MiB limit. Playback now waits for the first
@@ -40,8 +48,8 @@ frame and completed playhead before replaying from the start.
 A disposable build of the consuming Skip Fuse app passed its complete phone
 rotation workflow against the surface-callback commit `5ff9a68`. The rendered title and playback
 clock survive both rotations, pause and seeking remain usable, and the saved
-project remains byte-for-byte unchanged. The app's published dependency pin has
-not changed.
+project remains byte-for-byte unchanged. The subsequent complete phone rotation
+check also passes after the app adopted the published alpha.3 tag.
 
 The subsequent paused-clock fix at `3bee402` passed the app's complete API 34
 foldable workflow: open, book, tabletop, closed, and restored-open layouts;
@@ -68,22 +76,19 @@ an explicitly dynamic bridge product fails that prebuild's dependency planning.
 The iOS UI test has compiled but has not run: the local CoreSimulator version is
 older than the installed Xcode requires.
 
-[Apple CI for the audio-cache commit](https://github.com/shial4/SwiftVideo/actions/runs/41641865959)
+[Apple CI at the release commit](https://github.com/shial4/SwiftVideo/actions/runs/41678695422)
 passed 40 host tests, 40 iOS tests, five example-model tests, and the iOS example
-build, with 1,147 / 1,205 covered iOS lines (95.19%). The Apple reference test
-confirms every sample in the new long-offset fixture. The subsequent transport
-change passed [Apple CI](https://github.com/shial4/SwiftVideo/actions/runs/41644916740).
-Its [Android build retry](https://github.com/shial4/SwiftVideo/actions/runs/41644916753)
-passed, but the runtime step reached its five-minute deadline without a completed
-instrumentation result. Captured events include an extractor timeout and the
-known reference-color failures. The complete hosted Android gate is still failing.
-The surface-callback commit subsequently passed
-[Apple CI](https://github.com/shial4/SwiftVideo/actions/runs/41658377164), including
-40 host tests, 40 iOS tests, five example-model tests, and the iOS example build.
-Its [Android run](https://github.com/shial4/SwiftVideo/actions/runs/41658377247)
-completed bridge generation, native compilation, and test APK packaging, then
-reached the build job's 45-minute limit while compiling the example editor.
-The compiler was still advancing; the dependent device-test job was skipped.
+build, with 1,147 / 1,205 covered iOS lines (95.19%).
+[Android CI at the same commit](https://github.com/shial4/SwiftVideo/actions/runs/41678695210)
+passed bridge generation, native compilation, test APK packaging, and the
+example-editor build within the existing 45-minute build limit. Its device job
+passed 31 core tests. Instrumentation passed surface/view replacement, short-clip
+playback, mixed-media preview, and all 20 audio trim/seek cases, but reached the
+five-minute test-command limit before the full suite finished. Two reference
+color assertions and two legacy paused-seek assertions failed before the timeout.
+Hosted coverage was skipped. The complete hosted Android gate remains failing;
+the full local runs and their measured coverage above do not establish a passing
+hosted gate. No CI timeout or assertion was changed for this release.
 
 ## 0.1.0-alpha.2 verification
 
