@@ -122,6 +122,15 @@ extension RenderBehaviorTests {
         let source = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "bt709.mp4"))
         let output = source.deletingLastPathComponent().appendingPathComponent("reference-\(UUID()).mp4")
         defer { try? FileManager.default.removeItem(at: source); try? FileManager.default.removeItem(at: output) }
+        // SurfaceTexture exposes dataspace from API 33. Older systems still run
+        // the decoder input/output metadata and decoded-pixel checks below.
+        let surfaceDataSpace = try Media3SurfaceProbe.dataSpace(path: source.path)
+        if let surfaceDataSpace {
+            // Android can return legacy HAL_DATASPACE_BT709 (260) or its V0
+            // encoding. Both specify limited-range BT.709 with SDR transfer.
+            #expect(surfaceDataSpace == 260 || surfaceDataSpace == 281_083_904,
+                    "The decoded surface must report BT.709, not an unknown or BT.601 dataspace")
+        }
         let reference = Media3ReferenceExport()
         defer { reference.cancel() }
         try reference.start(source: source.path, destination: output.path)
@@ -131,6 +140,7 @@ extension RenderBehaviorTests {
         }
         try #require(reference.status() == 2, "Reference export: \(reference.failureMessage())")
         #expect(reference.decoderColorInfo() == [1, 2, 3], "Media3 must pass the fixture's BT.709 limited-range SDR tags to its decoder")
+        #expect(reference.decoderOutputColorInfo() == [1, 2, 3], "The decoder must preserve BT.709 limited-range SDR output tags")
         let samples = reference.frameSamples()
         try #require(samples.count == 8 && abs(samples[0] - 500_000) < 10_000 && abs(samples[4] - 3_500_000) < 10_000,
                      "Missing pre-encoder frame samples: \(samples)")
@@ -139,7 +149,7 @@ extension RenderBehaviorTests {
             let after = try Media3TestSupport.frameStats(path: output.path, timeUs: timeUs)
             for channel in 10...12 {
                 #expect(abs(after[channel] - before[channel]) <= 8,
-                        "Reference Media3 at \(timeUs) channel \(channel - 10): source \(before[channel]), export \(after[channel]); pre-encoder working-space samples \(samples)")
+                        "Reference Media3 at \(timeUs) channel \(channel - 10): source \(before[channel]), export \(after[channel]); decoder output tags \(reference.decoderOutputColorInfo()); independent surface dataspace \(String(describing: surfaceDataSpace)); pre-encoder working-space samples \(samples)")
             }
         }
     }

@@ -26,9 +26,9 @@ The cache tests check source reuse, exact frame counts, starting silence or
 audio, byte-preserving source ownership, cancellation, and quota failure cleanup.
 The preview lifecycle test releases during preparation and checks scratch-folder
 removal. The cache currently decodes complete sources with a cumulative 64 MiB
-limit. It is used by the alpha library preview session, not yet by the app.
+limit. It is used by the alpha library preview session and the app.
 
-The Media3 1.12.0-alpha02 API 33 diagnostic run executes 50 tests with six
+The Media3 1.12.0-alpha02 API 33 diagnostic run executes 51 tests with six
 remaining issues: four video-color assertions and two baseline paused-seek
 controls. Production preview uses `DefaultGlFrameProcessor` and passes continuous
 video playback after a gap, including all four gap/source-trim cases. All 16 audio
@@ -53,7 +53,7 @@ once during decoding. The source bytes and original render plan remain unchanged
 Unknown handlers, other profiles, explicit timing, malformed sizes, shifted or
 shortened edits, and unsupported layouts retain Media3's existing handling.
 The classification regression covers those boundaries. This remains a preview
-alpha feature; it has not changed the app's preview implementation.
+alpha feature used by the app's direct preview implementation.
 
 `PcmBoundaryExtractorsFactory`, now owned by `SwiftVideoMedia3`, splits PCM packet metadata at
 the composition's source, end, and initial seek boundaries. It preserves the
@@ -74,14 +74,16 @@ empty-project rejection, early controls without a surface, and deinit cleanup.
 The real pixel/audio check also covers rapid scrubbing and replacing the output
 surface while paused or playing, end-of-timeline transport, and replay. The
 continuous final-video frame assertion passes with the Media3 alpha frame
-processor. App surface integration remains outstanding.
+processor. The app uses this session through its SwiftUI surface adapter.
 
 `bt709.mp4` is an original synthetic fixture from the editor's Android tests:
 five seconds of 320x180 H.264 at 30 fps, with no audio. The right half is blue;
 the left changes from red to green at 2.5 seconds. AVAssetWriter encoded immutable
 sRGB BGRA buffers with explicit BT.709 primaries, transfer, and matrix tags.
-Android's extractor and the Media3 decoder wrapper both report BT.709, limited
-range, and SDR transfer (`[1, 2, 3]`). The MP4 container and H.264 SPS agree.
+Android's extractor, Media3 decoder input, and decoder output all report BT.709,
+limited range, and SDR transfer (`[1, 2, 3]`). The MP4 container and H.264 SPS agree.
+The decoder wrapper records output metadata when an output buffer is pending;
+the surface decoding path does not necessarily call `getOutputFormat` itself.
 
 `Media3FrameDecoder` inspects decoded YUV planes through
 [MediaCodec.getOutputImage](https://developer.android.com/reference/android/media/MediaCodec#getOutputImage(int)).
@@ -111,7 +113,7 @@ and green frames saved as PNG through the independent decoder.
 A separate video-to-texture color discrepancy remains. Both SwiftVideo and the
 independent `referenceMedia3PreservesDecodedColor` control change the red segment's
 red channel from 253 to 230 and the green segment's red channel from 0 to 18 on
-API 33. The control uses Media3 1.11.1 without SwiftVideo's project, render plan,
+API 33. The control uses Media3 1.12.0-alpha02 without SwiftVideo's project, render plan,
 custom effects, or compositor. A readback effect forces processing and leaves
 frames unchanged. Its pre-encoder texture samples are `[232, 0, 2]` and
 `[19, 255, 8]`, so this error exists before encoding.
@@ -119,13 +121,24 @@ frames unchanged. Its pre-encoder texture samples are `[232, 0, 2]` and
 The source Y/Cb/Cr values `[62, 102, 239]` and `[171, 42, 26]` produce those texture
 samples under BT.601 conversion despite explicit BT.709 input tags. Emulator
 36.6.11 build 15507667 and Media3's
-[SDR external-texture shader](https://github.com/androidx/media/blob/1.11.1/libraries/effect/src/main/res/raw/fragment_shader_transformation_sdr_external_es2.glsl)
+[SDR external-texture shader](https://github.com/androidx/media/blob/1.12.0-alpha02/libraries/effect/src/main/res/raw/fragment_shader_transformation_sdr_external_es2.glsl)
 are involved in that path. The
 [emulator conversion source](https://android.googlesource.com/platform/hardware/google/gfxstream/+/refs/heads/main/host/gl/YUVConverter.cpp)
-has metadata-dependent BT.601/BT.709 selection. This points to a decoder/graphics
-metadata handoff; it does not establish the precise defect or physical-device
-behavior. Earlier API 35 and forced `c2.android.avc.decoder` diagnostics reproduced
+has metadata-dependent BT.601/BT.709 selection. Earlier API 35 and forced
+`c2.android.avc.decoder` diagnostics reproduced
 the video-color discrepancy. The permanent control uses the default decoder.
+
+`Media3SurfaceProbe` independently decodes the first source frame into a
+SurfaceTexture and reads its dataspace after the frame-available callback and
+`updateTexImage`. On API 33 it reports 260, the platform's legacy
+[HAL_DATASPACE_BT709](https://android.googlesource.com/platform/system/core/+/refs/heads/android13-release/libsystem/include/system/graphics-base-v1.0.h)
+encoding. The regression accepts that encoding and V0_BT709 (281083904), but
+rejects unknown and BT.601 dataspaces. The API is unavailable before Android 13;
+older versions still run the decoder metadata and independent pixel checks.
+This narrows the failure: the decoder output and an independently acquired
+surface retain BT.709 metadata, while Media3's pre-encoder texture has BT.601-like
+pixels. It does not prove which graphics component ignores or misinterprets the
+metadata, or establish physical-device behavior.
 
 Keep the four video-color assertions active. Do not compensate every video with
 a color filter or increase tolerance. Physical-device verification and a

@@ -7,6 +7,7 @@ import Foundation
 import android.os.Handler
 import android.os.Looper
 import android.media.metrics.LogSessionId
+import android.media.MediaCodec.BufferInfo
 import android.view.Surface
 import androidx.media3.common.__
 import androidx.media3.common.audio.AudioProcessor
@@ -14,12 +15,14 @@ import androidx.media3.common.util.Clock
 import androidx.media3.common.util.GlRect
 import androidx.media3.common.util.Size
 import androidx.media3.effect.ByteBufferGlEffect
+import androidx.media3.decoder.DecoderInputBuffer
 import androidx.media3.transformer.__
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicIntegerArray
 import java.util.concurrent.atomic.AtomicReference
+import java.nio.ByteBuffer
 #endif
 
 /// Independent Media3 control, without SwiftVideo composition or render planning.
@@ -30,6 +33,7 @@ public final class Media3ReferenceExport {
     private let failure = AtomicReference<String>("")
     private let samples = AtomicIntegerArray(8)
     private let decoderColors = AtomicIntegerArray(3)
+    private let decoderOutputColors = AtomicIntegerArray(3)
     private var transformer: Transformer?
     #endif
 
@@ -44,7 +48,8 @@ public final class Media3ReferenceExport {
                 let effects = java.util.ArrayList<Effect>()
                 effects.add(ByteBufferGlEffect<Int>(ReferencePixelProbe(samples: self.samples)))
                 let context = ProcessInfo.processInfo.androidContext
-                let decoder = ReferenceDecoderFactory(delegate: DefaultDecoderFactory.Builder(context).build(), colors: self.decoderColors)
+                let decoder = ReferenceDecoderFactory(delegate: DefaultDecoderFactory.Builder(context).build(),
+                    colors: self.decoderColors, outputColors: self.decoderOutputColors)
                 let encoder = DefaultEncoderFactory.Builder(context)
                     .setEnableFallback(false)
                     .setRequestedVideoEncoderSettings(VideoEncoderSettings.Builder().setBitrate(4_000_000).build())
@@ -110,6 +115,15 @@ public final class Media3ReferenceExport {
         #endif
     }
 
+    /// Color standard, range, and transfer reported by the decoder before surface conversion.
+    public func decoderOutputColorInfo() -> [Int] {
+        #if SKIP
+        return (0..<3).map { decoderOutputColors.get($0) }
+        #else
+        return []
+        #endif
+    }
+
     public func cancel() {
         #if SKIP
         handler.post { self.transformer?.cancel(); self.transformer = nil }
@@ -121,9 +135,10 @@ public final class Media3ReferenceExport {
 private final class ReferenceDecoderFactory: Codec.DecoderFactory {
     private let delegate: DefaultDecoderFactory
     private let colors: AtomicIntegerArray
+    private let outputColors: AtomicIntegerArray
 
-    init(delegate: DefaultDecoderFactory, colors: AtomicIntegerArray) {
-        self.delegate = delegate; self.colors = colors
+    init(delegate: DefaultDecoderFactory, colors: AtomicIntegerArray, outputColors: AtomicIntegerArray) {
+        self.delegate = delegate; self.colors = colors; self.outputColors = outputColors
     }
 
     override func createForAudioDecoding(format: Format, logSessionId: LogSessionId?) -> Codec {
@@ -135,8 +150,49 @@ private final class ReferenceDecoderFactory: Codec.DecoderFactory {
         colors.set(0, format.colorInfo?.colorSpace ?? -1)
         colors.set(1, format.colorInfo?.colorRange ?? -1)
         colors.set(2, format.colorInfo?.colorTransfer ?? -1)
-        return delegate.createForVideoDecoding(format, outputSurface, requestSdrToneMapping, logSessionId)
+        return ReferenceDecoder(delegate: delegate.createForVideoDecoding(format, outputSurface, requestSdrToneMapping, logSessionId),
+                                outputColors: outputColors)
     }
+}
+
+/// Observes the real decoder without changing its buffers, timing, or output surface.
+private final class ReferenceDecoder: Codec {
+    private let delegate: Codec
+    private let outputColors: AtomicIntegerArray
+
+    init(delegate: Codec, outputColors: AtomicIntegerArray) {
+        self.delegate = delegate; self.outputColors = outputColors
+    }
+
+    override func getConfigurationFormat() -> Format { delegate.getConfigurationFormat() }
+    override func getName() -> String { delegate.getName() }
+    override func getInputSurface() -> Surface { delegate.getInputSurface() }
+    override func getMaxPendingFrameCount() -> Int { delegate.getMaxPendingFrameCount() }
+    override func maybeDequeueInputBuffer(inputBuffer: DecoderInputBuffer) -> Bool { delegate.maybeDequeueInputBuffer(inputBuffer) }
+    override func queueInputBuffer(inputBuffer: DecoderInputBuffer) { delegate.queueInputBuffer(inputBuffer) }
+    override func signalEndOfInputStream() { delegate.signalEndOfInputStream() }
+    override func getInputFormat() -> Format { delegate.getInputFormat() }
+    override func getOutputFormat() -> Format? {
+        let format = delegate.getOutputFormat()
+        if let format = format {
+            outputColors.set(0, format.colorInfo?.colorSpace ?? -1)
+            outputColors.set(1, format.colorInfo?.colorRange ?? -1)
+            outputColors.set(2, format.colorInfo?.colorTransfer ?? -1)
+        }
+        return format
+    }
+    override func getOutputBuffer() -> ByteBuffer? { delegate.getOutputBuffer() }
+    override func getOutputBufferInfo() -> BufferInfo? {
+        let info = delegate.getOutputBufferInfo()
+        // Surface decoders can be consumed without calling getOutputFormat(). Once a
+        // buffer is pending, reading its cached format does not advance the decoder.
+        if info != nil { _ = getOutputFormat() }
+        return info
+    }
+    override func releaseOutputBuffer(render: Bool) { delegate.releaseOutputBuffer(render) }
+    override func releaseOutputBuffer(renderPresentationTimeUs: Int64) { delegate.releaseOutputBuffer(renderPresentationTimeUs) }
+    override func isEnded() -> Bool { delegate.isEnded() }
+    override func release() { delegate.release() }
 }
 
 private final class ReferencePixelProbe: ByteBufferGlEffect.Processor<Int> {
