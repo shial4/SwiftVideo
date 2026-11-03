@@ -59,7 +59,7 @@ The public SwiftVideo module has bridging disabled; its result-builder API is in
 
 ### Experimental Android preview
 
-Pin `0.1.0-alpha.1` explicitly to use the Media3 `1.12.0-alpha02` preview. Install Android SDK 37 and use compile/target SDK 37 in the consuming app. The minimum supported API remains 28. Declare the SDK in the app's own `Sources/<AppModule>/Skip/skip.yml`, as in the [example configuration](../Example/Sources/SwiftVideoEditor/Skip/skip.yml); a dependency's setting alone does not override an earlier version-catalog default:
+Pin `0.1.0-alpha.2` explicitly to use the Media3 `1.12.0-alpha02` preview. Install Android SDK 37 and use compile/target SDK 37 in the consuming app. The minimum supported API remains 28. Declare the SDK in the app's own `Sources/<AppModule>/Skip/skip.yml`, as in the [example configuration](../Example/Sources/SwiftVideoEditor/Skip/skip.yml); a dependency's setting alone does not override an earlier version-catalog default:
 
 ```yaml
 settings:
@@ -81,7 +81,7 @@ This alpha supplies a low-level renderer, not a SwiftUI preview view. A Swift-au
 
 Controls requested during preparation are retained. Prepared status means the composition is ready; a surface and player are still required to display frames. Rapid seeks are coalesced over 16 ms and rebuild the player to obtain the requested paused frame. Surfaces remain owned by the caller, which must keep them alive until detached or the session is released. Keep source files readable throughout the session.
 
-Preview decodes audio sources into session-owned PCM files to preserve trim and seek boundaries. The cumulative decoded cache is limited to 64 MiB; exceeding it fails preparation with a message and removes temporary files. Cancellation and cleanup complete asynchronously. This is not yet suitable for arbitrary long-form audio. Apple preview remains the application's responsibility, and the example editor continues to preview exported movies. See the [API contract](APIReference.md#experimental-android-preview) and [known verification limits](Testing.md#010-alpha1-verification).
+Preview decodes audio sources into session-owned PCM files to preserve trim and seek boundaries. The cumulative decoded cache is limited to 64 MiB; exceeding it fails preparation with a message and removes temporary files. Cancellation and cleanup complete asynchronously. This is not yet suitable for arbitrary long-form audio. Apple preview remains the application's responsibility, and the example editor continues to preview exported movies. See the [API contract](APIReference.md#experimental-android-preview) and [known verification limits](Testing.md#010-alpha2-verification).
 
 ## Native Android and Kotlin
 

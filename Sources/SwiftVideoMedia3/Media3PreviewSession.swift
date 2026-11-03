@@ -262,7 +262,14 @@ public final class Media3PreviewSession {
             player.addListener(PreviewSessionListener(failed: { message in
                 if self.generation == currentGeneration && !self.cancelled.get() { self.fail(message) }
             }))
-            if let surfaceView { player.setVideoSurfaceView(surfaceView) }
+            if let surfaceView, let plan {
+                // Match the SDR frame writer before it starts dequeuing images.
+                // Changing format after playback begins can close in-flight
+                // ImageWriter images in Media3 1.12.0-alpha02.
+                surfaceView.getHolder().setFormat(android.graphics.PixelFormat.RGBA_8888)
+                surfaceView.getHolder().setFixedSize(plan.getInt("width"), plan.getInt("height"))
+                player.setVideoSurfaceView(surfaceView)
+            }
             else if let surface {
                 player.setVideoSurfaceHolder(PreviewSurfaceHolder(surface: surface,
                     width: surfaceSize.getWidth(), height: surfaceSize.getHeight()))

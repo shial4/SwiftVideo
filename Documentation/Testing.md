@@ -3,6 +3,23 @@
 
 [Documentation index](README.md) | [Public API reference](APIReference.md)
 
+## 0.1.0-alpha.2 verification
+
+This follow-up preserves single-frame MP4 duration, keeps playback intent during surface replacement, and configures SDR surfaces before attaching the player. Local checks ran on November 3, 2026 with Media3 `1.12.0-alpha02`, compile/target SDK 37, and an API 33 arm64 emulator.
+
+| Check | Observed result |
+| --- | --- |
+| macOS library and example model | 39 library tests and 5 example tests pass |
+| Android bridge and test APK | Builds pass |
+| Android instrumentation | 51 tests complete in 140.429 seconds with the same six known failing assertions |
+| Media3 bytecode coverage | [992 / 1,143 lines, 86.79%](Coverage/0.1.0-alpha.2/android-media3.json); exceeds the 75% gate |
+| Single-frame export | Independently decoded 1/30-second and 1/40-second movies retain duration, size, and pixels |
+| Consuming Skip Fuse app | Two complete orientation runs preserve the playback clock, rendered title, pause/seek controls, and saved JSON |
+
+The six local failures remain four BT.709 export-color assertions and two legacy paused-seek assertions. Production preview, gap/source-trim, audio-boundary, surface replacement, and cache checks pass locally. No failing assertion was disabled. The shared Swift core is unchanged from the [alpha.1 coverage measurement](Coverage/0.1.0-alpha.1/android-core.json); that measurement was not repeated for this follow-up.
+
+These local results do not establish a passing hosted Android CI run. The [alpha.1 hosted run](https://github.com/shial4/SwiftVideo/actions/runs/41616294181) also encountered short-source gap failures and hit its runtime deadline; those differences from the local emulator remain unresolved. The full Android test gate is still failing. Physical-device and interactive iOS verification remain outstanding, and the whole-source preview audio cache still has a cumulative 64 MiB limit. This is an experimental prerelease; stable release gates below still apply.
+
 ## 0.1.0-alpha.1 verification
 
 The Media3 `1.12.0-alpha02` candidate was checked on November 3, 2026 with compile/target SDK 37 and an API 33 arm64 emulator.
