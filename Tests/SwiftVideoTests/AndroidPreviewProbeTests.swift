@@ -10,9 +10,21 @@ import SwiftVideoTestSupport
 extension RenderBehaviorTests {
     @Test(arguments: [Int64(0), 1000], [Int64(0), 250])
     func continuousVideoPreviewCrossesInitialGap(startMilliseconds: Int64, sourceStartMilliseconds: Int64) async throws {
+        try await verifyContinuousVideoPreview(startMilliseconds: startMilliseconds,
+            sourceStartMilliseconds: sourceStartMilliseconds, durationMilliseconds: 500)
+    }
+
+    @Test(arguments: [Int64(34), 100])
+    func shortVideoPreviewRendersBeforePlaybackEnds(durationMilliseconds: Int64) async throws {
+        try await verifyContinuousVideoPreview(startMilliseconds: 0,
+            sourceStartMilliseconds: 250, durationMilliseconds: durationMilliseconds)
+    }
+
+    private func verifyContinuousVideoPreview(startMilliseconds: Int64, sourceStartMilliseconds: Int64,
+                                               durationMilliseconds: Int64) async throws {
         let video = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "red.mp4"))
         defer { try? FileManager.default.removeItem(at: video) }
-        let duration = try VideoTime(value: 500, timescale: 1000)
+        let duration = try VideoTime(value: durationMilliseconds, timescale: 1000)
         let project = VideoProject(canvas: VideoSize(width: 320, height: 180),
             background: VideoColor(red: 0, green: 0, blue: 1), tracks: [
                 MediaTrack(clips: [MediaClip(source: .video(video),
@@ -36,12 +48,14 @@ extension RenderBehaviorTests {
                 sawVideo = true
                 sawEarlyVideo = sawEarlyVideo || position + 100 < startMilliseconds
             }
-            if position >= startMilliseconds + 500 && !probe.isPlaying() { break }
+            if position >= startMilliseconds + durationMilliseconds && !probe.isPlaying() { break }
             try await Task.sleep(for: .milliseconds(10))
         }
         #expect(!sawEarlyVideo, "The video must remain hidden until its timeline start")
-        #expect(sawVideo, "Continuous playback never displayed the video: start \(startMilliseconds), source trim \(sourceStartMilliseconds), position \(probe.positionMilliseconds()), pixels \(probe.pixels()), frames \(probe.frameCount())")
-        #expect(probe.positionMilliseconds() >= startMilliseconds + 500 && !probe.isPlaying())
+        let endFrames = probe.frameCount()
+        if !sawVideo { try await Task.sleep(for: .seconds(1)) }
+        #expect(sawVideo, "Continuous playback never displayed the video before ending: start \(startMilliseconds), source trim \(sourceStartMilliseconds), duration \(durationMilliseconds), position \(probe.positionMilliseconds()), pixels \(probe.pixels()), frames at end \(endFrames), frames after wait \(probe.frameCount())")
+        #expect(probe.positionMilliseconds() >= startMilliseconds + durationMilliseconds && !probe.isPlaying())
     }
 
     @Test func nativePreviewValidatesAndReleasesWithoutAnAttachedSurface() async throws {

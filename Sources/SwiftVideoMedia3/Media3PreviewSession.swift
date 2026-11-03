@@ -45,6 +45,7 @@ public final class Media3PreviewSession {
     private var surface: Surface?
     private var surfaceSize = Size(0, 0)
     private var wantsPlayback = false
+    private var hasRenderedFirstFrame = false
     private var requestedPosition: Int64 = 0
     private var lastFramePosition: Int64 = 0
     private var durationMilliseconds: Int64 = 0
@@ -170,7 +171,7 @@ public final class Media3PreviewSession {
                 self.requestedPosition = 0
                 self.atEnd = false
                 self.rebuildPlayer()
-            } else { self.player?.play() }
+            } else if self.hasRenderedFirstFrame { self.player?.play() }
         }
         #endif
     }
@@ -248,6 +249,7 @@ public final class Media3PreviewSession {
         let currentGeneration = generation
         player?.release()
         player = nil
+        hasRenderedFirstFrame = false
         guard state.get() == 2, let composition, surfaceView != nil || surface != nil else { return }
         do {
             let builder = CompositionPlayer.Builder(ProcessInfo.processInfo.androidContext)
@@ -261,6 +263,10 @@ public final class Media3PreviewSession {
             self.player = player
             player.addListener(PreviewSessionListener(failed: { message in
                 if self.generation == currentGeneration && !self.cancelled.get() { self.fail(message) }
+            }, renderedFirstFrame: {
+                guard self.generation == currentGeneration, !self.cancelled.get() else { return }
+                self.hasRenderedFirstFrame = true
+                if self.wantsPlayback && !self.seekPending && !self.atEnd { self.player?.play() }
             }))
             if let surfaceView, let plan {
                 // Match the SDR frame writer before it starts dequeuing images.
@@ -276,21 +282,22 @@ public final class Media3PreviewSession {
             }
             player.setComposition(composition, requestedPosition)
             player.prepare()
-            if wantsPlayback { player.play() }
+            // Prepare the first paused frame before starting the clock. Otherwise
+            // a short timeline can end and pause before its first GPU output.
         } catch { fail(String(describing: error)) }
     }
     private func pollPosition() {
         guard state.get() == 2 else { return }
         let current = seekPending ? requestedPosition : (player?.getCurrentPosition() ?? requestedPosition)
         if !seekPending, let player, !atEnd,
-           player.getPlaybackState() == Player.STATE_ENDED || current >= durationMilliseconds {
-            // Mixed sequences can reach the composition end before every internal
-            // player reports ENDED. The project duration owns the transport limit.
+           player.getPlaybackState() == Player.STATE_ENDED {
+            // The clock can reach the end while GPU output is still pending.
+            // Let Media3 drain that output before completing the transport.
             atEnd = true
             wantsPlayback = false
             player.pause()
         }
-        position.set(atEnd ? durationMilliseconds : current)
+        position.set(atEnd ? durationMilliseconds : min(durationMilliseconds, current))
         playing.set(!seekPending && !atEnd && wantsPlayback)
         handler.postDelayed({ self.pollPosition() }, Int64(33))
     }
@@ -369,8 +376,13 @@ private final class PreviewSurfaceHolder: SurfaceHolder {
 
 private final class PreviewSessionListener: Player.Listener {
     private let failed: (String) -> Void
-    init(failed: @escaping (String) -> Void) { self.failed = failed }
+    private let renderedFirstFrame: () -> Void
+    init(failed: @escaping (String) -> Void, renderedFirstFrame: @escaping () -> Void) {
+        self.failed = failed
+        self.renderedFirstFrame = renderedFirstFrame
+    }
     override func onPlayerError(error: PlaybackException) { failed(error.toString()) }
+    override func onRenderedFirstFrame() { renderedFirstFrame() }
 }
 #endif
 #endif

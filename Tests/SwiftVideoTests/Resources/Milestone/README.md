@@ -45,7 +45,7 @@ minus a 256 MiB reserve, capped at 2,147,483,647 bytes per session. Decoding sti
 reads the compressed prefix, and gaps between distant clips remain in the cache.
 The app and published alpha.2 still use the earlier whole-source cache.
 
-The unreleased Media3 1.12.0-alpha02 API 33 diagnostic run executes 53 tests with six
+The unreleased Media3 1.12.0-alpha02 API 33 diagnostic run executes 54 tests with six
 remaining issues: four video-color assertions and two baseline paused-seek
 controls. Production preview uses `DefaultGlFrameProcessor` and passes continuous
 video playback after a gap, including all four gap/source-trim cases. All 20 audio
@@ -54,6 +54,13 @@ AAC, embedded AAC, and embedded AAC with short and long source offsets.
 Cache onset, exact frame counts, shared ranges, source-duration rejection,
 quota and cancellation cleanup, and release during preparation
 also pass. The cache's 0.001 RMS and preview's 0.01 RMS tolerances are unchanged.
+
+The 34 ms and 100 ms preview regressions reproduced completion before the first
+surface frame. A one-second wait captured the late frame but did not change the
+failed assertion. Preview now starts its clock after Media3's first-frame
+callback and waits for Media3's ended state before completing playback, allowing
+pending GPU output to drain. The short clips and mixed-media final-frame check
+pass locally with these changes; hosted verification remains outstanding.
 
 `AACFixtureReference` contains timeline-correct RMS values independently measured
 with Apple's asset reader. `aacReferencesMatchAppleTimeline` verifies them on the

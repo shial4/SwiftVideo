@@ -90,6 +90,11 @@ decodes the compressed prefix and stores gaps between distant source ranges;
 this is not a streaming audio implementation. These changes are not included in
 `0.1.0-alpha.2`.
 
+The unreleased preview also waits for the first-frame callback before starting
+playback and for Media3's ended state before reporting completion. Pending video
+output can finish after the clock reaches the project duration; the displayed
+position stays at that duration while output drains.
+
 ## Native Android and Kotlin
 
 This is an adapter integration, not a published SwiftVideo Maven dependency. Version 0.0.1 does not ship a Kotlin facade or prebuilt AARs. You build and own the small public wrapper; SwiftVideo owns the composition and export implementation. The walkthrough below illustrates that boundary and must be built and tested with your Android app.

@@ -3,21 +3,32 @@
 
 [Documentation index](README.md) | [Public API reference](APIReference.md)
 
-## Unreleased audio cache verification
+## Unreleased preview verification
 
 The cache now retains the bounding source range used by each URL and adjusts
 preview audio trims without changing the source or original render plan. Its
 default disk budget replaces the fixed 64 MiB limit. These changes are not yet
-released or integrated into the consuming app.
+released or integrated into the consuming app. Playback now waits for the first
+rendered-frame callback, and completion waits for Media3 to drain pending video
+output. The displayed position remains bounded by the project duration.
 
 Local checks on November 3, 2026 passed all 40 macOS tests, Android bridge/native
-library/test APK builds, and the 64-file header check. The API 33 arm64
-instrumentation run completed 53 tests in 204.297 seconds with the same six
-known color and legacy paused-seek issues. All 20 audio playback/seek cases,
-shared-range byte comparisons, the 362-second cache, source-duration rejection,
-quota failure, cancellation, and cleanup checks passed. No tolerance or failing
-assertion was weakened. The Apple reference test confirms every sample in the
-new long-offset fixture. Release coverage has not been remeasured for this work.
+library/test APK builds, and the 64-file header check. The final API 33 arm64
+instrumentation run completed 54 tests in 195.298 seconds with the same six
+known color and legacy paused-seek issues. Short 34 ms and 100 ms clips, all four
+gap/trim cases, mixed-media final-frame playback, all 20 audio playback/seek
+cases, shared-range byte comparisons, the 362-second cache, source-duration
+rejection, quota failure, cancellation, and cleanup checks passed. The unchanged
+player failed both short-clip cases with zero captured frames at completion and
+one frame after a one-second diagnostic wait; that wait does not change the
+assertion. Media3 coverage is 1,045 / 1,187 executable lines, 88.04%, above the
+75% gate. No tolerance or failing assertion was weakened.
+
+[Apple CI for the audio-cache commit](https://github.com/shial4/SwiftVideo/actions/runs/41641865959)
+passed 40 host tests, 40 iOS tests, five example-model tests, and the iOS example
+build, with 1,147 / 1,205 covered iOS lines (95.19%). The Apple reference test
+confirms every sample in the new long-offset fixture. The subsequent transport
+change is Android-only; its hosted Android result remains unverified.
 
 ## 0.1.0-alpha.2 verification
 
