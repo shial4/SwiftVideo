@@ -16,7 +16,7 @@ jobs:
   build:
     # Skip code generation and native cross-compilation run on macOS.
     runs-on: macos-26-intel
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
       SWIFT_VERSION: '6.3.2'
