@@ -14,7 +14,9 @@ let package = Package(
     platforms: [.iOS(.v17), .macOS(.v14)],
     products: [
         .library(name: "SwiftVideo", type: needsAndroidMetadata ? .dynamic : nil, targets: ["SwiftVideo"]),
-        .library(name: "SwiftVideoMedia3", type: needsAndroidMetadata ? .dynamic : nil, targets: ["SwiftVideoMedia3"]),
+        // SwiftPM must be able to share this target between the native library
+        // and a consumer's surface adapter when both products are dynamic.
+        .library(name: "SwiftVideoMedia3", targets: ["SwiftVideoMedia3"]),
         .executable(name: "SwiftVideoExample", targets: ["SwiftVideoExample"]),
     ],
     dependencies: [

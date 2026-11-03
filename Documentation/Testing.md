@@ -61,6 +61,10 @@ compilation and consumer APK packaging also pass. The rebuilt app passes its
 API 33 phone rotation workflow, preserving rendered title pixels, playback,
 pause, seek, and the complete saved project. Its captured process log contains
 no linkage failures or frame-processing exceptions.
+The bridge product uses automatic linkage so SwiftPM can share its target
+between the app and library's dynamic products. The consumer's Android build
+also completes Skip's iOS metadata prebuild with `SKIP_DYNAMIC_LIBRARIES=1`;
+an explicitly dynamic bridge product fails that prebuild's dependency planning.
 The iOS UI test has compiled but has not run: the local CoreSimulator version is
 older than the installed Xcode requires.
 
