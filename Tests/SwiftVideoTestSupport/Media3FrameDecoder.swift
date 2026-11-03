@@ -40,9 +40,8 @@ enum Media3FrameDecoder {
         let info = MediaCodec.BufferInfo()
         let deadline = java.lang.System.nanoTime() + Int64(10_000_000_000)
         var inputEnded = false
-        var previous: Bitmap? = nil
+        var previous: Frame? = nil
         var previousTimeUs: Int64 = 0
-        defer { previous?.recycle() }
         while java.lang.System.nanoTime() < deadline {
             if !inputEnded {
                 let index = decoder.dequeueInputBuffer(Int64(10_000))
@@ -63,21 +62,19 @@ enum Media3FrameDecoder {
                 if info.size > 0 {
                     if info.presentationTimeUs >= timeUs, let candidate = previous,
                        timeUs - previousTimeUs < info.presentationTimeUs - timeUs {
-                        previous = nil
-                        return candidate
+                        return try bitmap(candidate, format: format)
                     }
                     guard let image = decoder.getOutputImage(index) else {
                         throw IllegalStateException("Decoder does not expose YUV planes")
                     }
                     defer { image.close() }
-                    let frame = try bitmap(image, format: format, outputFormat: decoder.getOutputFormat())
-                    if info.presentationTimeUs >= timeUs { return frame }
-                    previous?.recycle()
+                    let frame = try Frame(image: image, outputFormat: decoder.getOutputFormat(index))
+                    if info.presentationTimeUs >= timeUs { return try bitmap(frame, format: format) }
                     previous = frame
                     previousTimeUs = info.presentationTimeUs
                 }
                 if (info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0 {
-                    if let frame = previous { previous = nil; return frame }
+                    if let frame = previous { return try bitmap(frame, format: format) }
                     break
                 }
             }
@@ -85,13 +82,45 @@ enum Media3FrameDecoder {
         throw IllegalStateException("Cannot decode a frame at the requested time")
     }
 
-    private static func bitmap(_ image: Image, format: MediaFormat, outputFormat: MediaFormat) throws -> Bitmap {
-        guard image.getFormat() == ImageFormat.YUV_420_888 else {
-            throw IllegalStateException("Frame inspection requires 8-bit YUV420")
+    // Keep only the latest raw frame before the requested time. Copying the
+    // planes lets the codec reuse its output immediately; retaining a codec
+    // buffer can stall decoding on some devices. Convert to RGB only after
+    // choosing the nearest frame, including the final frame at end of stream.
+    private final class Frame {
+        let crop: android.graphics.Rect
+        let planes: [Plane]
+        let outputFormat: MediaFormat
+
+        init(image: Image, outputFormat: MediaFormat) throws {
+            guard image.getFormat() == ImageFormat.YUV_420_888 else {
+                throw IllegalStateException("Frame inspection requires 8-bit YUV420")
+            }
+            self.crop = image.getCropRect()
+            var planes: [Plane] = []
+            for plane in image.getPlanes() { planes.append(Plane(plane)) }
+            self.planes = planes
+            self.outputFormat = outputFormat
         }
+    }
+
+    private final class Plane {
+        let bytes: kotlin.ByteArray
+        let rowStride: Int
+        let pixelStride: Int
+
+        init(_ plane: Image.Plane) {
+            let buffer = plane.getBuffer().duplicate()
+            self.bytes = kotlin.ByteArray(buffer.remaining())
+            buffer.get(bytes)
+            self.rowStride = plane.getRowStride()
+            self.pixelStride = plane.getPixelStride()
+        }
+    }
+
+    private static func bitmap(_ frame: Frame, format: MediaFormat) throws -> Bitmap {
         func metadata(_ key: String, fallback: Int) -> Int {
             // Android uses both absent keys and zero for unspecified metadata.
-            for candidate in [format, outputFormat] {
+            for candidate in [format, frame.outputFormat] {
                 if candidate.containsKey(key), candidate.getInteger(key) != 0 { return candidate.getInteger(key) }
             }
             return fallback
@@ -111,15 +140,14 @@ enum Media3FrameDecoder {
         default: throw IllegalStateException("Unsupported frame color standard: \(standard)")
         }
         let full = range == MediaFormat.COLOR_RANGE_FULL
-        let crop = image.getCropRect()
+        let crop = frame.crop
         let width = crop.width()
         let height = crop.height()
-        let planes = image.getPlanes()
+        let planes = frame.planes
         let pixels = kotlin.IntArray(width * height)
-        func sample(_ plane: Image.Plane, x: Int, y: Int) -> Double {
-            let buffer = plane.getBuffer()
-            let index = buffer.position() + y * plane.getRowStride() + x * plane.getPixelStride()
-            return Double(Int(buffer.get(index)) & 255)
+        func sample(_ plane: Plane, x: Int, y: Int) -> Double {
+            let index = y * plane.rowStride + x * plane.pixelStride
+            return Double(Int(plane.bytes[index]) & 255)
         }
         func channel(_ value: Double) -> Int { min(255, max(0, Int(value * 255 + 0.5))) }
         for y in 0..<height {

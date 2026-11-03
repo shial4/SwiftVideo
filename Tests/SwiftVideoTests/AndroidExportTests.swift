@@ -69,6 +69,25 @@ extension RenderBehaviorTests {
                 "The one-frame MP4 must decode its image: \(Array(frame[3...5]))")
     }
 
+    @Test(arguments: [(Int64(0), false), (2_480_000, false), (2_490_000, true), (6_000_000, true)])
+    func sourceFrameInspectionChoosesNearestFrame(timeUs: Int64, green: Bool) throws {
+        let source = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "bt709.mp4"))
+        defer { try? FileManager.default.removeItem(at: source) }
+
+        // The left half changes from red to green at 2.5 s in this 30 fps
+        // fixture. Requests on either side of the midpoint select different
+        // neighboring frames; a request past the end returns the final frame.
+        let pixels = try Media3TestSupport.frameStats(path: source.path, timeUs: timeUs)
+
+        let expected = green ? [0.0, 255, 0] : [255.0, 0, 0]
+        for channel in 0..<3 {
+            #expect(abs(pixels[10 + channel] - expected[channel]) <= 8,
+                    "Nearest frame at \(timeUs): \(Array(pixels[10...12]))")
+            #expect(abs(pixels[6 + channel] - (channel == 2 ? 255 : 0)) <= 8,
+                    "Unchanged blue half at \(timeUs): \(Array(pixels[6...8]))")
+        }
+    }
+
     @Test(arguments: [0, 1, 2])
     func imageExportPreservesPrimaryColors(channel: Int) async throws {
         var rgb = [0, 0, 0]
