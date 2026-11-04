@@ -3,6 +3,44 @@
 
 [Documentation index](README.md) | [Public API reference](APIReference.md)
 
+## 0.1.0-alpha.5 verification
+
+This alpha adds clip and track speed, ordered visual filter inheritance, audio
+EQ, and example editor controls. Preview and export share the same resolved
+rates and filter order. Preview audio caching and seek boundaries use source
+time; fades and animations retain their project-time clocks.
+
+Local verification on November 5, 2026 passes all 51 macOS library tests, 51 iOS
+library tests on an iOS 27 simulator, 39 native Android core tests on API 34 arm64,
+and six example editor model tests. Android bridge/native compilation, both example app builds, all 71 source
+headers, local documentation links, and whitespace checks pass.
+
+Measured [iOS coverage](Coverage/0.1.0-alpha.5/ios.json) is 1,499/1,570 executable
+lines (95.48%); [Android core coverage](Coverage/0.1.0-alpha.5/android-core.json)
+is 955/1,000 (95.50%). Both exceed their unchanged 90% gates. The iOS report uses
+the direct LLVM export of the passing test binary and its profile because the
+Xcode `xccov` summary again omitted first-party sources.
+
+The final API 34 arm64 instrumentation run completed 67 tests in six suites in
+382.399 seconds with seven failing assertions: four BT.709 export-color checks,
+two legacy paused-seek checks, and the direct frame-processor paused-seek
+control. The latter passed in the first run and failed in the next two; the
+production session uses player recreation. Production preview, surface/view
+replacement, all 20 audio trim/seek cases, four pitch-preserving speed cases,
+ordered EQ, and both retimed preview/seek cases pass in the final run.
+
+One preceding run also reported a 0.022 RMS difference between 0.5x preview and
+export, both before and after seeking. The final run passed those same checks
+without changing their 0.01 tolerance or the audio implementation. This
+intermittent result remains unresolved; the passing rerun does not establish
+that the issue is fixed. No failing assertion was disabled or relaxed.
+
+Measured [Media3 coverage](Coverage/0.1.0-alpha.5/android-media3.json) is
+1,190/1,310 executable lines (90.84%), above the unchanged 75% gate. Coverage
+measures executed code even when assertions fail; it does not establish a
+passing Android gate. Hosted CI at the alpha release commit and physical-device
+behavior remain unverified. This is an experimental prerelease.
+
 ## 0.1.0-alpha.4 verification
 
 Hosted documents can retain HTTPS custom-font references through validation,

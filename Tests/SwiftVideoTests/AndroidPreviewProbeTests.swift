@@ -8,6 +8,67 @@ import SwiftVideoTestSupport
 @testable import SwiftVideo
 
 extension RenderBehaviorTests {
+    @Test(arguments: [PlaybackRate.quarter, .normal])
+    func retimedPreviewKeepsSourceFramesEQAndSeekEnvelope(trackRate: PlaybackRate) async throws {
+        let audio = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "music.wav"))
+        let video = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "bt709.mp4"))
+        let image = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "green.png"))
+        let output = audio.deletingLastPathComponent().appendingPathComponent("speed-preview-\(UUID()).mp4")
+        defer { for url in [audio, video, image, output] { try? FileManager.default.removeItem(at: url) } }
+        let rate = try PlaybackRate.double.combined(with: trackRate)
+        let duration = try VideoTime(value: 1, timescale: 1)
+        let start = try VideoTime(value: 2, timescale: 1).subtracting(
+            duration.scaled(by: PlaybackRate(numerator: rate.denominator, denominator: rate.numerator)))
+        let sound = try MediaClip.audio(audio, duration: duration).sourceStarting(at: VideoTime(value: 1, timescale: 4))
+            .starting(at: start).audio(AudioSettings(volume: 0.5, fadeOut: VideoTime(value: 1, timescale: 4),
+                filters: [.lowPass(cutoffHz: 1_000)])).speed(.double)
+        let picture = try MediaClip.video(video, duration: duration).sourceStarting(at: VideoTime(value: 2, timescale: 1))
+            .starting(at: start).zIndex(2).audio(AudioSettings(isMuted: true)).speed(.double)
+        let track = try MediaTrack(clips: [sound, picture]).speed(trackRate)
+            .audioFilter(.parametricEQ(frequencyHz: 440, gainDB: -6, bandwidthOctaves: 1))
+        let project = VideoProject(canvas: VideoSize(width: 320, height: 180), tracks: [
+            MediaTrack(clips: [MediaClip.image(image, duration: try VideoTime(value: 5, timescale: 2))]), track
+        ])
+        try await VideoExporter().export(project, to: output)
+        let reference = try Media3TestSupport.audioRMS(path: output.path)[2]
+        try #require(reference > 0.005)
+        let probe = Media3PreviewProbe()
+        defer { probe.release() }
+        try probe.start(json: AndroidVideoRenderer.serializedPlan(project, settings: ExportSettings()),
+                        sample: AndroidRenderPlan.visualSampler(for: project))
+        probe.play()
+        func reachEnd() async throws {
+            let deadline = ContinuousClock.now.advanced(by: .seconds(8))
+            while probe.positionMilliseconds() < 2050 && ContinuousClock.now < deadline {
+                try #require(probe.status() >= 0, "Preview failed: \(probe.failureMessage())")
+                try await Task.sleep(for: .milliseconds(25))
+            }
+            probe.pause()
+            try #require(probe.positionMilliseconds() >= 2050)
+        }
+        try await reachEnd()
+        #expect(abs(probe.audioRMS()[2] - reference) < 0.01, "Rate \(rate.multiplier): export \(reference), preview \(probe.audioRMS())")
+        let frames = probe.frameCount()
+        probe.seek(milliseconds: 1731)
+        func soughtFrameIsVisible() -> Bool {
+            let pixels = probe.videoPixels()
+            guard pixels.count == 6 else { return false }
+            let leftMatches = rate == .half ? pixels[1] > pixels[0] + 80 : pixels[0] > pixels[1] + 80
+            return leftMatches && pixels[5] > pixels[3] + 80
+        }
+        let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+        while (probe.frameCount() <= frames || probe.positionMilliseconds() != 1731 || !soughtFrameIsVisible())
+                && ContinuousClock.now < deadline {
+            try #require(probe.status() >= 0, "Preview failed: \(probe.failureMessage())")
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        #expect(probe.frameCount() > frames && probe.positionMilliseconds() == 1731)
+        #expect(soughtFrameIsVisible(), "Seek must select the retimed source frame and its blue right half: \(probe.videoPixels())")
+        probe.play()
+        try await reachEnd()
+        #expect(abs(probe.audioRMS()[2] - reference) < 0.01, "Speed, EQ and fade clocks must survive player recreation: rate \(rate.multiplier), export \(reference), preview \(probe.audioRMS())")
+    }
+
     @Test func surfaceViewRecreationPreservesFramesAndPlayback() async throws {
         let image = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "green.png"))
         defer { try? FileManager.default.removeItem(at: image) }

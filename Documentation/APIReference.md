@@ -40,6 +40,7 @@ An exact rational time conforming to `Hashable`, `Sendable`, `Comparable`, and `
 | `value`, `timescale` | Normalized numerator and denominator. |
 | `seconds: Double` | Approximation for rendering/UI. Prefer rational time for editing and comparisons. |
 | `adding(_:) throws`, `subtracting(_:) throws` | Checked arithmetic. Throws `timeOverflow` if the result cannot be represented without overflow or rounding. |
+| `scaled(by: PlaybackRate) throws` | Exact multiplication with cancellation before checked arithmetic. |
 | Comparison operators | Compare rational values without converting to floating point. |
 
 ### FrameRate
@@ -47,6 +48,13 @@ An exact rational time conforming to `Hashable`, `Sendable`, `Comparable`, and `
 `FrameRate` is `Hashable`, `Sendable`, and `Codable`. `init(numerator: Int32, denominator: Int32 = 1) throws` requires positive components and normalizes the fraction. Read `numerator`, `denominator`, or the approximate `framesPerSecond` value. Presets are `.fps24`, `.fps30`, and `.fps60`.
 
 For NTSC-style timing, use `try FrameRate(numerator: 30_000, denominator: 1_001)`. The Apple renderer supports rational rates; Android currently requires a normalized denominator of `1`.
+
+### PlaybackRate
+
+`init(numerator: Int32, denominator: Int32 = 1) throws` normalizes a positive
+fraction in 0.25...4. `numerator`, `denominator`, and approximate `multiplier` are
+read-only. Presets: `.quarter`, `.half`, `.normal`, `.double`, `.quadruple`.
+`combined(with:) throws` multiplies rates and validates the same range.
 
 ### VideoTimeRange
 
@@ -79,7 +87,7 @@ Empty projects are valid editing state but cannot be exported. Transparent or un
 
 ### MediaTrack
 
-`init(id: UUID = UUID(), name: String = "", clips: [MediaClip] = [])` groups clips. Its public properties are `id`, `name`, and `clips`. Use `VideoEditor` to change an existing project's tracks, or construct a new value.
+`init(id: UUID = UUID(), name: String = "", clips: [MediaClip] = [], playbackRate: PlaybackRate = .normal, filters: [MediaFilter] = [], audioFilters: [AudioFilter] = [])` groups clips. All parameters are read-only properties. `speed(_:) throws` retimes clips and gaps around the earliest start. `filter` and `audioFilter` append; `filters` and `audioFilters` replace the corresponding chain. Track filters apply to each matching clip after its own filters. Use `VideoEditor` to change an existing project's tracks, or construct a new value.
 
 ### MediaSource
 
@@ -104,13 +112,14 @@ MediaClip(id: UUID = UUID(), source: MediaSource,
           transform: VisualTransform = VisualTransform(),
           filters: [MediaFilter] = [], animations: [KeyframeAnimation] = [],
           audio: AudioSettings = AudioSettings(),
-          effectsOffset: VideoTime = .zero, effectsDuration: VideoTime? = nil)
+          effectsOffset: VideoTime = .zero, effectsDuration: VideoTime? = nil,
+          playbackRate: PlaybackRate = .normal)
 ```
 
 All parameters are exposed as read-only properties. `effectsDuration` defaults to the initial `duration`.
 
 - `start` places the clip on the project timeline. `sourceStart` chooses the first source-media time. Both must be nonnegative; `duration` must be positive.
-- For video/audio, `sourceStart + duration` must fit readable source media. Choosing a duration does not loop, freeze, or change playback speed.
+- For video/audio, `sourceStart + duration * clipRate * trackRate` must fit readable source media. Initializer times are already in project time. `speed(_:)` retimes an existing value without changing its selected source interval.
 - `effectsOffset` and `effectsDuration` preserve the original animation/audio clock after edits. Leave their defaults for a new clip. A clip's `effectsOffset + duration` must not exceed `effectsDuration`.
 - `timeRange` returns the clip's project interval.
 - `visualTransform(at: VideoTime) throws` evaluates animation at project time. It does not check whether the clip is active; select active clips first.
@@ -142,6 +151,7 @@ All factories start at project/source time zero with the standard `MediaClip` de
 
 | Modifier returning `MediaClip` | Behavior |
 | --- | --- |
+| `speed(_ rate: PlaybackRate) throws` | Replaces speed, retiming duration, keyframes, fades, and effect clocks while preserving start and source interval. |
 | `starting(at:)` | Replaces project start. |
 | `sourceStarting(at:)` | Replaces source start. |
 | `source(_:)` | Replaces source, retaining timing and effects. |
@@ -153,7 +163,7 @@ All factories start at project/source time zero with the standard `MediaClip` de
 | `animate(_:keyframes:)` | Replaces the animation for the specified property. |
 | `animations(_:)` | Replaces all animations. |
 
-Modifiers preserve the ID and original effect clock, and do not mutate their receiver or validate the project. Pass stable IDs when deriving a project repeatedly from SwiftUI state. Use editing operations for split/trim; there is no duration modifier that silently resets the original effect clock.
+Modifiers preserve the ID. Speed retimes the effect clock; other modifiers preserve it, and do not mutate their receiver or validate the project. Pass stable IDs when deriving a project repeatedly from SwiftUI state. Use editing operations for split/trim; there is no duration modifier that silently resets the original effect clock.
 
 ## Visual style
 
@@ -215,7 +225,7 @@ rendering; they do not fetch fonts or silently substitute a platform font.
 
 ## Audio
 
-`AudioSettings(volume: Double = 1, isMuted: Bool = false, pan: Double = 0, fadeIn: VideoTime = .zero, fadeOut: VideoTime = .zero)` exposes all five properties.
+`AudioSettings(volume: Double = 1, isMuted: Bool = false, pan: Double = 0, fadeIn: VideoTime = .zero, fadeOut: VideoTime = .zero, filters: [AudioFilter] = [])` exposes all six properties.
 
 - Volume is a finite, nonnegative gain multiplier. Pan is finite in `-1...1`, from left to right, using constant-power stereo panning.
 - Fades are linear, nonnegative, and their combined duration must fit within `effectsDuration`.
@@ -224,6 +234,18 @@ rendering; they do not fetch fonts or silently substitute a platform font.
 - Output audio is mixed to stereo AAC. Overlapping sources are mixed and limited at full scale; leave headroom. Android's mixing path accepts mono/stereo PCM, not surround processing.
 
 Use `MediaClip.audioGain(at:)` for project-time evaluation after trimming or splitting. See the [crossfade recipe](Recipes.md#visual-and-audio-crossfade).
+
+### AudioFilter
+
+Ordered per-clip DSP before gain, pan, fades, and mixing:
+
+- `.lowPass(cutoffHz: Double)` and `.highPass(cutoffHz: Double)`.
+- `.parametricEQ(frequencyHz: Double, gainDB: Double, bandwidthOctaves: Double)`.
+
+All parameters must be finite. Frequency must be at least 20 Hz and below the source
+and processing Nyquist frequencies; gain is -24...24 dB, bandwidth 0.05...5 octaves.
+`AudioSettings.filters` defaults to empty; `filter(_:)` appends and `filters(_:)`
+replaces the chain, preserving volume, pan, mute, and fades.
 
 ## Editing
 
@@ -234,6 +256,7 @@ Source: [VideoEditor.swift](../Sources/SwiftVideo/VideoEditor.swift).
 | `VideoEdit` case | Behavior |
 | --- | --- |
 | `.addTrack(MediaTrack)` | Appends a track. |
+| `.replaceTrack(MediaTrack)` | Replaces an existing track with the same ID; the complete resulting project must validate. |
 | `.removeTrack(UUID)` | Removes the track and its clips. |
 | `.addClip(MediaClip, trackID: UUID)` | Appends a clip to the named track. |
 | `.replaceClip(MediaClip)` | Replaces the existing clip with the same ID, in its current track. |
@@ -301,7 +324,7 @@ Implementations must finish a playable file or throw, poll task cancellation, an
 
 `RendererCapabilities(name:features:codecs:containers:)` stores a `String`, `Set<CompositionFeature>`, `Set<VideoCodec>`, and `Set<VideoContainer>`. All properties are read-only. `validate(_:settings:) throws` rejects unavailable codec/container combinations and features required by the project's clips. It does not probe device codecs, validate all project values, or load media.
 
-`CompositionFeature` cases are `.video`, `.images`, `.text`, `.filters`, `.animation`, `.audioMixing`, `.audioFades`, `.audioPan`, and `.customFonts`.
+`CompositionFeature` cases are `.video`, `.images`, `.text`, `.filters`, `.animation`, `.audioMixing`, `.audioFades`, `.audioPan`, `.customFonts`, `.playbackSpeed`, and `.audioFilters`.
 
 | Built-in renderer | Availability and responsibilities |
 | --- | --- |

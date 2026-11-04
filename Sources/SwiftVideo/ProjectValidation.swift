@@ -13,7 +13,11 @@ extension VideoProject {
         var clipIDs: Set<UUID> = []
         for track in tracks {
             try require(trackIDs.insert(track.id).inserted, "Track IDs must be unique.")
+            try validateFilters(track.filters)
+            for filter in track.audioFilters { try filter.validate() }
             for clip in track.clips {
+                let rate = try clip.playbackRate.combined(with: track.playbackRate)
+                _ = try clip.sourceStart.adding(clip.duration.scaled(by: rate))
                 try require(clipIDs.insert(clip.id).inserted, "Clip IDs must be unique across the project.")
                 try validateClip(clip)
             }
@@ -46,7 +50,6 @@ private func validateColor(_ color: VideoColor) throws {
 private func validateClip(_ clip: MediaClip) throws {
     try require(clip.start >= .zero && clip.sourceStart >= .zero && clip.duration > .zero,
                 "Clip start and source start must be nonnegative; duration must be positive.")
-    _ = try clip.sourceStart.adding(clip.duration)
     try require(clip.effectsOffset >= .zero && clip.effectsDuration > .zero,
                 "Effect timing must have a nonnegative offset and positive duration.")
     try require(try clip.effectsOffset.adding(clip.duration) <= clip.effectsDuration,
@@ -77,14 +80,7 @@ private func validateClip(_ clip: MediaClip) throws {
     let c = t.crop
     try require([c.x, c.y, c.width, c.height].allSatisfy(\.isFinite) && c.x >= 0 && c.y >= 0 && c.width > 0
                 && c.height > 0 && c.x + c.width <= 1 && c.y + c.height <= 1, "Crop must fit within the source image.")
-    for filter in clip.filters {
-        switch filter {
-        case .brightness(let value): try require(value.isFinite && (-1...1).contains(value), "Brightness must be between -1 and 1.")
-        case .contrast(let value), .saturation(let value): try require(value.isFinite && value >= 0, "Contrast and saturation must be nonnegative.")
-        case .gaussianBlur(let value): try require(value.isFinite && value >= 0, "Blur radius must be nonnegative.")
-        case .sepia(let value): try require(value.isFinite && (0...1).contains(value), "Sepia intensity must be between zero and one.")
-        }
-    }
+    try validateFilters(clip.filters)
     var properties: Set<AnimationProperty> = []
     for animation in clip.animations {
         try require(properties.insert(animation.property).inserted, "Only one animation per property is allowed on a clip.")
@@ -100,7 +96,20 @@ private func validateClip(_ clip: MediaClip) throws {
         }
     }
     let a = clip.audio
+    try require(clip.source.hasAudio || a.filters.isEmpty, "Audio filters require a video or audio clip.")
+    for filter in a.filters { try filter.validate() }
     try require(a.volume.isFinite && a.volume >= 0 && a.pan.isFinite && (-1...1).contains(a.pan), "Invalid audio gain or pan.")
     try require(a.fadeIn >= .zero && a.fadeOut >= .zero, "Audio fades must be nonnegative.")
     try require(try a.fadeIn.adding(a.fadeOut) <= clip.effectsDuration, "Audio fades must fit within the original clip duration.")
+}
+
+private func validateFilters(_ filters: [MediaFilter]) throws {
+    for filter in filters {
+        switch filter {
+        case .brightness(let value): try require(value.isFinite && (-1...1).contains(value), "Brightness must be between -1 and 1.")
+        case .contrast(let value), .saturation(let value): try require(value.isFinite && value >= 0, "Contrast and saturation must be nonnegative.")
+        case .gaussianBlur(let value): try require(value.isFinite && value >= 0, "Blur radius must be nonnegative.")
+        case .sepia(let value): try require(value.isFinite && (0...1).contains(value), "Sepia intensity must be between zero and one.")
+        }
+    }
 }

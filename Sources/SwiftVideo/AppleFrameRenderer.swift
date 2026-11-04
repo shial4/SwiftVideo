@@ -15,7 +15,7 @@ enum AppleFrameRenderer {
         for clip in visualClips where try clip.timeRange.contains(time) {
             let source: CIImage
             if let video = videos[clip.id] {
-                source = try video.image(at: time.subtracting(clip.start).adding(clip.sourceStart))
+                source = try video.image(at: clip.sourceTime(at: time))
             } else if let image = images[clip.id] { source = image }
             else { throw VideoError.invalidMedia("No visual source was prepared for clip \(clip.id).") }
             let transform = try clip.visualTransform(at: time)

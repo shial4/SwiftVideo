@@ -67,7 +67,7 @@ public final class Media3CompositionBuilder {
             } else {
                 item = MediaItem.Builder().setUri(clip.getString("url"))
                     .setClippingConfiguration(MediaItem.ClippingConfiguration.Builder().setStartPositionUs(sourceStart)
-                        .setEndPositionUs(sourceStart + length).build()).build()
+                        .setEndPositionUs(sourceStart + clip.getLong("sourceDurationUs")).build()).build()
             }
             let visualEffects = java.util.ArrayList<Effect>()
             let transform = clip.getJSONObject("transform")
@@ -92,8 +92,10 @@ public final class Media3CompositionBuilder {
             // CompositionPlayer needs source duration before clipping. Media
             // validation already reads this metadata for Transformer as well.
             let sourceDuration = mediaTiming[clip.getString("id")]?.duration ?? length
-            let edited = EditedMediaItem.Builder(item).setDurationUs(sourceDuration).setRemoveAudio(true).setFrameRate(fps)
-                .setEffects(Effects(java.util.ArrayList<AudioProcessor>(), visualEffects)).build()
+            let builder = EditedMediaItem.Builder(item).setDurationUs(sourceDuration).setRemoveAudio(true).setFrameRate(fps)
+                .setEffects(Effects(java.util.ArrayList<AudioProcessor>(), visualEffects))
+            if kind == "video" { builder.setSpeed(SpeedParameters(ConstantSpeedProvider(speed: Float(clip.getDouble("speed"))), true)) }
+            let edited = builder.build()
             let types = java.util.HashSet<Int>()
             types.add(C.TRACK_TYPE_VIDEO)
             let sequence = EditedMediaItemSequence.Builder(types)
@@ -123,10 +125,12 @@ public final class Media3CompositionBuilder {
                 JSONObject(clip.toString()).put("url", audioURL).put("kind", "audio").put("sourceStartUs", sourceStart))
             let item = MediaItem.Builder().setUri(audioURL)
                 .setClippingConfiguration(MediaItem.ClippingConfiguration.Builder().setStartPositionUs(sourceStart)
-                    .setEndPositionUs(sourceStart + length).build()).build()
+                    .setEndPositionUs(sourceStart + clip.getLong("sourceDurationUs")).build()).build()
             let processors = java.util.ArrayList<AudioProcessor>()
+            if clip.getJSONArray("audioFilters").length() > 0 { processors.add(EqualizerAudioProcessor(filters: clip.getJSONArray("audioFilters"))) }
             processors.add(EnvelopeAudioProcessor(clip: clip))
             let edited = EditedMediaItem.Builder(item).setDurationUs(audioTiming.duration).setRemoveVideo(true)
+                .setSpeed(SpeedParameters(ConstantSpeedProvider(speed: Float(clip.getDouble("speed"))), true))
                 .setEffects(Effects(processors, java.util.ArrayList<Effect>())).build()
             let types = java.util.HashSet<Int>()
             types.add(C.TRACK_TYPE_AUDIO)
@@ -162,10 +166,13 @@ public final class Media3CompositionBuilder {
             let mime = format.getString(MediaFormat.KEY_MIME) ?? ""
             let duration = format.containsKey(MediaFormat.KEY_DURATION) ? format.getLong(MediaFormat.KEY_DURATION) : Int64(-1)
             if mime.hasPrefix("video/") { videoDuration = max(videoDuration, duration) }
-            if mime.hasPrefix("audio/") { audioDuration = max(audioDuration, duration) }
+            if mime.hasPrefix("audio/") {
+                audioDuration = max(audioDuration, duration)
+                EqualizerAudioProcessor.validate(clip.getJSONArray("audioFilters"), sampleRate: format.getInteger(MediaFormat.KEY_SAMPLE_RATE))
+            }
         }
         let duration = audio ? audioDuration : videoDuration
-        guard duration >= sourceStart + clip.getLong("durationUs") else {
+        guard duration >= sourceStart + clip.getLong("sourceDurationUs") else {
             throw IllegalArgumentException("Missing media track or source range exceeds its duration: " + clip.getString("id"))
         }
         return MediaTiming(duration: max(videoDuration, audioDuration), hasAudio: audioDuration >= 0)

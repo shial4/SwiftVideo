@@ -11,10 +11,23 @@ import SkipAV
 import AVKit
 #endif
 
+enum EditorSelection: Equatable { case clip(UUID), track(UUID) }
+
 @MainActor @Observable
 final class EditorStore {
     var project = VideoProject()
-    var selectedID: UUID?
+    var selection: EditorSelection?
+    var selectedID: UUID? {
+        get { if case .clip(let id) = selection { id } else { nil } }
+        set { selection = newValue.map { .clip($0) } }
+    }
+    var selectedTrack: MediaTrack? {
+        guard case .track(let id) = selection else { return nil }
+        return project.tracks.first { $0.id == id }
+    }
+    var selectedRate: PlaybackRate { selected?.playbackRate ?? selectedTrack?.playbackRate ?? .normal }
+    var selectedFilters: [MediaFilter] { selected?.filters ?? selectedTrack?.filters ?? [] }
+    var selectedAudioFilters: [AudioFilter] { selected?.audio.filters ?? selectedTrack?.audioFilters ?? [] }
     var tool = EditorTool.edit
     var playhead = 0.0
     var isPlaying = false
@@ -67,7 +80,7 @@ final class EditorStore {
             redoHistory.removeAll()
             project = after
             playhead = min(playhead, duration)
-            if selected == nil { selectedID = project.tracks.flatMap(\.clips).first?.id }
+            if selected == nil && selectedTrack == nil { selectedID = project.tracks.flatMap(\.clips).first?.id }
             schedulePreview()
         } catch { message = error.localizedDescription }
     }
@@ -86,13 +99,30 @@ final class EditorStore {
 
     private func restoreSelection() {
         playhead = min(playhead, duration)
-        if selected == nil { selectedID = project.tracks.flatMap(\.clips).first?.id }
+        if selected == nil && selectedTrack == nil { selectedID = project.tracks.flatMap(\.clips).first?.id }
     }
 
     func select(_ clip: MediaClip) {
         selectedID = clip.id
         seek(max(clip.start.seconds, min(playhead, clip.start.seconds + clip.duration.seconds - 0.01)))
         switch clip.source { case .text: tool = .text; case .audio: tool = .audio; default: tool = .edit }
+    }
+
+    func selectTrack(_ track: MediaTrack) {
+        selection = .track(track.id)
+        tool = .edit
+    }
+
+    func setSpeed(_ rate: PlaybackRate) async {
+        do {
+            if let track = selectedTrack { await commit([.replaceTrack(try track.speed(rate))]) }
+            else if let clip = selected { await commit([.replaceClip(try clip.speed(rate))]) }
+        } catch { message = error.localizedDescription }
+    }
+
+    func setAudioFilters(_ filters: [AudioFilter]) async {
+        if let track = selectedTrack { await commit([.replaceTrack(track.audioFilters(filters))]) }
+        else if let clip = selected, clip.source.hasAudio { await commit([.replaceClip(clip.audio(clip.audio.filters(filters)))]) }
     }
 
     func split() async {
@@ -113,6 +143,9 @@ final class EditorStore {
     }
 
     func setFilter(_ filter: EditorFilter) async {
+        if let track = selectedTrack {
+            await commit([.replaceTrack(track.filters(filter.effects))]); return
+        }
         guard let clip = selected, clip.source.isVisual else { return }
         await commit([.replaceClip(clip.filters(filter.effects))])
     }
@@ -126,7 +159,7 @@ final class EditorStore {
         guard let clip = selected else { return }
         do {
             let fade = try seconds(fading ? min(0.5, clip.effectsDuration.seconds / 2) : 0)
-            await commit([.replaceClip(clip.audio(AudioSettings(volume: volume, isMuted: muted, pan: pan, fadeIn: fade, fadeOut: fade)))])
+            await commit([.replaceClip(clip.audio(AudioSettings(volume: volume, isMuted: muted, pan: pan, fadeIn: fade, fadeOut: fade, filters: clip.audio.filters)))])
         } catch { message = error.localizedDescription }
     }
 
@@ -162,7 +195,7 @@ final class EditorStore {
     func appendFootage() async {
         guard let assets, let track = project.tracks.first else { return }
         do {
-            let clip = MediaClip(source: .video(assets.close), duration: try seconds(4), audio: AudioSettings(isMuted: true))
+            let clip = MediaClip(source: .video(assets.close), duration: try seconds(4 / track.playbackRate.multiplier), audio: AudioSettings(isMuted: true))
             let start = try track.clips.reduce(VideoTime.zero) { try max($0, $1.timeRange.end) }
             await commit([.mergeSequentially([clip], trackID: track.id, start: start)]); selectedID = clip.id
         } catch { message = error.localizedDescription }

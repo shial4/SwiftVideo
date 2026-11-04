@@ -27,7 +27,7 @@ public final class Media3AudioCacheProbe {
         let clips = JSONArray()
         for start in [sourceStartUs, secondSourceStartUs ?? sourceStartUs] {
             clips.put(JSONObject().put("kind", "audio").put("muted", false).put("url", source)
-                .put("sourceStartUs", start).put("durationUs", durationUs))
+                .put("sourceStartUs", start).put("durationUs", durationUs).put("sourceDurationUs", durationUs))
         }
         let plan = JSONObject().put("clips", clips)
         let original = plan.toString()

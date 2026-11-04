@@ -46,6 +46,7 @@ public final class Media3PreviewProbe {
     private let failure = AtomicReference<String>("")
     private let count = AtomicInteger(0)
     private let samples = AtomicIntegerArray(6)
+    private let videoSamples = AtomicIntegerArray(6)
     private let firstFrameTime = AtomicLong(-1)
     private var player: CompositionPlayer?
     private var reader: ImageReader?
@@ -272,6 +273,15 @@ public final class Media3PreviewProbe {
         #endif
     }
 
+    /// RGB samples at the left and right quarter points of the captured frame.
+    public func videoPixels() -> [Int] {
+        #if SKIP
+        return (0..<6).map { videoSamples.get($0) }
+        #else
+        return []
+        #endif
+    }
+
     public func firstFrameMilliseconds() -> Int64 {
         #if SKIP
         return firstFrameTime.get()
@@ -327,6 +337,12 @@ public final class Media3PreviewProbe {
                 let offset = 90 * plane.getRowStride() + x * plane.getPixelStride()
                 for channel in 0..<3 {
                     self.samples.set(point * 3 + channel, Int(bytes.get(offset + channel)) & 255)
+                }
+            }
+            for point in 0..<2 {
+                let offset = 90 * plane.getRowStride() + (point == 0 ? 80 : 240) * plane.getPixelStride()
+                for channel in 0..<3 {
+                    self.videoSamples.set(point * 3 + channel, Int(bytes.get(offset + channel)) & 255)
                 }
             }
             var greenCount = 0

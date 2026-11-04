@@ -1,0 +1,73 @@
+{
+  "covered" : 955,
+  "executable" : 1000,
+  "files" : [
+    {
+      "covered" : 176,
+      "executable" : 176,
+      "file" : "Sources/SwiftVideo/AndroidRenderPlan.swift"
+    },
+    {
+      "covered" : 0,
+      "executable" : 6,
+      "file" : "Sources/SwiftVideo/AndroidVideoPreview.swift"
+    },
+    {
+      "covered" : 15,
+      "executable" : 15,
+      "file" : "Sources/SwiftVideo/AudioFilter.swift"
+    },
+    {
+      "covered" : 49,
+      "executable" : 51,
+      "file" : "Sources/SwiftVideo/CompositionBuilder.swift"
+    },
+    {
+      "covered" : 84,
+      "executable" : 87,
+      "file" : "Sources/SwiftVideo/PlaybackEditing.swift"
+    },
+    {
+      "covered" : 43,
+      "executable" : 43,
+      "file" : "Sources/SwiftVideo/PlaybackRate.swift"
+    },
+    {
+      "covered" : 134,
+      "executable" : 135,
+      "file" : "Sources/SwiftVideo/ProjectValidation.swift"
+    },
+    {
+      "covered" : 100,
+      "executable" : 100,
+      "file" : "Sources/SwiftVideo/VideoEditor.swift"
+    },
+    {
+      "covered" : 0,
+      "executable" : 12,
+      "file" : "Sources/SwiftVideo/VideoError.swift"
+    },
+    {
+      "covered" : 97,
+      "executable" : 117,
+      "file" : "Sources/SwiftVideo/VideoExporter.swift"
+    },
+    {
+      "covered" : 137,
+      "executable" : 137,
+      "file" : "Sources/SwiftVideo/VideoProject.swift"
+    },
+    {
+      "covered" : 76,
+      "executable" : 76,
+      "file" : "Sources/SwiftVideo/VideoTime.swift"
+    },
+    {
+      "covered" : 44,
+      "executable" : 45,
+      "file" : "Sources/SwiftVideo/VisualStyle.swift"
+    }
+  ],
+  "linePercent" : 95.5,
+  "suite" : "android-core"
+}

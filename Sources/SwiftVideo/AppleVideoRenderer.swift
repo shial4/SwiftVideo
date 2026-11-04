@@ -36,7 +36,7 @@ public actor AppleVideoRenderer: VideoRendering {
             throw VideoError.unsupportedFeature("This renderer supports output up to 8192 pixels per dimension and 240 fps.")
         }
         progress(ExportProgress(phase: .preparing, fraction: 0))
-        let clips = project.tracks.flatMap(\.clips)
+        let clips = try project.renderClips()
         let visualClips = clips.enumerated().filter { $0.element.source.isVisual }.sorted {
             $0.element.zIndex == $1.element.zIndex ? $0.offset < $1.offset : $0.element.zIndex < $1.element.zIndex
         }.map(\.element)
@@ -51,7 +51,7 @@ public actor AppleVideoRenderer: VideoRendering {
                 guard url.scheme != "content" else { throw VideoError.unsupportedFeature("Android content URLs cannot be read by AVFoundation.") }
                 let asset = AVURLAsset(url: url)
                 let assetDuration = try await asset.load(.duration)
-                guard assetDuration.isNumeric, try clip.sourceStart.adding(clip.duration).cmTime <= assetDuration else {
+                guard assetDuration.isNumeric, try clip.sourceStart.adding(clip.sourceDuration).cmTime <= assetDuration else {
                     throw VideoError.invalidMedia("The source range exceeds the duration of \(url.lastPathComponent).")
                 }
                 assets[clip.id] = asset
@@ -65,6 +65,14 @@ public actor AppleVideoRenderer: VideoRendering {
                     let audioTrack = try await asset.loadTracks(withMediaType: .audio).first
                     if case .audio = clip.source, audioTrack == nil {
                         throw VideoError.invalidMedia("No audio track in \(url.lastPathComponent).")
+                    }
+                    if let audioTrack, !clip.audio.filters.isEmpty {
+                        let descriptions = try await audioTrack.load(.formatDescriptions)
+                        guard let description = descriptions.first,
+                              let stream = CMAudioFormatDescriptionGetStreamBasicDescription(description) else {
+                            throw VideoError.invalidMedia("Cannot determine source audio sample rate.")
+                        }
+                        for filter in clip.audio.filters { try filter.validate(sampleRate: min(48_000, stream.pointee.mSampleRate)) }
                     }
                     audioTracks[clip.id] = audioTrack
                 }
@@ -121,7 +129,7 @@ public actor AppleVideoRenderer: VideoRendering {
 
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         var videos: [UUID: AppleVideoSource] = [:]
-        var audio: [UUID: AppleAudioSource] = [:]
+        var audio: [UUID: AppleClipAudioSource] = [:]
         var frameIndex: Int64 = 0
         var audioFrame: Int64 = 0
         let audioFrames = CMTimeConvertScale(duration.cmTime, timescale: AppleAudioSource.sampleRate, method: .roundAwayFromZero).value
@@ -171,7 +179,7 @@ public actor AppleVideoRenderer: VideoRendering {
                 for clip in clips where audioTracks[clip.id] != nil {
                     if try clip.start < endTime && clip.timeRange.end > audioTime {
                         if audio[clip.id] == nil, let asset = assets[clip.id], let track = audioTracks[clip.id] {
-                            audio[clip.id] = try AppleAudioSource(asset: asset, track: track, clip: clip)
+                            audio[clip.id] = try AppleClipAudioSource(asset: asset, track: track, clip: clip)
                         }
                     } else { audio[clip.id] = nil }
                 }
@@ -194,7 +202,7 @@ public actor AppleVideoRenderer: VideoRendering {
         complete = true
     }
 
-    private func mixAudio(clips: [MediaClip], sources: [UUID: AppleAudioSource], startFrame: Int64, count: Int) throws -> [Float] {
+    private func mixAudio(clips: [MediaClip], sources: [UUID: AppleClipAudioSource], startFrame: Int64, count: Int) throws -> [Float] {
         var result = [Float](repeating: 0, count: count * 2)
         let rate = Double(AppleAudioSource.sampleRate)
         for clip in clips {
@@ -206,7 +214,7 @@ public actor AppleVideoRenderer: VideoRendering {
             for index in 0..<count {
                 let time = Double(startFrame + Int64(index)) / rate
                 guard time >= clipStart && time < end else { continue }
-                let sourceFrame = Int64(((time - clipStart + clip.sourceStart.seconds) * rate).rounded())
+                let sourceFrame = Int64(((time - clipStart) * rate).rounded())
                 let pair = try source.sample(at: sourceFrame)
                 let effectTime = time - clipStart + clip.effectsOffset.seconds
                 let gain = clip.audio.gain(atSeconds: effectTime, durationSeconds: clip.effectsDuration.seconds)

@@ -27,6 +27,11 @@ struct EditorTimeline: View {
                     ZStack(alignment: .topLeading) {
                         VStack(alignment: .leading, spacing: 5) {
                             ForEach(store.project.tracks) { track in
+                                Button { store.selectTrack(track) } label: {
+                                    Text("\(track.name)  \(String(format: "%.2gx", track.playbackRate.multiplier))")
+                                        .font(.system(size: 10, weight: .medium))
+                                        .foregroundStyle(store.selectedTrack?.id == track.id ? EditorTheme.accent : EditorTheme.muted)
+                                }.buttonStyle(.plain).accessibilityLabel("Select track \(track.name)")
                                 ZStack(alignment: .leading) {
                                     RoundedRectangle(cornerRadius: 4).fill(.white.opacity(0.025))
                                     ForEach(track.clips) { clip in
@@ -39,7 +44,7 @@ struct EditorTimeline: View {
                                 }.frame(width: max(500, store.duration * pixelsPerSecond), height: track.name == "Footage" ? 43 : 25)
                             }
                         }
-                        Rectangle().fill(.white).frame(width: 1.5, height: 135).offset(x: store.playhead * pixelsPerSecond).allowsHitTesting(false)
+                        Rectangle().fill(.white).frame(width: 1.5, height: CGFloat(store.project.tracks.count * 55)).offset(x: store.playhead * pixelsPerSecond).allowsHitTesting(false)
                     }.padding(.horizontal, 18)
                 }
             }

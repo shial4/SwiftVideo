@@ -363,8 +363,10 @@ public final class Media3PreviewSession {
             let start = clip.optLong("audioSourceStartUs", clip.getLong("sourceStartUs"))
             let duration = clip.getLong("durationUs")
             let seek = min(duration, max(Int64(0), positionUs - clip.getLong("startUs")))
+            let sourceDuration = clip.getLong("sourceDurationUs")
+            let sourceSeek = min(sourceDuration, Int64((Double(seek) * clip.getDouble("speed")).rounded()))
             let url = clip.optString("audioURL", clip.getString("url"))
-            boundaries[url] = Array(Set((boundaries[url] ?? []) + [start, start + duration, start + seek])).sorted()
+            boundaries[url] = Array(Set((boundaries[url] ?? []) + [start, start + sourceDuration, start + sourceSeek])).sorted()
         }
         return boundaries
     }

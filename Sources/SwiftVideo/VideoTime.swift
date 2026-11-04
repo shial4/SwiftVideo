@@ -55,7 +55,7 @@ public struct VideoTime: Hashable, Sendable, Comparable, Codable {
         return left.high == right.high ? left.low < right.low : left.high < right.high
     }
 
-    private static func gcd(_ a: Int64, _ b: Int64) -> Int64 {
+    static func gcd(_ a: Int64, _ b: Int64) -> Int64 {
         var a = a
         var b = b
         while b != 0 { (a, b) = (b, a % b) }

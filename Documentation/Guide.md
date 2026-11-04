@@ -64,7 +64,7 @@ end. The project duration is the latest clip end, including audio-only tracks.
 
 `VideoEditor` owns mutable editing state. `apply(_:)` commits an entire edit batch
 only when the resulting project is valid. Supported edits add/remove tracks and
-clips, replace clips, split, trim, offset, and arrange clips sequentially:
+clips, replace clips or tracks, split, trim, offset, and arrange clips sequentially:
 
 ```swift
 let track = MediaTrack(name: "Footage")
@@ -78,6 +78,61 @@ Splits use absolute project time. Trims retain a range relative to the current
 clip start and leave a gap rather than rippling other clips. Both preserve the
 source offset and the original animation/fade clock. Sequential merging retains
 individual clips and effects; it does not flatten or re-encode source media.
+
+## Playback speed and track effects
+
+Available on `main` and `0.1.0-alpha.5`; the stable `0.0.1` tag does not contain these APIs.
+
+```swift
+let clip = try MediaClip.video(inputURL, duration: VideoTime(value: 8, timescale: 1))
+    .speed(.double) // Four project seconds, eight source seconds, unchanged pitch.
+    .filter(.saturation(0.8))
+    .audio(AudioSettings().filter(.highPass(cutoffHz: 80)))
+let track = try MediaTrack("Footage") { clip }
+    .speed(.half) // Eight project seconds; clip 2x times track 0.5x is 1x.
+    .filter(.contrast(1.1))
+    .audioFilter(.parametricEQ(frequencyHz: 2_500, gainDB: 3, bandwidthOctaves: 1))
+```
+
+`PlaybackRate` stores a validated fraction. Presets are `.quarter`, `.half`,
+`.normal`, `.double`, and `.quadruple`; use `try PlaybackRate(numerator: 3,
+denominator: 2)` for 1.5x. Clip and track rates multiply. Each rate and the
+combined rate must be in 0.25x...4x. Constant forward playback is supported;
+reverse, speed ramps, and pitch shifting are not part of this API.
+
+A clip's `speed(_:)` preserves its start and selected source interval while
+changing its duration. A track's `speed(_:)` retimes all clips and gaps around
+the earliest clip start, leaving other tracks fixed. Both preserve IDs and
+scale keyframes, fade lengths, and the preserved effect clock. Applying the same
+rate again has no effect. Setting a new rate replaces the previous rate.
+
+Stored starts and durations are always project times. Low-level initializers
+with `playbackRate:` accept already-retimed values; prefer `speed(_:)` when
+changing existing clips. Newly added clips use their explicit project times.
+For video/audio, the source interval is `sourceStart` through
+`sourceStart + duration * clipRate * trackRate`. Splits and trims advance source
+time by the combined rate and keep animation/fade continuity.
+
+Track visual filters run after each visual clip's filters. Track audio filters
+run after each video/audio clip's filters. They do not process a composited group
+or a mixed audio bus. Append with `filter`/`audioFilter`; replace the whole chain
+with `filters`/`audioFilters`. Audio settings also expose `filter` and `filters`.
+
+Audio processing order is pitch-preserving time stretch, clip EQ, track EQ,
+gain/pan/fades, then mixing. `AudioFilter` supports low pass, high pass, and
+parametric EQ. Frequencies must be at least 20 Hz and below both the source and
+processing Nyquist frequencies (half the sample rate). Parametric gain is
+-24...24 dB and bandwidth is 0.05...5 octaves. Source-dependent limits are
+checked during rendering. Images and text cannot have clip audio filters.
+
+Use `.replaceClip(try clip.speed(.double))` or
+`.replaceTrack(try track.speed(.half))` in an editor batch. A failed rate or filter
+edit leaves the project unchanged. The example lets you select a track by its
+name, change speed, and add or remove EQ bands with undo/redo.
+
+Older project JSON defaults missing rates to 1x and chains to empty. Projects
+using these features require this version or newer; older readers cannot be
+expected to render the new timing or effects correctly.
 
 ## Visuals and audio
 
@@ -222,7 +277,7 @@ let project = VideoProject {
 }
 ```
 
-Supply stable IDs from your observable model when deriving a project repeatedly from view inputs. Default IDs are fresh UUIDs on each construction. Modifiers return a new clip while retaining its ID, source range, and original animation/fade clock. `.filter` appends; `.filters` replaces the list. `.animate` replaces the animation for one property; `.animations` replaces all animations. Timing and visual validation remain in `VideoProject.validate`, `VideoEditor`, and export, so the DSL and array APIs share the same rules.
+Supply stable IDs from your observable model when deriving a project repeatedly from view inputs. Default IDs are fresh UUIDs on each construction. Modifiers return a new clip while retaining its ID. Speed preserves the source range and retimes the animation/fade clock; other modifiers preserve that clock. `.filter` appends; `.filters` replaces the list. `.animate` replaces the animation for one property; `.animations` replaces all animations. Timing and visual validation remain in `VideoProject.validate`, `VideoEditor`, and export, so the DSL and array APIs share the same rules.
 
 Keep the project in model state rather than starting exports from `View.body`. Use a cancellable `.task(id:)` or model-owned task for preview generation, debounce rapid changes, and guard against old completion callbacks replacing newer state. The example implements these controls and uses a separate exporter for final output.
 
@@ -234,6 +289,7 @@ Keep the project in model state rather than starting exports from `View.body`. U
 | Crop, fit, rotation, opacity, filters, composition | Core Image on Metal | Media3 OpenGL effects and compositor |
 | Text preparation | One Core Animation bitmap per text clip | One Android text bitmap per text clip |
 | Timeline, validation, keyframes, audio gain/mixing | CPU | CPU |
+| Pitch-preserving speed and EQ | Bounded offline AVAudioEngine, TimePitch, EQ | Media3 speed processing and JVM biquads |
 
 Apple exports share a thread-safe Metal-backed `CIContext`, use IOSurface-backed Metal-compatible pixel buffers, and disable intermediate-image caching for changing video frames. Visual ordering is computed once per export. No CPU pixel loop applies visual filters or blends layers. A Metal-capable GPU is required. This follows Apple's [Core Image video guidance](https://developer.apple.com/videos/play/wwdc2020/10008/).
 

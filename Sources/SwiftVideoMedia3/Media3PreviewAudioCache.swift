@@ -55,7 +55,7 @@ public final class Media3PreviewAudioCache {
             if (kind != "audio" && kind != "video") || clip.getBoolean("muted") { continue }
             let source = clip.getString("url")
             let start = clip.getLong("sourceStartUs")
-            let duration = clip.getLong("durationUs")
+            let duration = clip.getLong("sourceDurationUs")
             guard start >= 0, duration > 0, start <= Int64.max - duration else {
                 throw IllegalArgumentException("Invalid preview audio source range")
             }

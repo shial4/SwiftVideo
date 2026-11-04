@@ -59,9 +59,9 @@ import CoreGraphics
         let duration = try VideoTime(value: 1, timescale: 1)
         let clip = MediaClip(source: .image(image), duration: duration,
                              transform: VisualTransform(crop: VideoCrop(x: 0.25, y: 0.25, width: 0.5, height: 0.5), contentMode: .fill),
-                             filters: [.saturation(0), .brightness(0.1), .contrast(1.1), .gaussianBlur(2)])
+                             filters: [.saturation(0), .brightness(0.1)])
         let destination = folder.appendingPathComponent("filtered.mp4")
-        try await VideoExporter().export(VideoProject(tracks: [MediaTrack(clips: [clip])]), to: destination,
+        try await VideoExporter().export(VideoProject(tracks: [MediaTrack(clips: [clip]).filter(.contrast(1.1)).filter(.gaussianBlur(2))]), to: destination,
                                          settings: ExportSettings(resolution: VideoSize(width: 320, height: 180)))
         let rgb = try await centerPixel(destination)
         #expect(abs(rgb[0] - rgb[1]) < 12 && abs(rgb[1] - rgb[2]) < 12)

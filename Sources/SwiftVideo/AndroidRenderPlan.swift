@@ -25,6 +25,9 @@ struct AndroidRenderPlan: Encodable {
         let startUs: Int64
         let durationUs: Int64
         let sourceStartUs: Int64
+        let sourceDurationUs: Int64
+        let speed: Double
+        let audioFilters: [AudioEffect]
         let transform: VisualTransform
         let filters: [Filter]
         let muted: Bool
@@ -32,6 +35,7 @@ struct AndroidRenderPlan: Encodable {
         let rightGain: Double
         let envelope: [GainPoint]
     }
+    struct AudioEffect: Encodable { let kind: String; let frequencyHz: Double; let gainDB: Double; let bandwidthOctaves: Double }
     struct Filter: Encodable { let kind: String; let value: Double }
     struct GainPoint: Encodable { let seconds: Double; let gain: Double }
 
@@ -45,7 +49,7 @@ struct AndroidRenderPlan: Encodable {
         codec = settings.codec.rawValue
         background = project.background
         // Media3 draws earlier sequences above later sequences.
-        let ordered = project.tracks.flatMap(\.clips).enumerated().sorted {
+        let ordered = try project.renderClips().enumerated().sorted {
             $0.element.zIndex == $1.element.zIndex ? $0.offset > $1.offset : $0.element.zIndex > $1.element.zIndex
         }.map(\.element)
         clips = try ordered.map { clip in
@@ -76,6 +80,14 @@ struct AndroidRenderPlan: Encodable {
                 case .gaussianBlur(let value): Filter(kind: "blur", value: value)
                 }
             }
+            let audioFilters = clip.audio.filters.map { filter -> AudioEffect in
+                switch filter {
+                case .lowPass(let cutoff): AudioEffect(kind: "lowPass", frequencyHz: cutoff, gainDB: 0, bandwidthOctaves: 1)
+                case .highPass(let cutoff): AudioEffect(kind: "highPass", frequencyHz: cutoff, gainDB: 0, bandwidthOctaves: 1)
+                case .parametricEQ(let frequency, let gain, let bandwidth):
+                    AudioEffect(kind: "parametricEQ", frequencyHz: frequency, gainDB: gain, bandwidthOctaves: bandwidth)
+                }
+            }
             let start = clip.effectsOffset.seconds
             let end = start + clip.duration.seconds
             let breakpoints = Set([start, end, max(start, min(end, clip.audio.fadeIn.seconds)),
@@ -85,7 +97,9 @@ struct AndroidRenderPlan: Encodable {
             }
             return Clip(id: clip.id.uuidString, kind: kind, url: clip.source.url?.absoluteString ?? "", text: text, textStyle: style,
                         startUs: try Self.microseconds(clip.start), durationUs: try Self.microseconds(clip.duration),
-                        sourceStartUs: try Self.microseconds(clip.sourceStart), transform: clip.transform, filters: filters,
+                        sourceStartUs: try Self.microseconds(clip.sourceStart),
+                        sourceDurationUs: try Self.microseconds(clip.sourceDuration), speed: clip.playbackRate.multiplier,
+                        audioFilters: audioFilters, transform: clip.transform, filters: filters,
                         muted: clip.audio.isMuted || !clip.source.hasAudio,
                         leftGain: sqrt(1 - clip.audio.pan), rightGain: sqrt(1 + clip.audio.pan), envelope: envelope)
         }

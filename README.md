@@ -24,6 +24,7 @@ Built with SwiftVideo: [run the example editor on iOS or Android](Example/README
 - **One Swift composition, three platforms.** Use the same API with AVFoundation on Apple and Media3 through Skip Fuse on Android.
 - **GPU-backed visuals.** Metal-backed Core Image and Media3's OpenGL pipeline handle transforms, filters, and compositing. Text is prepared once for each export.
 - **Editing with predictable results.** Rational time, atomic edit batches, and split/trim operations preserve source offsets and effect timing.
+- **Clip and track speed and effects.** Retiming with preserved pitch, inherited visual filters, and ordered audio EQ. [Usage and timing rules](Documentation/Guide.md#playback-speed-and-track-effects) (available on `main` and `0.1.0-alpha.5`; not in the `0.0.1` tag).
 - **Export with control.** Async/await, progress, cancellation, and destination protection are built in. Projects are Codable, Hashable, and Sendable.
 
 ## Quick start
@@ -85,15 +86,15 @@ Then `import SwiftVideo`. For an existing package, merge these dependency entrie
 
 ### Android preview alpha
 
-`0.1.0-alpha.4` provides experimental direct composition playback on Android with Media3 `1.12.0-alpha02` and supports HTTPS custom-font references in hosted documents. Opt in with an exact version:
+`0.1.0-alpha.5` adds clip and track playback speed, ordered visual and audio filters, and example editor controls. It includes experimental direct composition playback on Android with Media3 `1.12.0-alpha02` and HTTPS custom-font references for hosted documents. Opt in with an exact version:
 
 ```swift
-.package(url: "https://github.com/shial4/SwiftVideo.git", exact: "0.1.0-alpha.4")
+.package(url: "https://github.com/shial4/SwiftVideo.git", exact: "0.1.0-alpha.5")
 ```
 
 The alpha requires Android compile/target SDK 37; minimum Android API 28 and Apple deployment targets are unchanged. It fixes playback after timeline gaps, preserves single-frame MP4 duration, and adds seek-aware audio preparation. The third alpha waits for rendered frames at playback boundaries, stops the old frame processor before a surface is destroyed, and retains the exact paused playhead across surface replacement. It exposes a low-level Android preview session; applications must provide the surface adapter. The example editor still previews exported movies.
 
-This prerelease retains known Android export-color and legacy paused-seek diagnostic failures. Its preview audio cache stores the source ranges used by the composition within a bounded disk budget; it still decodes compressed prefixes and stores gaps between distant ranges. Download hosted fonts and replace their URLs with local copies before preview or export. See [preview integration](Documentation/Integration.md#experimental-android-preview) and [alpha verification](Documentation/Testing.md#010-alpha4-verification) before adopting it.
+Android export-color and paused-seek checks remain failing, and a retimed-audio comparison failed intermittently. This prerelease does not establish a passing Android release gate. Its preview audio cache stores the source ranges used by the composition within a bounded disk budget; it still decodes compressed prefixes and stores gaps between distant ranges. Download hosted fonts and replace their URLs with local copies before preview or export. See [preview integration](Documentation/Integration.md#experimental-android-preview) and [alpha verification](Documentation/Testing.md#010-alpha5-verification) before adopting it.
 
 | Your project | Requirements | Integration |
 | --- | --- | --- |

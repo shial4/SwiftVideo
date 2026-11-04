@@ -200,6 +200,47 @@ extension RenderBehaviorTests {
         }
     }
 
+    @Test(arguments: [PlaybackRate.quarter, .half, .double, .quadruple])
+    func media3SpeedPreservesPitchAndDuration(rate: PlaybackRate) async throws {
+        let music = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "music.wav"))
+        let video = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "blue.mp4"))
+        let destination = music.deletingLastPathComponent().appendingPathComponent("speed-\(UUID()).mp4")
+        defer { for url in [music, video, destination] { try? FileManager.default.removeItem(at: url) } }
+        let one = try VideoTime(value: 1, timescale: 1)
+        let clip = try MediaClip.audio(music, duration: one).speed(rate)
+        let visual = try MediaClip.video(video, duration: one).speed(rate)
+        let project = VideoProject(canvas: VideoSize(width: 320, height: 180), tracks: [MediaTrack(clips: [clip, visual])])
+        try await VideoExporter().export(project, to: destination)
+        let stats = try Media3TestSupport.audioStats(path: destination.path, duration: clip.duration.seconds)
+        #expect(abs(stats[3] - 440) < 15, "\(rate.multiplier)x pitch: \(stats[3]) Hz")
+        #expect(stats[0] > 0.05 && stats[1] > 0.05 && stats[2] > 0.05, "Audio edges: \(stats)")
+        let frame = try Media3TestSupport.frameStats(path: destination.path, timeUs: Int64(clip.duration.seconds * 500_000))
+        #expect(abs(frame[2] / 1000 - clip.duration.seconds) < 0.07)
+        #expect(frame[5] > 180)
+    }
+
+    @Test func media3ClipAndTrackEQProcessOrderedBands() async throws {
+        let music = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "music.wav"))
+        defer { try? FileManager.default.removeItem(at: music) }
+        let cases: [[AudioFilter]] = [[], [.lowPass(cutoffHz: 100)], [.highPass(cutoffHz: 2_000)],
+                                    [.parametricEQ(frequencyHz: 440, gainDB: -12, bandwidthOctaves: 1)],
+                                    [.parametricEQ(frequencyHz: 23_999, gainDB: -12, bandwidthOctaves: 5)]]
+        var levels: [Double] = []
+        for filters in cases {
+            let clip = MediaClip.audio(music, duration: try VideoTime(value: 1, timescale: 1))
+                .audio(AudioSettings(filters: [.highPass(cutoffHz: 40)]))
+            let track = MediaTrack(clips: [clip]).audioFilters(filters)
+            let destination = music.deletingLastPathComponent().appendingPathComponent("eq-\(UUID()).mp4")
+            defer { try? FileManager.default.removeItem(at: destination) }
+            try await VideoExporter().export(VideoProject(canvas: VideoSize(width: 320, height: 180), tracks: [track]), to: destination)
+            levels.append(try Media3TestSupport.audioStats(path: destination.path, duration: 1)[4])
+        }
+        #expect(levels[0] > 0.1)
+        #expect(levels[1] < levels[0] * 0.15 && levels[2] < levels[0] * 0.15)
+        #expect(levels[3] < levels[0] * 0.35)
+        #expect(levels[4] > levels[0] * 0.15 && levels[4] < levels[0] * 0.35, "Wide near-Nyquist bands must stay finite")
+    }
+
     @Test func milestoneExportsRealMedia3Composition() async throws {
         let red = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "red.mp4"))
         let blue = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "blue.mp4"))
