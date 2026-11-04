@@ -100,7 +100,6 @@ import Testing
             MediaClip(source: .image(URL(string: "ftp://example.com/a.png")!), duration: duration),
             MediaClip(source: .text("", TextStyle()), duration: duration),
             MediaClip(source: .text("A", TextStyle(fontSize: .nan)), duration: duration),
-            MediaClip(source: .text("A", TextStyle(fontURL: URL(string: "https://example.com/font.ttf"))), duration: duration),
             MediaClip(source: .text("A", TextStyle(shadow: TextShadow(radius: -1))), duration: duration),
             MediaClip(source: text, duration: duration, transform: VisualTransform(x: .infinity)),
             MediaClip(source: text, duration: duration, transform: VisualTransform(scale: 0)),
@@ -114,6 +113,26 @@ import Testing
         }
         #expect(throws: VideoError.self) { try VideoProject(canvas: VideoSize(width: 0, height: 100)).validate() }
         #expect(throws: VideoError.self) { try VideoProject(background: VideoColor(red: .nan, green: 0, blue: 0)).validate() }
+    }
+
+    @Test(arguments: ["http://example.com/font.ttf", "ftp://example.com/font.ttf", "https:/font.ttf", "font.ttf", "content://fonts/brand.ttf"])
+    func invalidFontLocationsAreRejected(_ location: String) throws {
+        let font = try #require(URL(string: location))
+        let clip = MediaClip(source: .text("Brand", TextStyle(fontURL: font)), duration: try time(2))
+        #expect(throws: VideoError.self) { try VideoProject(tracks: [MediaTrack(clips: [clip])]).validate() }
+    }
+
+    @Test func hostedFontDocumentRoundTripsAndRemainsEditable() async throws {
+        let font = try #require(URL(string: "https://example.com/brand.ttf?revision=2"))
+        let style = TextStyle(fontURL: font, fontSize: 72, alignment: .leading)
+        let clip = MediaClip(source: .text("Brand", style), duration: try time(2))
+        let original = VideoProject(tracks: [MediaTrack(clips: [clip])])
+        let decoded = try JSONDecoder().decode(VideoProject.self, from: JSONEncoder().encode(original))
+        #expect(decoded == original)
+        let editor = try VideoEditor(project: decoded)
+        let edited = try await editor.apply([.replaceClip(clip.source(.text("Updated brand", style)))])
+        #expect(edited.tracks[0].clips[0].id == clip.id)
+        #expect(edited.tracks[0].clips[0].source == .text("Updated brand", style))
     }
 
     @Test(arguments: [MediaFilter.brightness(2), .contrast(-1), .saturation(.nan), .gaussianBlur(-1), .sepia(2)])

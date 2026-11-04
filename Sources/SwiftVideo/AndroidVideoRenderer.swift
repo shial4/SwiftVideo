@@ -15,7 +15,7 @@ public actor AndroidVideoRenderer: VideoRendering {
 
     /// Shared validation and native Codable boundary for export and direct preview.
     static func serializedPlan(_ project: VideoProject, settings: ExportSettings) throws -> String {
-        try project.validate()
+        try project.validateForRendering()
         guard try project.duration > .zero else { throw VideoError.invalidProject("Cannot render an empty timeline.") }
         try settings.validate(for: project)
         try supportedCapabilities.validate(project, settings: settings)

@@ -3,7 +3,39 @@
 
 [Documentation index](README.md) | [Public API reference](APIReference.md)
 
-## Unreleased frame inspection and seek controls
+## 0.1.0-alpha.4 verification
+
+Hosted documents can retain HTTPS custom-font references through validation,
+Codable round-trips, and editing. The consuming app downloads each font once and
+replaces its reference with an owned local file. Export and both native renderers
+reject unresolved hosted fonts before rendering or writing output.
+
+Local verification on November 4, 2026 passes all 43 macOS library tests, 43 iOS
+tests on an iOS 27 simulator, 34 native Android core tests on API 33 arm64, and
+five example editor model tests. Android bridge generation, native compilation,
+the iOS example build, all 64 license headers, and whitespace checks pass.
+The consuming app passes all 163 host tests against the candidate source with
+its other dependency pins unchanged. This includes font deduplication, exact
+text styling and animation preservation, durable local ownership, and rollback
+when a font download fails after media has already been copied.
+
+Measured [iOS coverage](Coverage/0.1.0-alpha.4/ios.json) is 1,162/1,220 executable
+lines (95.25%); [Android core coverage](Coverage/0.1.0-alpha.4/android-core.json)
+is 722/766 (94.26%). Both exceed their unchanged 90% gates. Xcode 27.2's `xccov`
+summary returned zero library source files for this passing run. Direct LLVM
+export of the same test binary and generated profile contains all 12 Apple
+source files. The native Codable coverage reader now accepts that LLVM report
+for iOS as well as the existing `xccov` format; missing source data and
+conflicting duplicate entries still fail validation.
+
+The Media3 implementation and its six known color/legacy-seek failures are
+unchanged. Its full instrumentation suite was not repeated for the font change;
+the preceding complete run is recorded below. The new Android preflight check
+runs before entering Media3 and passes in the native core suite. Hosted CI at
+the new release commit and physical-device behavior remain unverified. This
+alpha does not establish a passing Android or stable-release gate.
+
+## Frame inspection and seek controls
 
 The independent Android frame inspector now handles decoder output arriving out
 of presentation order. An API 33 arm64 run emitted timestamps 2.466666, 2.4,
@@ -27,8 +59,8 @@ RGBA surface-holder integration as production preview. All three frame-processor
 cases pass pixel checks across the initial background, overlay, gap, and backward
 seek. The original legacy seek/reset cases remain enabled and failing. Production
 retains player recreation and its verified PCM trim and surface lifecycle handling.
-These test-support changes do not create a new release or change the consumer's
-`0.1.0-alpha.3` pin.
+These test-support changes landed after `0.1.0-alpha.3` and are included in
+`0.1.0-alpha.4`.
 
 ## 0.1.0-alpha.3 verification
 
@@ -211,6 +243,12 @@ swift Tools/CheckHeaders.swift
 ```
 
 For iOS, use the `xcodebuild` command in [apple.yml](../.github/workflows/apple.yml), selecting an installed simulator. It selects the six Swift Testing suites explicitly, writes an `.xcresult`, exports `xccov` JSON, and checks coverage with `Tools/Coverage.swift`.
+
+If `xccov` omits the library's files, inspect the generated test binary and
+`Build/ProfileData/<device-id>/Coverage.profdata` with `xcrun llvm-cov export`.
+Pass the resulting JSON to the same `Tools/Coverage.swift ios` command. This
+preserves the source scope and 90% gate; an empty `xccov` report alone cannot
+establish coverage.
 
 Local verification used Xcode 27.1, the iOS 26.5 Simulator, and macOS 26.6. CI selects Xcode 26.6 on `macos-26`. Apple video tests require a Metal-capable rendering environment.
 

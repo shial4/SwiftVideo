@@ -22,7 +22,7 @@ public actor AppleVideoRenderer: VideoRendering {
 
     public func render(_ project: VideoProject, to destination: URL, settings: ExportSettings,
                        progress: @escaping @Sendable (ExportProgress) -> Void) async throws {
-        try project.validate()
+        try project.validateForRendering()
         try settings.validate(for: project)
         try capabilities.validate(project, settings: settings)
         guard let context = Self.context else {

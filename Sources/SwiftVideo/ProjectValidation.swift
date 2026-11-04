@@ -20,6 +20,18 @@ extension VideoProject {
         }
         _ = try duration
     }
+
+    /// Hosted documents may name fonts to download; native renderers consume owned local files.
+    func validateForRendering() throws {
+        try validate()
+        for track in tracks {
+            for clip in track.clips {
+                if case .text(_, let style) = clip.source, let font = style.fontURL {
+                    try require(font.isFileURL, "Custom fonts require a local file URL before rendering.")
+                }
+            }
+        }
+    }
 }
 
 private func require(_ condition: Bool, _ message: String) throws {
@@ -47,7 +59,10 @@ private func validateClip(_ clip: MediaClip) throws {
         try require(!text.isEmpty, "Text overlays cannot be empty.")
         try require(style.fontSize.isFinite && style.fontSize > 0, "Font size must be finite and positive.")
         try validateColor(style.color)
-        if let font = style.fontURL { try require(font.isFileURL, "Custom fonts require a local file URL.") }
+        if let font = style.fontURL {
+            try require(font.isFileURL || (font.scheme?.lowercased() == "https" && font.host?.isEmpty == false),
+                        "Custom fonts require a local file or HTTPS URL.")
+        }
         if let shadow = style.shadow {
             try validateColor(shadow.color)
             try require([shadow.radius, shadow.x, shadow.y].allSatisfy(\.isFinite) && shadow.radius >= 0,

@@ -197,6 +197,12 @@ Filters run in array order. All arguments must be finite.
 
 Font size must be finite and positive. Font size and shadow dimensions use project canvas pixels and scale with export resolution. Text wraps inside the clip's layer bounds and is rasterized once per clip before GPU transforms. Keep those bounds large enough for the intended text; each resulting bitmap dimension must be positive and at most 8192 pixels. Use a readable local `fontURL` for portable typography; platform font names and glyph availability differ. The caller must include the font's required license.
 
+Hosted documents may use an HTTPS `fontURL`. Codable round-trips, project
+validation, and editing preserve that reference. The consuming app must download
+the font and replace its URL with the owned local file before preview or export.
+The exporter and both native renderers reject unresolved hosted fonts before
+rendering; they do not fetch fonts or silently substitute a platform font.
+
 ## Animation
 
 - `AnimationProperty` cases: `.x`, `.y`, `.scale`, `.rotation`, `.opacity`.
