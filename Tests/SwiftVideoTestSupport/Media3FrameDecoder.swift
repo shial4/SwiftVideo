@@ -40,8 +40,9 @@ enum Media3FrameDecoder {
         let info = MediaCodec.BufferInfo()
         let deadline = java.lang.System.nanoTime() + Int64(10_000_000_000)
         var inputEnded = false
-        var previous: Frame? = nil
-        var previousTimeUs: Int64 = 0
+        var nearest: Frame? = nil
+        var nearestTimeUs: Int64 = 0
+        var nearestDistance = Int64.max
         while java.lang.System.nanoTime() < deadline {
             if !inputEnded {
                 let index = decoder.dequeueInputBuffer(Int64(10_000))
@@ -60,21 +61,22 @@ enum Media3FrameDecoder {
             if index >= 0 {
                 defer { decoder.releaseOutputBuffer(index, false) }
                 if info.size > 0 {
-                    if info.presentationTimeUs >= timeUs, let candidate = previous,
-                       timeUs - previousTimeUs < info.presentationTimeUs - timeUs {
-                        return try bitmap(candidate, format: format)
+                    let distance = abs(info.presentationTimeUs - timeUs)
+                    if nearest == nil || distance < nearestDistance
+                        || (distance == nearestDistance && info.presentationTimeUs > nearestTimeUs) {
+                        guard let image = decoder.getOutputImage(index) else {
+                            throw IllegalStateException("Decoder does not expose YUV planes")
+                        }
+                        defer { image.close() }
+                        let frame = try Frame(image: image, outputFormat: decoder.getOutputFormat(index))
+                        if distance == Int64(0) { return try bitmap(frame, format: format) }
+                        nearest = frame
+                        nearestTimeUs = info.presentationTimeUs
+                        nearestDistance = distance
                     }
-                    guard let image = decoder.getOutputImage(index) else {
-                        throw IllegalStateException("Decoder does not expose YUV planes")
-                    }
-                    defer { image.close() }
-                    let frame = try Frame(image: image, outputFormat: decoder.getOutputFormat(index))
-                    if info.presentationTimeUs >= timeUs { return try bitmap(frame, format: format) }
-                    previous = frame
-                    previousTimeUs = info.presentationTimeUs
                 }
                 if (info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0 {
-                    if let frame = previous { return try bitmap(frame, format: format) }
+                    if let frame = nearest { return try bitmap(frame, format: format) }
                     break
                 }
             }
@@ -82,10 +84,10 @@ enum Media3FrameDecoder {
         throw IllegalStateException("Cannot decode a frame at the requested time")
     }
 
-    // Keep only the latest raw frame before the requested time. Copying the
-    // planes lets the codec reuse its output immediately; retaining a codec
-    // buffer can stall decoding on some devices. Convert to RGB only after
-    // choosing the nearest frame, including the final frame at end of stream.
+    // Decoders can emit B-frames out of presentation order. Keep the closest
+    // timestamp until an exact match or end of stream, preferring the later
+    // frame on a tie. Copy only improving candidates so the codec can reuse
+    // its buffers immediately, then convert the selected frame to RGB once.
     private final class Frame {
         let crop: android.graphics.Rect
         let planes: [Plane]

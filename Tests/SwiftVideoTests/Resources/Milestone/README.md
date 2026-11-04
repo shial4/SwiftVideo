@@ -119,6 +119,14 @@ SDR convention. It is test-only Swift in the existing transpiled boundary.
 The tagged-source test independently checks authored red, green, and blue values;
 before/after equality through one decoder is not the only reference.
 
+The API 33 arm64 decoder can emit B-frames out of presentation order. Inspection
+retains the closest timestamp until an exact match or end of stream, preferring
+the later timestamp on a tie. It copies only improving candidates and converts
+the selected raw frame once. The original midpoint checks reproduced the old
+early-return bug at 2.49 seconds; an independent Apple decode confirms that the
+first green frame has presentation time 2.5 seconds. The source and APK fixture
+hashes are identical. The four unchanged boundary cases now pass on arm64.
+
 This replaces MediaMetadataRetriever pixel readback. On API 33, that API reported
 blue 239 for a canonical export whose Y/Cb/Cr values are `[31, 239, 118]`, equivalent
 to BT.709 blue about 252. Apple's independent raw decode and rendered frame agree

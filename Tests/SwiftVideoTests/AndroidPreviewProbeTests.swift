@@ -592,13 +592,13 @@ extension RenderBehaviorTests {
         #expect(probe.status() == 3)
     }
 
-    @Test(arguments: ["seek", "reset", "recreate"])
-    func compositionPlayerDisplaysLayersAndSeeksAcrossGaps(seekMode: String) async throws {
+    @Test(arguments: ["seek", "reset", "recreate"], [false, true])
+    func compositionPlayerDisplaysLayersAndSeeksAcrossGaps(seekMode: String, useFrameProcessor: Bool) async throws {
         let source = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "green.png"))
         defer { try? FileManager.default.removeItem(at: source) }
         let probe = Media3PreviewProbe()
         defer { probe.release() }
-        try probe.start(imagePath: source.path, seekMode: seekMode)
+        try probe.start(imagePath: source.path, seekMode: seekMode, useFrameProcessor: useFrameProcessor)
 
         func waitForFrame(after count: Int, green: Bool) async throws {
             let deadline = ContinuousClock.now.advanced(by: .seconds(20))
@@ -612,7 +612,7 @@ extension RenderBehaviorTests {
                 }
                 try await Task.sleep(for: .milliseconds(50))
             }
-            try #require(Bool(false), "Missing \(green ? "green overlay" : "blue background") frame: \(probe.pixels()); frames \(probe.frameCount()); error \(probe.failureMessage()); seekMode=\(seekMode)")
+            try #require(Bool(false), "Missing \(green ? "green overlay" : "blue background") frame: \(probe.pixels()); frames \(probe.frameCount()); error \(probe.failureMessage()); seekMode=\(seekMode), frameProcessor=\(useFrameProcessor)")
         }
 
         try await waitForFrame(after: 0, green: false)

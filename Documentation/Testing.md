@@ -3,6 +3,33 @@
 
 [Documentation index](README.md) | [Public API reference](APIReference.md)
 
+## Unreleased frame inspection and seek controls
+
+The independent Android frame inspector now handles decoder output arriving out
+of presentation order. An API 33 arm64 run emitted timestamps 2.466666, 2.4,
+2.433333, and 2.6 seconds before the frame needed for a 2.49-second request.
+Stopping at the first timestamp beyond the request incorrectly selected a red
+frame. Apple's independent decode confirms the source changes to green at exactly
+2.5 seconds; the packaged and source fixture SHA-256 hashes match.
+
+Inspection now retains the closest timestamp until an exact match or end of
+stream, with later timestamps winning ties. Only improving candidates copy YUV
+planes, and the selected frame is converted to RGB once. The unchanged four
+boundary cases pass on API 33 arm64, including both sides of the midpoint and
+end-of-stream fallback. All 40 host tests pass. The complete 56-test Android run
+finished in 135.026 seconds with the same six known assertion failures: two
+legacy paused-seek checks and four BT.709 color checks across the raw Media3
+control and SwiftVideo export. No color tolerances or preview deadlines changed.
+
+The paused seek/reset/recreation control now exercises both the legacy video
+graph and the alpha's `DefaultGlFrameProcessor`. The latter uses the same fixed
+RGBA surface-holder integration as production preview. All three frame-processor
+cases pass pixel checks across the initial background, overlay, gap, and backward
+seek. The original legacy seek/reset cases remain enabled and failing. Production
+retains player recreation and its verified PCM trim and surface lifecycle handling.
+These test-support changes do not create a new release or change the consumer's
+`0.1.0-alpha.3` pin.
+
 ## 0.1.0-alpha.3 verification
 
 [SwiftVideo 0.1.0-alpha.3](https://github.com/shial4/SwiftVideo/releases/tag/0.1.0-alpha.3)

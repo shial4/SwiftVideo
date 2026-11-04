@@ -22,6 +22,7 @@ import androidx.media3.common.__
 import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.util.Size
 import androidx.media3.effect.MultipleInputVideoGraph
+import androidx.media3.effect.DefaultGlFrameProcessor
 import androidx.media3.effect.Presentation
 import androidx.media3.effect.StaticOverlaySettings
 import androidx.media3.exoplayer.audio.DefaultAudioSink
@@ -58,19 +59,21 @@ public final class Media3PreviewProbe {
     private let positionValue = AtomicLong(0)
     private var composition: Composition?
     private var seekMode = "seek"
+    private var useFrameProcessor = false
     private let cancelled = AtomicBoolean(false)
     private var wantsPlayback = false
     #endif
 
     public init() {}
 
-    public func start(imagePath: String, seekMode: String) throws {
+    public func start(imagePath: String, seekMode: String, useFrameProcessor: Bool = false) throws {
         #if SKIP
         guard state.compareAndSet(0, 1) else { throw IllegalStateException("Preview probe already started") }
         let started = SystemClock.elapsedRealtime()
         handler.post {
             do {
                 self.seekMode = seekMode
+                self.useFrameProcessor = useFrameProcessor
                 let context = ProcessInfo.processInfo.androidContext
                 let file = File.createTempFile("swiftvideo-preview-probe-", ".png", context.getCacheDir())
                 self.background = file
@@ -93,7 +96,7 @@ public final class Media3PreviewProbe {
                 let composition = Composition.Builder(sequences)
                     .setVideoCompositorSettings(PreviewProbeCompositor()).build()
                 self.composition = composition
-                let reader = self.makeReader(started: started, label: "seekMode=" + seekMode)
+                let reader = self.makeReader(started: started, label: "seekMode=\(seekMode), frameProcessor=\(useFrameProcessor)")
                 self.player = self.makePlayer(composition: composition, reader: reader, position: 0)
                 self.pollPosition()
             } catch {
@@ -356,16 +359,25 @@ public final class Media3PreviewProbe {
     private func makePlayer(composition: Composition, reader: ImageReader, position: Int64) -> CompositionPlayer {
         for index in 0..<3 { audioCounts.set(index, 0); audioSquares.set(index, 0) }
         positionValue.set(position)
-        let player = CompositionPlayer.Builder(ProcessInfo.processInfo.androidContext)
+        let builder = CompositionPlayer.Builder(ProcessInfo.processInfo.androidContext)
             .setLooper(Looper.getMainLooper())
             .setAudioSink(PreviewAudioProbe(sink: DefaultAudioSink.Builder(ProcessInfo.processInfo.androidContext).build(),
                                            counts: audioCounts, squares: audioSquares))
-            .setVideoGraphFactory(MultipleInputVideoGraph.Factory()).build()
+        if useFrameProcessor {
+            builder.setFrameProcessorFactory(DefaultGlFrameProcessor.Factory.Builder(ProcessInfo.processInfo.androidContext).build())
+        } else {
+            builder.setVideoGraphFactory(MultipleInputVideoGraph.Factory())
+        }
+        let player = builder.build()
         player.addListener(PreviewProbeListener(failed: { message in
             self.failure.set(message)
             self.state.set(-1)
         }))
-        player.setVideoSurface(reader.getSurface(), Size(320, 180))
+        if useFrameProcessor {
+            player.setVideoSurfaceHolder(PreviewProbeViewHolder(surface: reader.getSurface()))
+        } else {
+            player.setVideoSurface(reader.getSurface(), Size(320, 180))
+        }
         player.setComposition(composition, position)
         player.prepare()
         if wantsPlayback { player.play() }
