@@ -1,18 +1,23 @@
 {
-  "covered" : 326,
-  "executable" : 362,
+  "covered" : 403,
+  "executable" : 441,
   "files" : [
     {
-      "covered" : 63,
+      "covered" : 69,
+      "executable" : 72,
+      "file" : "Sources/SwiftVideoMedia3/Media3AudioEffects.kt"
+    },
+    {
+      "covered" : 64,
       "executable" : 72,
       "file" : "Sources/SwiftVideoMedia3/Media3Effects.kt"
     },
     {
-      "covered" : 263,
-      "executable" : 290,
+      "covered" : 270,
+      "executable" : 297,
       "file" : "Sources/SwiftVideoMedia3/Media3ExportSession.kt"
     }
   ],
-  "linePercent" : 90.05524861878453,
+  "linePercent" : 91.38321995464852,
   "suite" : "android-media3"
 }

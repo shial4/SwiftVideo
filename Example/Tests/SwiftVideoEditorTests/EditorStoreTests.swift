@@ -16,6 +16,29 @@ import SwiftVideo
         return store
     }
 
+    @Test func trackAndClipSpeedAndFiltersSupportUndoRedo() async throws {
+        let store = try store()
+        let original = store.project
+        await store.setSpeed(.double)
+        #expect(store.selected?.duration == (try seconds(2)))
+        store.selectTrack(store.project.tracks[0])
+        await store.setSpeed(.half)
+        #expect(store.selectedTrack?.clips[0].duration == (try seconds(4)))
+        await store.setFilter(.mono)
+        #expect(store.selectedTrack?.filters == EditorFilter.mono.effects)
+        await store.setAudioFilters([.highPass(cutoffHz: 80)])
+        #expect(store.selectedTrack?.audioFilters == [.highPass(cutoffHz: 80)])
+        let changed = store.project
+        for _ in 0..<4 { store.undo() }
+        #expect(store.project == original && store.selectedTrack != nil)
+        for _ in 0..<4 { store.redo() }
+        #expect(store.project == changed && store.selectedTrack != nil)
+        store.select(store.project.tracks[0].clips[0])
+        await store.setAudioFilters([.lowPass(cutoffHz: 4_000)])
+        await store.setAudio(volume: 0.5, pan: 0, muted: false, fading: false)
+        #expect(store.selected?.audio.filters == [.lowPass(cutoffHz: 4_000)])
+    }
+
     @Test func demoAssetsAreReadableAndTimelineIsValid() throws {
         let store = try store()
         try store.project.validate()

@@ -6,6 +6,7 @@ import Foundation
 public enum VideoEdit: Sendable {
     case addTrack(MediaTrack)
     case removeTrack(UUID)
+    case replaceTrack(MediaTrack)
     case addClip(MediaClip, trackID: UUID)
     case replaceClip(MediaClip)
     case removeClip(UUID)
@@ -35,6 +36,9 @@ public actor VideoEditor {
         for edit in edits {
             switch edit {
             case .addTrack(let track): tracks.append(track)
+            case .replaceTrack(let track):
+                let index = try trackIndex(track.id, in: tracks)
+                tracks[index] = track
             case .removeTrack(let id):
                 let index = try trackIndex(id, in: tracks)
                 tracks.remove(at: index)
@@ -51,28 +55,28 @@ public actor VideoEditor {
                 }
                 tracks[index] = tracks[index].replacing(clips: merged)
             case .replaceClip(let replacement):
-                try updateClip(replacement.id, tracks: &tracks) { _ in [replacement] }
-            case .removeClip(let id): try updateClip(id, tracks: &tracks) { _ in [] }
+                try updateClip(replacement.id, tracks: &tracks) { _, _ in [replacement] }
+            case .removeClip(let id): try updateClip(id, tracks: &tracks) { _, _ in [] }
             case .offset(let id, let offset):
-                try updateClip(id, tracks: &tracks) { clip in [try clip.replacing(start: clip.start.adding(offset))] }
+                try updateClip(id, tracks: &tracks) { clip, _ in [try clip.replacing(start: clip.start.adding(offset))] }
             case .split(let id, let time, let rightID):
-                try updateClip(id, tracks: &tracks) { clip in
+                try updateClip(id, tracks: &tracks) { clip, trackRate in
                     let leftDuration = try time.subtracting(clip.start)
                     guard leftDuration > .zero && leftDuration < clip.duration else {
                         throw VideoError.invalidProject("A split must be strictly inside the clip.")
                     }
                     return [clip.replacing(duration: leftDuration),
                             try clip.replacing(id: rightID, start: time, duration: clip.duration.subtracting(leftDuration),
-                                               sourceStart: clip.sourceStart.adding(leftDuration),
+                                               sourceStart: clip.sourceStart.adding(leftDuration.scaled(by: clip.playbackRate.combined(with: trackRate))),
                                                effectsOffset: clip.effectsOffset.adding(leftDuration))]
                 }
             case .trim(let id, let range):
-                try updateClip(id, tracks: &tracks) { clip in
+                try updateClip(id, tracks: &tracks) { clip, trackRate in
                     guard range.start >= .zero, range.duration > .zero, try range.end <= clip.duration else {
                         throw VideoError.invalidProject("Trim range must be nonempty and inside the clip.")
                     }
                     return [try clip.replacing(start: clip.start.adding(range.start), duration: range.duration,
-                                               sourceStart: clip.sourceStart.adding(range.start),
+                                               sourceStart: clip.sourceStart.adding(range.start.scaled(by: clip.playbackRate.combined(with: trackRate))),
                                                effectsOffset: clip.effectsOffset.adding(range.start))]
                 }
             }
@@ -88,11 +92,11 @@ public actor VideoEditor {
         return index
     }
 
-    private func updateClip(_ id: UUID, tracks: inout [MediaTrack], change: (MediaClip) throws -> [MediaClip]) throws {
+    private func updateClip(_ id: UUID, tracks: inout [MediaTrack], change: (MediaClip, PlaybackRate) throws -> [MediaClip]) throws {
         for index in tracks.indices {
             if let clipIndex = tracks[index].clips.firstIndex(where: { $0.id == id }) {
                 var clips = tracks[index].clips
-                let replacement = try change(clips[clipIndex])
+                let replacement = try change(clips[clipIndex], tracks[index].playbackRate)
                 clips.replaceSubrange(clipIndex...clipIndex, with: replacement)
                 tracks[index] = tracks[index].replacing(clips: clips)
                 return

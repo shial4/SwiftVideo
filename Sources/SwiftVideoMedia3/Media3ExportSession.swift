@@ -195,7 +195,7 @@ public final class Media3ExportSession {
             } else {
                 item = MediaItem.Builder().setUri(clip.getString("url"))
                     .setClippingConfiguration(MediaItem.ClippingConfiguration.Builder().setStartPositionUs(sourceStart)
-                        .setEndPositionUs(sourceStart + length).build()).build()
+                        .setEndPositionUs(sourceStart + clip.getLong("sourceDurationUs")).build()).build()
             }
             let visualEffects = java.util.ArrayList<Effect>()
             let transform = clip.getJSONObject("transform")
@@ -217,8 +217,10 @@ public final class Media3ExportSession {
             }
             visualEffects.add(Presentation.createForWidthAndHeight(max(1, Int(Double(width) * transform.getDouble("width"))),
                 max(1, Int(Double(height) * transform.getDouble("height"))), layout))
-            let edited = EditedMediaItem.Builder(item).setRemoveAudio(true).setFrameRate(fps)
-                .setEffects(Effects(java.util.ArrayList<AudioProcessor>(), visualEffects)).build()
+            let builder = EditedMediaItem.Builder(item).setRemoveAudio(true).setFrameRate(fps)
+                .setEffects(Effects(java.util.ArrayList<AudioProcessor>(), visualEffects))
+            if kind == "video" { builder.setSpeed(SpeedParameters(ConstantSpeedProvider(speed: Float(clip.getDouble("speed"))), true)) }
+            let edited = builder.build()
             let types = java.util.HashSet<Int>()
             types.add(C.TRACK_TYPE_VIDEO)
             let sequence = EditedMediaItemSequence.Builder(types)
@@ -245,10 +247,12 @@ public final class Media3ExportSession {
             let sourceStart = clip.getLong("sourceStartUs")
             let item = MediaItem.Builder().setUri(clip.getString("url"))
                 .setClippingConfiguration(MediaItem.ClippingConfiguration.Builder().setStartPositionUs(sourceStart)
-                    .setEndPositionUs(sourceStart + length).build()).build()
+                    .setEndPositionUs(sourceStart + clip.getLong("sourceDurationUs")).build()).build()
             let processors = java.util.ArrayList<AudioProcessor>()
+            if clip.getJSONArray("audioFilters").length() > 0 { processors.add(EqualizerAudioProcessor(filters: clip.getJSONArray("audioFilters"))) }
             processors.add(EnvelopeAudioProcessor(clip: clip))
             let edited = EditedMediaItem.Builder(item).setRemoveVideo(true)
+                .setSpeed(SpeedParameters(ConstantSpeedProvider(speed: Float(clip.getDouble("speed"))), true))
                 .setEffects(Effects(processors, java.util.ArrayList<Effect>())).build()
             let types = java.util.HashSet<Int>()
             types.add(C.TRACK_TYPE_AUDIO)
@@ -274,10 +278,13 @@ public final class Media3ExportSession {
             let mime = format.getString(MediaFormat.KEY_MIME) ?? ""
             let duration = format.containsKey(MediaFormat.KEY_DURATION) ? format.getLong(MediaFormat.KEY_DURATION) : Int64(-1)
             if mime.hasPrefix("video/") { videoDuration = max(videoDuration, duration) }
-            if mime.hasPrefix("audio/") { audioDuration = max(audioDuration, duration) }
+            if mime.hasPrefix("audio/") {
+                audioDuration = max(audioDuration, duration)
+                EqualizerAudioProcessor.validate(clip.getJSONArray("audioFilters"), sampleRate: format.getInteger(MediaFormat.KEY_SAMPLE_RATE))
+            }
         }
         let duration = clip.getString("kind") == "video" ? videoDuration : audioDuration
-        guard duration >= clip.getLong("sourceStartUs") + clip.getLong("durationUs") else {
+        guard duration >= clip.getLong("sourceStartUs") + clip.getLong("sourceDurationUs") else {
             throw IllegalArgumentException("Missing media track or source range exceeds its duration: " + clip.getString("id"))
         }
         return audioDuration >= 0

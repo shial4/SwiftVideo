@@ -92,6 +92,71 @@ import Testing
         #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path).allSatisfy { !$0.hasPrefix(".swiftvideo-") })
     }
 
+    @Test(arguments: [PlaybackRate.quarter, .half, .double, .quadruple])
+    func speedPreservesAudioPitchAndSelectedDuration(rate: PlaybackRate) async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("speed-tone-\(UUID()).wav")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try makeMusic(url)
+        let asset = AVURLAsset(url: url)
+        let track = try #require(try await asset.loadTracks(withMediaType: .audio).first)
+        let clip = try MediaClip.audio(url, duration: VideoTime(value: 1, timescale: 1)).speed(rate)
+        let source = try AppleClipAudioSource(asset: asset, track: track, clip: clip)
+        let count = Int64((clip.duration.seconds * 48_000).rounded())
+        var samples: [Float] = []
+        for index in 0..<count { samples.append(try source.sample(at: index).0) }
+        let window = Array(samples[Int(count / 4)..<Int(count * 3 / 4)])
+        let crossings = zip(window, window.dropFirst()).filter { $0 <= 0 && $1 > 0 }.count
+        let frequency = Double(crossings) * 48_000 / Double(window.count)
+        #expect(abs(frequency - 440) < 12, "\(rate.multiplier)x pitch: \(frequency) Hz")
+        func energy(_ values: ArraySlice<Float>) -> Double {
+            sqrt(values.reduce(0) { $0 + Double($1 * $1) } / Double(values.count))
+        }
+        #expect(energy(samples.prefix(1200)) > 0.05, "Leading audio must survive latency compensation")
+        #expect(energy(samples.suffix(1200)) > 0.05, "Trailing audio must drain before the selected end")
+    }
+
+    @Test func orderedEQAttenuatesTheSelectedBand() async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("eq-tone-\(UUID()).wav")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try makeMusic(url)
+        let asset = AVURLAsset(url: url)
+        let track = try #require(try await asset.loadTracks(withMediaType: .audio).first)
+        let duration = try VideoTime(value: 1, timescale: 1)
+        func energy(_ filters: [AudioFilter]) throws -> Double {
+            let clip = MediaClip.audio(url, duration: duration).audio(AudioSettings(filters: filters))
+            let source = try AppleClipAudioSource(asset: asset, track: track, clip: clip)
+            var sum = 0.0
+            for frame in 12_000..<18_000 {
+                let value = Double(try source.sample(at: Int64(frame)).0)
+                sum += value * value
+            }
+            return sqrt(sum / 6_000)
+        }
+        let dry = try energy([])
+        #expect(try energy([.lowPass(cutoffHz: 100)]) < dry * 0.15)
+        #expect(try energy([.highPass(cutoffHz: 2_000)]) < dry * 0.15)
+        #expect(try energy([.parametricEQ(frequencyHz: 440, gainDB: -12, bandwidthOctaves: 1)]) < dry * 0.35)
+        #expect(try energy([.highPass(cutoffHz: 80), .lowPass(cutoffHz: 4_000)]) > dry * 0.8)
+    }
+
+    @Test @MainActor func fastVideoSelectsLaterSourceFramesAndEndsOnTime() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("speed-video-\(UUID())")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let url = folder.appendingPathComponent("source.mp4")
+        try await makeVideo(url, color: CIColor(red: 1, green: 0, blue: 0), changesColor: true)
+        let clip = try MediaClip.video(url, duration: VideoTime(value: 1, timescale: 1)).speed(.double)
+        let project = VideoProject(canvas: VideoSize(width: 320, height: 180), tracks: [MediaTrack(clips: [clip])])
+        let destination = folder.appendingPathComponent("fast.mp4")
+        try await VideoExporter().export(project, to: destination)
+        let asset = AVURLAsset(url: destination)
+        #expect(abs(try await asset.load(.duration).seconds - 0.5) < 0.04)
+        let early = try await frame(asset, at: 0.1)
+        let later = try await frame(asset, at: 0.4)
+        #expect(pixel(early, x: 160, y: 90).0 > 180)
+        #expect(pixel(later, x: 160, y: 90).2 > 180)
+    }
+
     @Test func textRendersUprightWithinItsLayerBounds() async throws {
         let output = FileManager.default.temporaryDirectory.appendingPathComponent("text-orientation-\(UUID()).mp4")
         defer { try? FileManager.default.removeItem(at: output) }
@@ -131,7 +196,7 @@ import Testing
         #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path).isEmpty)
     }
 
-    @MainActor private func makeVideo(_ url: URL, color: CIColor) async throws {
+    @MainActor private func makeVideo(_ url: URL, color: CIColor, changesColor: Bool = false) async throws {
         let writer = try AVAssetWriter(outputURL: url, fileType: .mp4)
         let input = AVAssetWriterInput(mediaType: .video, outputSettings: [AVVideoCodecKey: AVVideoCodecType.h264,
                                                                         AVVideoWidthKey: 320, AVVideoHeightKey: 180])
@@ -149,7 +214,7 @@ import Testing
             var buffer: CVPixelBuffer?
             #expect(CVPixelBufferPoolCreatePixelBuffer(nil, pool, &buffer) == kCVReturnSuccess)
             let pixels = try #require(buffer)
-            context.render(CIImage(color: color).cropped(to: CGRect(x: 0, y: 0, width: 320, height: 180)), to: pixels)
+            context.render(CIImage(color: changesColor && index >= 15 ? CIColor(red: 0, green: 0, blue: 1) : color).cropped(to: CGRect(x: 0, y: 0, width: 320, height: 180)), to: pixels)
             #expect(adaptor.append(pixels, withPresentationTime: CMTime(value: Int64(index), timescale: 30)))
         }
         input.markAsFinished()

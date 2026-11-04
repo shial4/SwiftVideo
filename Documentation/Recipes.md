@@ -220,6 +220,30 @@ Store the model in a SwiftUI view's `@State`. Start `await model.export(project,
 
 For previews, use a separate exporter at a lower resolution, debounce rapid edits, cancel superseded work, and discard stale results. Do not launch exports from `View.body`. The shared [example store](../Example/Sources/SwiftVideoEditor/EditorStore.swift) implements preview scheduling, snapshot history, and platform resource handling; use it when integrating with Skip/SwiftUIComponents.
 
+## Retimed commentary with track EQ
+
+These APIs are available on `main`. The source clip below selects eight seconds
+of footage, plays it in four project seconds, and applies clip filters before
+track filters. Track EQ processes each clip before mixing.
+
+```swift
+let commentary = try MediaTrack("Commentary") {
+    try MediaClip.video(commentaryURL, duration: VideoTime(value: 8, timescale: 1))
+        .speed(.double)
+        .audio(AudioSettings(volume: 0.8).filter(.highPass(cutoffHz: 80)))
+}
+.filter(.contrast(1.1))
+.audioFilter(.parametricEQ(frequencyHz: 2_500, gainDB: 3, bandwidthOctaves: 1))
+
+let project = VideoProject { commentary }
+try project.validate()
+```
+
+To slow the entire track while preserving its relative gaps, use
+`try commentary.speed(.half)`. Its effective media rate becomes 1x. Other tracks,
+including separately authored captions, keep their positions. Put captions in
+the same track if they should retime with the commentary.
+
 ## Next steps
 
 Read [editing semantics](APIReference.md#editing) before adding timeline interactions and [persistence](Guide.md#save-and-restore-a-project) before saving projects. Check [platform limits](Guide.md#platform-architecture-and-limits) before choosing output formats, and use the [example editor](../Example/README.md) to see the recipes in a complete application.

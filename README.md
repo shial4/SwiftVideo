@@ -24,6 +24,7 @@ Built with SwiftVideo: [run the example editor on iOS or Android](Example/README
 - **One Swift composition, three platforms.** Use the same API with AVFoundation on Apple and Media3 through Skip Fuse on Android.
 - **GPU-backed visuals.** Metal-backed Core Image and Media3's OpenGL pipeline handle transforms, filters, and compositing. Text is prepared once for each export.
 - **Editing with predictable results.** Rational time, atomic edit batches, and split/trim operations preserve source offsets and effect timing.
+- **Clip and track speed and effects.** Retiming with preserved pitch, inherited visual filters, and ordered audio EQ. [Usage and timing rules](Documentation/Guide.md#playback-speed-and-track-effects) (available on `main`; not in the `0.0.1` tag).
 - **Export with control.** Async/await, progress, cancellation, and destination protection are built in. Projects are Codable, Hashable, and Sendable.
 
 ## Quick start

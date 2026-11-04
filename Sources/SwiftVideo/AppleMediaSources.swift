@@ -35,7 +35,7 @@ final class AppleVideoSource {
         output.alwaysCopiesSampleData = false
         guard reader.canAdd(output) else { throw VideoError.invalidMedia("Cannot decode video track.") }
         reader.add(output)
-        reader.timeRange = CMTimeRange(start: clip.sourceStart.cmTime, duration: clip.duration.cmTime)
+        reader.timeRange = CMTimeRange(start: clip.sourceStart.cmTime, duration: try clip.sourceDuration.cmTime)
         guard reader.startReading() else { throw VideoError.invalidMedia(reader.error?.localizedDescription ?? "Cannot start video reader.") }
         next = output.copyNextSampleBuffer()
     }
@@ -74,7 +74,7 @@ final class AppleAudioSource {
         output.alwaysCopiesSampleData = false
         guard reader.canAdd(output) else { throw VideoError.invalidMedia("Cannot decode audio track.") }
         reader.add(output)
-        reader.timeRange = CMTimeRange(start: clip.sourceStart.cmTime, duration: clip.duration.cmTime)
+        reader.timeRange = CMTimeRange(start: clip.sourceStart.cmTime, duration: try clip.sourceDuration.cmTime)
         guard reader.startReading() else { throw VideoError.invalidMedia(reader.error?.localizedDescription ?? "Cannot start audio reader.") }
     }
 

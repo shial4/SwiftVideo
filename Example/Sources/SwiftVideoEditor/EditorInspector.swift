@@ -12,10 +12,16 @@ struct EditorInspector: View {
                 HStack {
                     Text(store.tool.rawValue.uppercased()).font(.system(size: 10, weight: .bold)).tracking(1.2)
                     Spacer()
+                    if let track = store.selectedTrack { Text(track.name).font(.system(size: 10)).foregroundStyle(EditorTheme.muted) }
                     if let clip = store.selected { Text(clip.displayName).font(.system(size: 10)).lineLimit(1).foregroundStyle(EditorTheme.muted) }
                 }
                 switch store.tool {
                 case .edit:
+                    if store.selected != nil || store.selectedTrack != nil { SpeedInspector(store: store) }
+                    if let track = store.selectedTrack {
+                        Text("Speed changes all clips and gaps in \(track.name), anchored at its first clip. Filters apply to each matching clip.")
+                            .font(.system(size: 11)).foregroundStyle(EditorTheme.muted)
+                    }
                     if let clip = store.selected {
                         ClipInspector(store: store, clip: clip).id(clip.id)
                     }
@@ -30,14 +36,14 @@ struct EditorInspector: View {
                     Button { Task { await store.addTitle() } } label: { Label("Add text", systemImage: "plus") }
                         .editorSecondaryButton().accessibilityIdentifier("editor.addText")
                 case .filters:
-                    Text("Give the selected layer a new look.").font(.system(size: 11)).foregroundStyle(EditorTheme.muted)
+                    Text("Apply a look to the selected clip or track.").font(.system(size: 11)).foregroundStyle(EditorTheme.muted)
                     ForEach(EditorFilter.allCases) { filter in
                         Button { Task { await store.setFilter(filter) } } label: {
                             HStack {
                                 Circle().fill(filter == .mono ? Color.gray : EditorTheme.accent.opacity(filter == .original ? 0.3 : 0.8)).frame(width: 16, height: 16)
                                 Text(filter.rawValue)
                                 Spacer()
-                                if store.selected?.filters == filter.effects { Image(systemName: "checkmark").foregroundStyle(EditorTheme.accent) }
+                                if store.selectedFilters == filter.effects { Image(systemName: "checkmark").foregroundStyle(EditorTheme.accent) }
                             }.padding(10).background(EditorTheme.raised, in: RoundedRectangle(cornerRadius: 7))
                         }.buttonStyle(.plain).font(.system(size: 12)).accessibilityIdentifier("editor.filter.\(filter.rawValue.lowercased())")
                     }
@@ -45,8 +51,9 @@ struct EditorInspector: View {
                     if let music = store.project.tracks.flatMap(\.clips).first(where: { if case .audio = $0.source { true } else { false } }), store.selectedID != music.id {
                         Button("Select soundtrack") { store.select(music) }.editorSecondaryButton()
                     }
+                    if store.selectedTrack != nil || store.selected?.source.hasAudio == true { AudioFilterInspector(store: store) }
                     if let clip = store.selected, clip.source.hasAudio { AudioInspector(store: store, clip: clip).id(clip.id) }
-                    else { Text("Select a video or audio clip.").font(.system(size: 12)).foregroundStyle(EditorTheme.muted) }
+                    else if store.selectedTrack == nil { Text("Select a video, audio clip, or track.").font(.system(size: 12)).foregroundStyle(EditorTheme.muted) }
                 case .overlay:
                     Text("Layer an image over your footage. Scale, rotate, and fade it with the Edit tools.")
                         .font(.system(size: 12)).foregroundStyle(EditorTheme.muted)
@@ -90,10 +97,12 @@ struct ClipInspector: View {
             InspectorSlider(title: "Out", value: $trimEnd, range: 0.1...max(0.1, clip.duration.seconds), format: "%.1fs", commit: {})
             Button("Apply trim") { Task { await store.trim(start: trimStart, end: trimEnd) } }
                 .disabled(trimEnd <= trimStart).editorSecondaryButton().accessibilityIdentifier("editor.trim")
-        }.onAppear {
-            scale = clip.transform.scale; rotation = clip.transform.rotation; opacity = clip.transform.opacity
-            trimEnd = clip.duration.seconds
-        }
+        }.onAppear(perform: refresh)
+            .onChange(of: clip) { _, _ in refresh() }
+    }
+    private func refresh() {
+        scale = clip.transform.scale; rotation = clip.transform.rotation; opacity = clip.transform.opacity
+        trimStart = 0; trimEnd = clip.duration.seconds
     }
     func applyTransform() { Task { await store.setTransform(scale: scale, rotation: rotation, opacity: opacity) } }
 }
@@ -145,10 +154,12 @@ struct AudioInspector: View {
             InspectorSlider(title: "Pan", value: $pan, range: -1...1, format: "%.2f", commit: apply)
             Toggle("Mute", isOn: Binding(get: { muted }, set: { muted = $0; apply() }))
             Toggle("Fade in / out", isOn: Binding(get: { fading }, set: { fading = $0; apply() }))
-        }.font(.system(size: 12)).tint(EditorTheme.accent).onAppear {
-            volume = clip.audio.volume; pan = clip.audio.pan; muted = clip.audio.isMuted
-            fading = clip.audio.fadeIn > .zero || clip.audio.fadeOut > .zero
-        }
+        }.font(.system(size: 12)).tint(EditorTheme.accent).onAppear(perform: refresh)
+            .onChange(of: clip.audio) { _, _ in refresh() }
+    }
+    private func refresh() {
+        volume = clip.audio.volume; pan = clip.audio.pan; muted = clip.audio.isMuted
+        fading = clip.audio.fadeIn > .zero || clip.audio.fadeOut > .zero
     }
     func apply() { Task { await store.setAudio(volume: volume, pan: pan, muted: muted, fading: fading) } }
 }

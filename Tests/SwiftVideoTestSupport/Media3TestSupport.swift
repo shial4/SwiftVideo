@@ -66,6 +66,11 @@ public final class Media3TestSupport {
     }
 
     public static func audioRMS(path: String) throws -> [Double] {
+        Array(try audioStats(path: path, duration: 2).prefix(3))
+    }
+
+    /// RMS at the beginning, middle and end, followed by central tone frequency and RMS.
+    public static func audioStats(path: String, duration: Double) throws -> [Double] {
         #if SKIP
         let extractor = MediaExtractor()
         defer { extractor.release() }
@@ -90,6 +95,10 @@ public final class Media3TestSupport {
         var outputEnded = false
         var squares = [0.0, 0.0, 0.0]
         var counts = [0, 0, 0]
+        var previous = 0.0
+        var crossings = 0
+        var toneCount = 0
+        var toneSquares = 0.0
         let info = MediaCodec.BufferInfo()
         let deadline = java.lang.System.nanoTime() + Int64(30_000_000_000)
         var sampleRate = format.getInteger(MediaFormat.KEY_SAMPLE_RATE)
@@ -127,15 +136,20 @@ public final class Media3TestSupport {
                         let sample = pcm == 4 ? Double(buffer.getFloat()) : Double(buffer.getShort()) / 32768
                         for _ in 1..<channels { if pcm == 4 { buffer.getFloat() } else { buffer.getShort() } }
                         let time = Double(info.presentationTimeUs) / 1_000_000 + Double(frame) / Double(sampleRate)
-                        let slot = time < 0.05 ? 0 : ((time >= 0.5 && time < 0.55) ? 1 : ((time >= 1.9375 && time < 1.9875) ? 2 : -1))
+                        let slot = time < 0.05 ? 0 : ((time >= duration / 4 && time < duration / 4 + 0.05) ? 1 : ((time >= duration - 0.0625 && time < duration - 0.0125) ? 2 : -1))
                         if slot >= 0 { squares[slot] += sample * sample; counts[slot] += 1 }
+                        if time >= duration / 4 && time < duration * 3 / 4 {
+                            if toneCount > 0 && previous <= 0 && sample > 0 { crossings += 1 }
+                            previous = sample; toneCount += 1; toneSquares += sample * sample
+                        }
                     }
                 }
                 outputEnded = (info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0
                 decoder.releaseOutputBuffer(index, false)
             }
         }
-        return (0..<3).map { counts[$0] == 0 ? -1.0 : sqrt(squares[$0] / Double(counts[$0])) }
+        let levels = (0..<3).map { counts[$0] == 0 ? -1.0 : sqrt(squares[$0] / Double(counts[$0])) }
+        return levels + [Double(crossings) * Double(sampleRate) / Double(max(1, toneCount)), sqrt(toneSquares / Double(max(1, toneCount)))]
         #else
         throw unavailable()
         #endif

@@ -3,24 +3,26 @@
 
 [Documentation index](README.md) | [Public API reference](APIReference.md)
 
-The 0.0.1 verification snapshot was measured on October 25, 2026. Coverage reports contain executable-line counts, not estimates.
+The main-branch playback and filter verification snapshot was measured on November 5, 2026. The stable 0.0.1 tag predates these APIs. Coverage reports contain executable-line counts, not estimates.
 
 | Target | Observed result | Coverage |
 | --- | --- | --- |
-| macOS library | 36 tests, 6 suites passed | Integration and core behavior |
-| iOS 26.5 Simulator | 36 tests, 6 suites passed | 1,128 / 1,186 lines, 95.11% |
-| Android API 34 arm64 instrumentation | 35 tests, 6 suites passed | Real Media3 exports and native Swift tests |
-| Android native Swift core | 30 tests, 4 suites passed | 688 / 726 lines, 94.77% |
-| Android Media3 bridge | Instrumentation coverage | 326 / 362 generated lines, 90.06% |
-| Example editor model on macOS | 5 tests passed | Asset loading, edits, history, selection, failure handling |
+| macOS library | 44 tests, 6 suites passed | Integration and core behavior |
+| iOS 27.0 Simulator | 44 tests, 6 suites passed | 1,465 / 1,536 lines, 95.38% |
+| Android API 34 arm64 instrumentation | 42 tests, 6 suites passed | Real Media3 exports and native Swift tests |
+| Android native Swift core | 35 tests, 4 suites passed | 921 / 960 lines, 95.94% |
+| Android Media3 bridge | Instrumentation coverage | 403 / 441 generated lines, 91.38% |
+| Example editor model on macOS | 6 tests passed | Asset loading, edits, history, selection, failure handling |
 
-See the checked-in [iOS](Coverage/ios.json), [Android core](Coverage/android-core.json), and [Media3](Coverage/android-media3.json) reports. These are release snapshots. GitHub Actions uploads reports for each run; README workflow badges link to the current result.
+See the checked-in [iOS](Coverage/ios.json), [Android core](Coverage/android-core.json), and [Media3](Coverage/android-media3.json) reports. These are verification snapshots for the documented revision. GitHub Actions uploads reports for each run; README workflow badges link to the current result.
 
-Manual editor checks covered macOS, iOS Simulator, and Android Emulator. The final Android example export was independently decoded as an 8-second, 1920x1080, 30 fps MP4 with audio; inspected frames confirmed the image/title scene and captioned picture-in-picture scene.
+The November 5 example builds pass for iOS Simulator and Android, with six editor model tests passing on macOS. The original 0.0.1 manual editor checks covered macOS, iOS Simulator, and Android Emulator. The final Android example export was independently decoded as an 8-second, 1920x1080, 30 fps MP4 with audio; inspected frames confirmed the image/title scene and captioned picture-in-picture scene.
 
 ## What the tests verify
 
-- Rational frame/time arithmetic, overflow, input validation, and JSON round trips.
+- Rational frame/time arithmetic, clip/track speed multiplication, retimed gaps, overflow, input validation, and backward-compatible JSON decoding.
+- Pitch preservation from 0.25x through 4x, selected source ranges, leading/trailing audio, and low-pass/high-pass/parametric EQ attenuation.
+- Clip-before-track filter inheritance, failed track replacement rollback, and editor speed/filter undo and redo.
 - Builder loops, branches, reusable arrays, thrown errors, stable IDs, immutable modifiers, and bounded text allocation.
 - Atomic edits, missing targets, failed-batch rollback, split/trim source ranges, animation continuity, and audio envelopes.
 - Export progress, cancellation, cleanup after failure, unsupported capabilities, and protection of existing destinations.
@@ -45,7 +47,7 @@ The iOS report includes executable first-party `Sources/SwiftVideo` code for tha
 
 Android core coverage runs an instrumented native Swift test process without a JVM. `SWIFTVIDEO_CORE_COVERAGE` excludes real Android media tests from this process. The Android renderer facade is excluded from this specific percentage because it needs an initialized Android app/JVM; it is exercised by the separate instrumentation suite. The native core percentage must not be described as coverage of the entire Android backend.
 
-JaCoCo measures the generated Kotlin bytecode for the two Swift-authored `SwiftVideoMedia3` implementation files. It is a separate measurement, not Swift source-line coverage. Dependencies, generated bridge support, fixtures, tools, and the example UI are excluded from the library percentages. The three percentages are not averaged.
+JaCoCo measures the generated Kotlin bytecode for the Swift-authored `SwiftVideoMedia3` implementation files. It is a separate measurement, not Swift source-line coverage. Dependencies, generated bridge support, fixtures, tools, and the example UI are excluded from the library percentages. The three percentages are not averaged.
 
 ## Reproduce Apple tests
 
@@ -59,7 +61,7 @@ swift Tools/CheckHeaders.swift
 
 For iOS, use the `xcodebuild` command in [apple.yml](../.github/workflows/apple.yml), selecting an installed simulator. It selects the six Swift Testing suites explicitly, writes an `.xcresult`, exports `xccov` JSON, and checks coverage with `Tools/Coverage.swift`.
 
-Local verification used Xcode 27.1, the iOS 26.5 Simulator, and macOS 26.6. CI selects Xcode 26.6 on `macos-26`. Apple video tests require a Metal-capable rendering environment.
+Local verification used Xcode 27.1, the iOS 27.0 Simulator, and macOS 26.6. CI selects Xcode 26.6 on `macos-26`. Apple video tests require a Metal-capable rendering environment.
 
 ## Reproduce Android tests
 
