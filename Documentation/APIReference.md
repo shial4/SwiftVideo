@@ -24,6 +24,32 @@ Available in `0.1.0-alpha.1` on Android only. Sources: [AndroidVideoPreview.swif
 
 The transpiled Android boundary also exposes `attachSurfaceView(_:)`, `detachSurfaceView(_:)`, and `attachSurface(_:width:height:)`. These Android-typed methods are not bridged to native Swift. Applications provide the platform view adapter; no SwiftUI view is included. See [integration and limits](Integration.md#experimental-android-preview).
 
+## Paused layer images
+
+Source: [VideoLayerRenderer.swift](../Sources/SwiftVideo/VideoLayerRenderer.swift).
+
+`VideoLayerRenderer` is an actor that renders one active text, image, or video
+clip to a transparent PNG on Apple and Android:
+
+```swift
+try await VideoLayerRenderer().render(
+    clipID: clip.id, in: project, at: time,
+    canvasSize: VideoSize(width: 480, height: 270), to: destination)
+```
+
+The image includes source timing, clip and track playback rates, ordered clip
+and track filters, crop, content mode, and text styling. It does not include
+position, scale, rotation, or opacity. Apply the clip's `visualTransform(at:)`
+to the image in the editor so gestures can move existing pixels immediately.
+The image dimensions are the preview canvas dimensions multiplied by the
+clip's normalized width and height, rounded to whole pixels.
+
+The time must fall inside the clip's active interval. The destination must be
+a new local `.png` file; the caller owns it after the call succeeds. Canvas and
+layer dimensions cannot exceed 8192 pixels. Cancellation and failures remove
+temporary output. No video encoder is used. Apple rendering requires Metal;
+Android uses the existing Media3 effects pipeline.
+
 ## Time and frame rates
 
 Source: [VideoTime.swift](../Sources/SwiftVideo/VideoTime.swift).

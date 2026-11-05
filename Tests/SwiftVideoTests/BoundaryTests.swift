@@ -8,6 +8,40 @@ import Testing
 @Suite struct BoundaryTests {
     private func time(_ value: Int64) throws -> VideoTime { try VideoTime(value: value, timescale: 1) }
 
+    @Test func layerPreviewRejectsInvalidRequestsWithoutWritingOutput() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("layer-boundaries-\(UUID())")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let destination = directory.appendingPathComponent("preview.png")
+        let clip = MediaClip.text("Title", duration: try time(2))
+        let project = VideoProject(tracks: [MediaTrack(clips: [clip])])
+        let renderer = VideoLayerRenderer()
+        let missing = UUID()
+        await #expect(throws: VideoError.missingClip(missing)) {
+            try await renderer.render(clipID: missing, in: project, at: .zero, to: destination)
+        }
+        await #expect(throws: VideoError.self) {
+            try await renderer.render(clipID: clip.id, in: project, at: clip.duration, to: destination)
+        }
+        for size in [VideoSize(width: 0, height: 1), VideoSize(width: 1, height: 8193)] {
+            await #expect(throws: VideoError.self) {
+                try await renderer.render(clipID: clip.id, in: project, at: .zero, canvasSize: size, to: destination)
+            }
+        }
+        for invalid in [directory.appendingPathComponent("preview.mp4"), URL(string: "https://example.invalid/preview.png")!] {
+            await #expect(throws: VideoError.self) {
+                try await renderer.render(clipID: clip.id, in: project, at: .zero, to: invalid)
+            }
+        }
+        #expect(try FileManager.default.contentsOfDirectory(atPath: directory.path).isEmpty)
+        let original = Data("Keep this file".utf8)
+        try original.write(to: destination)
+        await #expect(throws: VideoError.destinationExists) {
+            try await renderer.render(clipID: clip.id, in: project, at: .zero, to: destination)
+        }
+        #expect(try Data(contentsOf: destination) == original)
+    }
+
     @Test func rationalTimeRejectsInvalidAndOverflowingInput() throws {
         #expect(throws: VideoError.self) { try VideoTime(value: .min, timescale: 1) }
         #expect(throws: VideoError.self) { try VideoTime(value: 1, timescale: -1) }

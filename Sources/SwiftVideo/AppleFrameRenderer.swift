@@ -38,7 +38,8 @@ enum AppleFrameRenderer {
         }
     }
 
-    private static func place(_ source: CIImage, transform t: VisualTransform, canvas: CGRect) -> CIImage {
+    /// Local layer pixels before placement, shared by export and interactive previews.
+    static func fit(_ source: CIImage, transform t: VisualTransform, canvas: CGRect) -> CIImage {
         let extent = source.extent
         let c = t.crop
         let crop = CGRect(x: extent.minX + extent.width * c.x, y: extent.minY + extent.height * (1 - c.y - c.height),
@@ -56,6 +57,12 @@ enum AppleFrameRenderer {
         image = image.transformed(by: CGAffineTransform(scaleX: sx, y: sy))
             .transformed(by: CGAffineTransform(translationX: (width - crop.width * sx) / 2, y: (height - crop.height * sy) / 2))
             .cropped(to: CGRect(x: 0, y: 0, width: width, height: height))
+        return image
+    }
+
+    private static func place(_ source: CIImage, transform t: VisualTransform, canvas: CGRect) -> CIImage {
+        let width = canvas.width * t.width, height = canvas.height * t.height
+        let image = fit(source, transform: t, canvas: canvas)
         let matrix = CGAffineTransform(translationX: -width / 2, y: -height / 2)
             .concatenating(CGAffineTransform(scaleX: t.scale, y: t.scale))
             .concatenating(CGAffineTransform(rotationAngle: -t.rotation * .pi / 180))

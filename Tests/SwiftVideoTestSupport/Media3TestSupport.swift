@@ -10,12 +10,37 @@ import android.media.MediaCodec
 import android.media.MediaFormat
 import android.graphics.Color
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import java.io.File
 import java.io.FileOutputStream
 #endif
 
 /// Integration fixtures and independent Android output inspection, linked only by tests.
 public final class Media3TestSupport {
+    /// Width, height, transparent/opaque pixels, top/bottom ink, and center RGBA.
+    public static func layerImageStats(path: String) throws -> [Int] {
+        #if SKIP
+        guard let image = BitmapFactory.decodeFile(path) else { throw IllegalStateException("Cannot decode layer PNG") }
+        defer { image.recycle() }
+        var clear = 0, opaque = 0, top = 0, bottom = 0
+        for y in 0..<image.getHeight() {
+            for x in 0..<image.getWidth() {
+                let color = image.getPixel(x, y)
+                if Color.alpha(color) == 0 { clear += 1 }
+                if Color.alpha(color) == 255 { opaque += 1 }
+                if Color.alpha(color) > 127 {
+                    if y < image.getHeight() / 2 { top += 1 } else { bottom += 1 }
+                }
+            }
+        }
+        let center = image.getPixel(image.getWidth() / 2, image.getHeight() / 2)
+        return [image.getWidth(), image.getHeight(), clear, opaque, top, bottom,
+                Color.red(center), Color.green(center), Color.blue(center), Color.alpha(center)]
+        #else
+        throw unavailable()
+        #endif
+    }
+
     public static func solidImage(red: Int, green: Int, blue: Int) throws -> String {
         #if SKIP
         let bitmap = Bitmap.createBitmap(320, 180, Bitmap.Config.ARGB_8888)

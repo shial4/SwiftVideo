@@ -69,26 +69,7 @@ public final class Media3CompositionBuilder {
                     .setClippingConfiguration(MediaItem.ClippingConfiguration.Builder().setStartPositionUs(sourceStart)
                         .setEndPositionUs(sourceStart + clip.getLong("sourceDurationUs")).build()).build()
             }
-            let visualEffects = java.util.ArrayList<Effect>()
-            let transform = clip.getJSONObject("transform")
-            let crop = transform.getJSONObject("crop")
-            visualEffects.add(Crop(Float(crop.getDouble("x") * 2 - 1), Float((crop.getDouble("x") + crop.getDouble("width")) * 2 - 1),
-                                  Float(1 - (crop.getDouble("y") + crop.getDouble("height")) * 2), Float(1 - crop.getDouble("y") * 2)))
-            let filters = clip.getJSONArray("filters")
-            for filterIndex in 0..<filters.length() {
-                let filter = filters.getJSONObject(filterIndex)
-                if filter.getString("kind") == "blur" {
-                    if filter.getDouble("value") > 0 { visualEffects.add(GaussianBlur(Float(filter.getDouble("value")))) }
-                } else { visualEffects.add(ColorMatrixEffect(kind: filter.getString("kind"), value: filter.getDouble("value"))) }
-            }
-            let layout: Int
-            switch transform.getString("contentMode") {
-            case "fill": layout = Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP
-            case "stretch": layout = Presentation.LAYOUT_STRETCH_TO_FIT
-            default: layout = Presentation.LAYOUT_SCALE_TO_FIT
-            }
-            visualEffects.add(Presentation.createForWidthAndHeight(max(1, Int(Double(width) * transform.getDouble("width"))),
-                max(1, Int(Double(height) * transform.getDouble("height"))), layout))
+            let visualEffects = self.visualEffects(clip, width: width, height: height)
             // CompositionPlayer needs source duration before clipping. Media
             // validation already reads this metadata for Transformer as well.
             let sourceDuration = mediaTiming[clip.getString("id")]?.duration ?? length
@@ -145,6 +126,31 @@ public final class Media3CompositionBuilder {
             .setHdrMode(Composition.HDR_MODE_TONE_MAP_HDR_TO_SDR_USING_OPEN_GL).build()
     }
 
+    /// Shared crop, filters, and fitting for encoded output and paused layer images.
+    func visualEffects(_ clip: JSONObject, width: Int, height: Int) -> java.util.ArrayList<Effect> {
+        let visualEffects = java.util.ArrayList<Effect>()
+        let transform = clip.getJSONObject("transform")
+        let crop = transform.getJSONObject("crop")
+        visualEffects.add(Crop(Float(crop.getDouble("x") * 2 - 1), Float((crop.getDouble("x") + crop.getDouble("width")) * 2 - 1),
+                          Float(1 - (crop.getDouble("y") + crop.getDouble("height")) * 2), Float(1 - crop.getDouble("y") * 2)))
+        let filters = clip.getJSONArray("filters")
+        for filterIndex in 0..<filters.length() {
+            let filter = filters.getJSONObject(filterIndex)
+            if filter.getString("kind") == "blur" {
+                if filter.getDouble("value") > 0 { visualEffects.add(GaussianBlur(Float(filter.getDouble("value")))) }
+            } else { visualEffects.add(ColorMatrixEffect(kind: filter.getString("kind"), value: filter.getDouble("value"))) }
+        }
+        let layout: Int
+        switch transform.getString("contentMode") {
+        case "fill": layout = Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP
+        case "stretch": layout = Presentation.LAYOUT_STRETCH_TO_FIT
+        default: layout = Presentation.LAYOUT_SCALE_TO_FIT
+        }
+        visualEffects.add(Presentation.createForWidthAndHeight(max(1, Int(Double(width) * transform.getDouble("width"))),
+            max(1, Int(Double(height) * transform.getDouble("height"))), layout))
+        return visualEffects
+    }
+
     private struct MediaTiming {
         let duration: Int64
         let hasAudio: Bool
@@ -194,6 +200,11 @@ public final class Media3CompositionBuilder {
     }
 
     private func textBitmap(_ clip: JSONObject, width: Int, height: Int, folder: File) throws -> String {
+        let bitmap = try textImage(clip, width: width, height: height)
+        return try saveBitmap(bitmap, name: clip.getString("id") + ".png", folder: folder)
+    }
+
+    func textImage(_ clip: JSONObject, width: Int, height: Int) throws -> Bitmap {
         let transform = clip.getJSONObject("transform")
         let textWidth = max(1, Int((Double(width) * transform.getDouble("width")).rounded()))
         let textHeight = max(1, Int((Double(height) * transform.getDouble("height")).rounded()))
@@ -222,7 +233,7 @@ public final class Media3CompositionBuilder {
         let text = clip.getString("text")
         let layout = StaticLayout.Builder.obtain(text, 0, text.length, paint, textWidth).setAlignment(alignment).setIncludePad(false).build()
         layout.draw(canvas)
-        return try saveBitmap(bitmap, name: clip.getString("id") + ".png", folder: folder)
+        return bitmap
     }
 
     private func color(_ value: JSONObject) -> Int {
