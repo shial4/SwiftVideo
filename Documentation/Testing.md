@@ -3,6 +3,35 @@
 
 [Documentation index](README.md) | [Public API reference](APIReference.md)
 
+## Stable adoption gate
+
+PR #1 includes `main` through `d2977a2`; its documentation conflicts are resolved.
+Local verification on November 6, 2026 passes all 56 macOS library tests, 56 iOS
+library tests on iOS 27, and six editor model tests. The iOS LLVM report measures
+1,570/1,645 executable source lines (95.44%). These local results do not establish
+a passing hosted or Android release gate.
+
+Stable adoption still requires passing Apple and Android CI, all three coverage
+gates, and a stable Media3 dependency that supports the preview implementation.
+A version-number change alone does not meet that requirement:
+
+- Google's [release index](https://developer.android.com/jetpack/androidx/releases/media3)
+  lists 1.11.1 as stable; 1.12.0-alpha02 remains a prerelease.
+- Building this branch against 1.11.1 fails because
+  `DefaultGlFrameProcessor.Factory.Builder` is unavailable. Its
+  [older factory](https://github.com/androidx/media/blob/1.11.1/libraries/effect/src/main/java/androidx/media3/effect/DefaultGlFrameProcessor.java)
+  requires caller-owned GL resources and a `HardwareBufferJniWrapper`.
+- The matching [native helper implementation](https://github.com/androidx/media/blob/1.11.1/libraries/effect_ndk/src/main/java/androidx/media3/effect/ndk/HardwareBufferJni.java)
+  is in the upstream source tree, but Google's
+  [Maven artifact index](https://dl.google.com/dl/android/maven2/androidx/media3/group-index.xml)
+  does not publish that NDK module. Both candidate 1.11.1 artifact coordinates
+  (`media3-effect-ndk` and `lib-effect-ndk`) return 404.
+
+The dependency therefore remains 1.12.0-alpha02. Adopt a compatible stable
+upstream release and rerun the complete gates before merging. The independent
+BT.709 color and paused-seek assertions remain enabled with their original
+tolerances; the previous failing Android runs are not release passes.
+
 ## Latest complete coverage snapshot: 0.1.0-alpha.5
 
 This alpha adds clip and track speed, ordered visual filter inheritance, audio
@@ -90,20 +119,27 @@ JaCoCo measures the generated Kotlin bytecode for the Swift-authored `SwiftVideo
 From the repository root:
 
 ```sh
-swift test --disable-xctest --enable-code-coverage
-swift test --package-path Example --disable-xctest
+swift test --build-system native --disable-xctest --enable-code-coverage
+swift test --build-system native --package-path Example --disable-xctest
 swift Tools/CheckHeaders.swift
 ```
 
-For iOS, use the `xcodebuild` command in [apple.yml](../.github/workflows/apple.yml), selecting an installed simulator. It selects the six Swift Testing suites explicitly, writes an `.xcresult`, exports `xccov` JSON, and checks coverage with `Tools/Coverage.swift`.
+For iOS, use the `xcodebuild` command in [apple.yml](../.github/workflows/apple.yml), selecting an installed simulator. It runs every applicable test suite, including layer rendering, and writes an `.xcresult`.
 
-If `xccov` omits the library's files, inspect the generated test binary and
-`Build/ProfileData/<device-id>/Coverage.profdata` with `xcrun llvm-cov export`.
-Pass the resulting JSON to the same `Tools/Coverage.swift ios` command. This
-preserves the source scope and 90% gate; an empty `xccov` report alone cannot
-establish coverage.
+[CollectIOSCoverage.sh](../Tools/CollectIOSCoverage.sh) requires a passing,
+nonempty test result. It selects the simulator profiles identified by that
+result bundle and exports the matching test binary's LLVM coverage mapping.
+This avoids Xcode summaries that omit Swift package source files. The existing
+`Tools/Coverage.swift` source scope and 90% gate are unchanged.
 
-Local verification used Xcode 27.1, the iOS 26.5 Simulator, and macOS 26.6. CI selects Xcode 26.6 on `macos-26`. Apple video tests require a Metal-capable rendering environment.
+```sh
+bash Tools/CollectIOSCoverage.sh .build-coverage/iOS.xcresult .build-ios .build-coverage
+```
+
+CI selects Xcode 26.6 on `macos-26`. Apple video tests require a Metal-capable
+rendering environment. Host tests use the native SwiftPM build system with
+unbuffered output. If the host step stalls, CI retains process samples before
+its twelve-minute deadline; a timeout remains a failed check.
 
 ## Reproduce Android tests
 

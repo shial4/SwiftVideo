@@ -50,8 +50,7 @@ jobs:
             -derivedDataPath .build-ios -resultBundlePath .build-coverage/iOS.xcresult \
             -skipPackagePluginValidation -enableCodeCoverage YES \
             test
-          xcrun xccov view --report --json .build-coverage/iOS.xcresult > .build-coverage/ios-raw.json
-          swift Tools/Coverage.swift ios .build-coverage/ios-raw.json .build-coverage/ios.json 90
+          bash Tools/CollectIOSCoverage.sh .build-coverage/iOS.xcresult .build-ios .build-coverage
       - name: Build the iOS editor
         run: |
           xcodebuild -project Example/Darwin/SwiftVideoEditor.xcodeproj \
