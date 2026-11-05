@@ -12,37 +12,19 @@ permissions:
 concurrency:
   group: android-${{ github.ref }}
   cancel-in-progress: true
+env:
+  # setup-gradle retains the local task cache as well as dependency downloads.
+  GRADLE_OPTS: -Dorg.gradle.caching=true
 jobs:
   build:
     # Skip code generation and native cross-compilation run on macOS.
     runs-on: macos-26-intel
     timeout-minutes: 60
-    env:
-      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
-      SWIFT_VERSION: '6.3.2'
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: gradle/actions/setup-gradle@v5
-        with:
-          gradle-version: '9.8.2'
-      - name: Install pinned Skip and Swift toolchains
-        run: |
-          curl -fL https://github.com/skiptools/skip/releases/download/1.9.19/skip-macos.zip -o "$RUNNER_TEMP/skip.zip"
-          echo "e7337fcbfaf2e39b0a5ad312e83feba35832b09950076524e1ef530ea250579b  $RUNNER_TEMP/skip.zip" | shasum -a 256 -c -
-          unzip -q "$RUNNER_TEMP/skip.zip" -d "$RUNNER_TEMP/skip"
-          echo "$RUNNER_TEMP/skip/skip.artifactbundle/macos" >> "$GITHUB_PATH"
-          curl -fL https://download.swift.org/swiftly/darwin/swiftly.pkg -o "$RUNNER_TEMP/swiftly.pkg"
-          installer -pkg "$RUNNER_TEMP/swiftly.pkg" -target CurrentUserHomeDirectory
-          "$HOME/.swiftly/bin/swiftly" init --skip-install --assume-yes --no-modify-profile
-          source "$HOME/.swiftly/env.sh"
-          swiftly install "$SWIFT_VERSION"
-          echo "$HOME/.swiftly/bin" >> "$GITHUB_PATH"
-          "$RUNNER_TEMP/skip/skip.artifactbundle/macos/skip" android sdk install --version "$SWIFT_VERSION" --ndk-version r27d
-          echo "ANDROID_NDK_ROOT=" >> "$GITHUB_ENV"
-      - name: Select compatible host SDK
-        run: echo "SDKROOT=$(xcrun --sdk macosx --show-sdk-path)" >> "$GITHUB_ENV"
+      - uses: ./.github/actions/setup-android
       - name: Generate test bridge metadata
         run: |
           SKIP_DYNAMIC_LIBRARIES=1 xcrun swift build --build-system native --scratch-path .build-media3 --target SwiftVideoTests
@@ -65,6 +47,15 @@ jobs:
             .build-android-tests/media3
           include-hidden-files: true
           retention-days: 3
+  example:
+    # Independent of the test binaries: tests can start as soon as build finishes.
+    runs-on: macos-26-intel
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-android
       - name: Build the example editor
         run: |
           SKIP_DYNAMIC_LIBRARIES=1 xcrun swift build --build-system native --package-path Example --scratch-path Example/.build-host --target SwiftVideoEditor
@@ -79,7 +70,7 @@ jobs:
   tests:
     needs: build
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
         with:
@@ -102,7 +93,9 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -memory 4096 -accel on
           pre-emulator-launch-script: '"$ANDROID_HOME/emulator/emulator" -accel-check'
-          script: timeout 5m bash Tools/TestAndroid.sh
+          # A complete suite already exceeds five minutes on a healthy emulator.
+          # Leave time for diagnostics, but still terminate a hung test process.
+          script: timeout --kill-after=30s 15m bash Tools/TestAndroid.sh
       - name: Report and gate coverage
         run: |
           tar -xf .build-coverage/android/profiles.tar -C .build-coverage/android
