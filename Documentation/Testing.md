@@ -8,8 +8,9 @@
 PR #1 includes `main` through `d2977a2`; its documentation conflicts are resolved.
 Local verification on November 6, 2026 passes all 56 macOS library tests, 56 iOS
 library tests on iOS 27, and six editor model tests. The iOS LLVM report measures
-1,570/1,645 executable source lines (95.44%). These local results do not establish
-a passing hosted or Android release gate.
+1,570/1,645 executable source lines (95.44%). All 40 native Android core tests
+also pass, with 979/1,053 source lines covered (92.97%). These local results do
+not establish a passing hosted or Media3 instrumentation release gate.
 
 Stable adoption still requires passing Apple and Android CI, all three coverage
 gates, and a stable Media3 dependency that supports the preview implementation.
