@@ -1,39 +1,27 @@
-## User settings
-
-# vi
-.*.swp
-.*.swo
-
-# macOS
-.DS_Store
-
-# gradle properties
-local.properties
+# SwiftPM, Xcode, Gradle, and Skip build output (also applies to Example/).
+.build/
+.build-*/
+.swiftpm/
+build/
+DerivedData/
 .gradle/
 .android/
 .kotlin/
-Android/app/keystore.jks
-Android/app/keystore.properties
+.cxx/
+.externalNativeBuild/
+Packages/
+Package.pins
+Carthage/Build/
 
-xcodebuild*.log
-
-default.profraw
-*.mobileprovision
-*.cer
-*.p12
-*.p12.password
-
-# Xcode automatically generates this directory with a .xcworkspacedata file and xcuserdata
-# hence it is not needed unless you have added a package configuration file to your project
-.swiftpm
-.build/
-.build-*/
-build/
-DerivedData/
-xcuserdata/
-xcodebuild*.log
+# Keep Package.resolved, Skip.env, shared schemes, project files, and resources.
+# Only machine-specific IDE and SDK configuration belongs here.
+.DS_Store
+._*
 .idea/
-
+xcuserdata/
+local.properties
+*.xcscmblueprint
+*.xccheckout
 *.moved-aside
 *.pbxuser
 !default.pbxuser
@@ -43,34 +31,66 @@ xcodebuild*.log
 !default.mode2v3
 *.perspectivev3
 !default.perspectivev3
-*.xcscmblueprint
-*.xccheckout
+.*.swp
+.*.swo
+*~
+*.orig
+*.rej
 
-## Obj-C/Swift specific
+# Raw test results, diagnostics, and coverage. Compact current summaries stay tracked.
+*.log
+*.xcresult/
+*.profraw
+*.profdata
+*.gcda
+*.gcno
 *.hmap
+*.exec
+*.ec
+/Documentation/Coverage/*/
 
-## App packaging
+# Compiled products and release packages, not source fixtures or demo media.
+*.o
+*.a
+*.so
+*.dylib
+*.class
+*.dex
+*.apk
+*.aab
+*.aar
+*.app/
 *.ipa
+*.xcarchive/
+*.xcframework/
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.dSYM/
 *.dSYM.zip
-*.dSYM
 
-## Playgrounds
+# Local credentials and signing material. Skip.env remains versioned.
+.env
+.env.*
+!.env.example
+!.env.sample
+*.jks
+*.keystore
+keystore.properties
+*.mobileprovision
+*.cer
+*.p12
+*.p12.password
+
+# Local campaign drafts and publishing assets are not package contents.
+/Marketing/
+
+# Generated playground and fastlane output.
 timeline.xctimeline
 playground.xcworkspace
-
-# Swift Package Manager
-#
-# Add this line if you want to avoid checking in source code from Swift Package Manager dependencies.
-Packages/
-Package.pins
-#*.xcodeproj
-
-Carthage/Build/
-
-# fastlane
-
 **/fastlane/apikey.json
 **/fastlane/report.xml
 **/fastlane/README.md
 **/fastlane/Preview.html
-**/fastlane/test_output
+**/fastlane/test_output/
