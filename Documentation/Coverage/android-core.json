@@ -1,11 +1,16 @@
 {
-  "covered" : 921,
-  "executable" : 960,
+  "covered" : 955,
+  "executable" : 1000,
   "files" : [
     {
-      "covered" : 157,
-      "executable" : 157,
+      "covered" : 176,
+      "executable" : 176,
       "file" : "Sources/SwiftVideo/AndroidRenderPlan.swift"
+    },
+    {
+      "covered" : 0,
+      "executable" : 6,
+      "file" : "Sources/SwiftVideo/AndroidVideoPreview.swift"
     },
     {
       "covered" : 15,
@@ -28,8 +33,8 @@
       "file" : "Sources/SwiftVideo/PlaybackRate.swift"
     },
     {
-      "covered" : 119,
-      "executable" : 120,
+      "covered" : 134,
+      "executable" : 135,
       "file" : "Sources/SwiftVideo/ProjectValidation.swift"
     },
     {
@@ -63,6 +68,6 @@
       "file" : "Sources/SwiftVideo/VisualStyle.swift"
     }
   ],
-  "linePercent" : 95.9375,
+  "linePercent" : 95.5,
   "suite" : "android-core"
 }

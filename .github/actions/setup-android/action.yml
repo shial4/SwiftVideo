@@ -1,0 +1,69 @@
+# Copyright 2026 Software Deck Pty Ltd
+# SPDX-License-Identifier: Apache-2.0
+
+name: Set up Android build tools
+description: Install the pinned Skip, Swift, and Gradle tools with reusable download caches.
+inputs:
+  swift-version:
+    description: Swift version used for native Android compilation.
+    default: '6.3.2'
+runs:
+  using: composite
+  steps:
+    - uses: gradle/actions/setup-gradle@v5
+      with:
+        gradle-version: '9.8.2'
+        # Also warm caches on the alpha branch and same-repository PRs.
+        # GitHub keeps PR caches scoped to their merge ref.
+        cache-read-only: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork }}
+    - name: Cache pinned toolchains
+      id: toolchains
+      uses: actions/cache@v6
+      with:
+        # SwiftPM's macOS SDK directory is reached through the .swiftpm symlink.
+        path: |
+          ${{ runner.temp }}/skip
+          ~/.swiftly
+          ~/Library/Developer/Toolchains/swift-${{ inputs.swift-version }}-RELEASE.xctoolchain
+          ~/Library/org.swift.swiftpm/swift-sdks/swift-${{ inputs.swift-version }}-RELEASE_android.artifactbundle
+          ~/.swiftpm/swift-sdks
+        key: android-tools-v1-${{ runner.os }}-${{ runner.arch }}-swift-${{ inputs.swift-version }}-${{ hashFiles('.github/actions/setup-android/action.yml') }}
+    - name: Install pinned Skip and Swift toolchains
+      if: steps.toolchains.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        SWIFT_VERSION: ${{ inputs.swift-version }}
+      run: |
+        curl -fL --retry 3 https://github.com/skiptools/skip/releases/download/1.9.19/skip-macos.zip -o "$RUNNER_TEMP/skip.zip"
+        echo "e7337fcbfaf2e39b0a5ad312e83feba35832b09950076524e1ef530ea250579b  $RUNNER_TEMP/skip.zip" | shasum -a 256 -c -
+        unzip -q "$RUNNER_TEMP/skip.zip" -d "$RUNNER_TEMP/skip"
+        curl -fL --retry 3 https://download.swift.org/swiftly/darwin/swiftly.pkg -o "$RUNNER_TEMP/swiftly.pkg"
+        installer -pkg "$RUNNER_TEMP/swiftly.pkg" -target CurrentUserHomeDirectory
+        "$HOME/.swiftly/bin/swiftly" init --skip-install --assume-yes --no-modify-profile
+        source "$HOME/.swiftly/env.sh"
+        swiftly install "$SWIFT_VERSION"
+        "$RUNNER_TEMP/skip/skip.artifactbundle/macos/skip" android sdk install --version "$SWIFT_VERSION" --ndk-version r27d
+    - name: Activate build tools
+      shell: bash
+      env:
+        SWIFT_VERSION: ${{ inputs.swift-version }}
+        DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+      run: |
+        source "$HOME/.swiftly/env.sh"
+        swiftly use --global-default --assume-yes "$SWIFT_VERSION"
+        echo "$HOME/.swiftly/bin" >> "$GITHUB_PATH"
+        echo "$RUNNER_TEMP/skip/skip.artifactbundle/macos" >> "$GITHUB_PATH"
+        echo "SWIFT_VERSION=$SWIFT_VERSION" >> "$GITHUB_ENV"
+        echo "DEVELOPER_DIR=$DEVELOPER_DIR" >> "$GITHUB_ENV"
+        echo "SDKROOT=$(xcrun --sdk macosx --show-sdk-path)" >> "$GITHUB_ENV"
+        echo "ANDROID_NDK_ROOT=" >> "$GITHUB_ENV"
+    - name: Cache SwiftPM downloads
+      uses: actions/cache@v6
+      with:
+        # Keep generated bridges, object files, and incremental metadata out.
+        path: |
+          ~/Library/Caches/org.swift.swiftpm/repositories
+          ~/Library/Caches/org.swift.swiftpm/artifacts
+        key: android-spm-v1-${{ runner.os }}-${{ runner.arch }}-${{ github.job }}-${{ hashFiles('Package.resolved', 'Package.swift', 'Example/Package.resolved', 'Example/Package.swift') }}
+        restore-keys: |
+          android-spm-v1-${{ runner.os }}-${{ runner.arch }}-${{ github.job }}-

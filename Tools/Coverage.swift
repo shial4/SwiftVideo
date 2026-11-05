@@ -18,6 +18,29 @@ struct CoverageReport: Codable {
     let executable: Int
     let linePercent: Double
 }
+struct CoverageInput: Decodable {
+    struct XcodeTarget: Decodable {
+        struct File: Decodable {
+            let path: String
+            let coveredLines: Int
+            let executableLines: Int
+        }
+        let files: [File]
+    }
+    struct LLVMReport: Decodable {
+        struct File: Decodable {
+            struct Summary: Decodable {
+                struct Lines: Decodable { let covered: Int; let count: Int }
+                let lines: Lines
+            }
+            let filename: String
+            let summary: Summary
+        }
+        let files: [File]
+    }
+    let targets: [XcodeTarget]?
+    let data: [LLVMReport]?
+}
 final class JacocoReader: NSObject, XMLParserDelegate {
     var source: String?
     var files: [FileCoverage] = []
@@ -52,22 +75,20 @@ if suite == "android-media3" {
     guard parser.parse() else { throw parser.parserError! }
     files = reader.files
 } else {
-    let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
-    if suite == "ios" {
-        for target in json["targets"] as? [[String: Any]] ?? [] {
-            for file in target["files"] as? [[String: Any]] ?? [] {
-                guard let path = file["path"] as? String, let name = firstParty(path),
-                      let covered = file["coveredLines"] as? Int, let total = file["executableLines"] as? Int else { continue }
-                files.append(FileCoverage(file: name, covered: covered, executable: total))
+    let input = try JSONDecoder().decode(CoverageInput.self, from: data)
+    if suite == "ios", let targets = input.targets {
+        for target in targets {
+            for file in target.files {
+                guard let name = firstParty(file.path) else { continue }
+                files.append(FileCoverage(file: name, covered: file.coveredLines, executable: file.executableLines))
             }
         }
-    } else if suite == "android-core" {
-        for report in json["data"] as? [[String: Any]] ?? [] {
-            for file in report["files"] as? [[String: Any]] ?? [] {
-                guard let path = file["filename"] as? String, let name = firstParty(path),
-                      let summary = file["summary"] as? [String: Any], let lines = summary["lines"] as? [String: Any],
-                      let covered = lines["covered"] as? Int, let total = lines["count"] as? Int else { continue }
-                files.append(FileCoverage(file: name, covered: covered, executable: total))
+    } else if suite == "android-core" || suite == "ios" {
+        for report in input.data ?? [] {
+            for file in report.files {
+                guard let name = firstParty(file.filename) else { continue }
+                files.append(FileCoverage(file: name, covered: file.summary.lines.covered,
+                                          executable: file.summary.lines.count))
             }
         }
     } else { fatalError("Unknown suite: \(suite)") }

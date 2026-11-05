@@ -7,16 +7,18 @@ import SwiftVideoMedia3
 
 /// Media3 owns native Android codecs. The bridge is authored entirely in Swift.
 public actor AndroidVideoRenderer: VideoRendering {
-    public nonisolated let capabilities = RendererCapabilities(name: "Media3 Transformer",
+    private static let supportedCapabilities = RendererCapabilities(name: "Media3 Transformer",
         features: Set(CompositionFeature.allCases), codecs: [.h264, .hevc], containers: [.mp4])
+    public nonisolated var capabilities: RendererCapabilities { Self.supportedCapabilities }
 
     public init() {}
 
-    public func render(_ project: VideoProject, to destination: URL, settings: ExportSettings,
-                       progress: @escaping @Sendable (ExportProgress) -> Void) async throws {
-        try project.validate()
+    /// Shared validation and native Codable boundary for export and direct preview.
+    static func serializedPlan(_ project: VideoProject, settings: ExportSettings) throws -> String {
+        try project.validateForRendering()
+        guard try project.duration > .zero else { throw VideoError.invalidProject("Cannot render an empty timeline.") }
         try settings.validate(for: project)
-        try capabilities.validate(project, settings: settings)
+        try supportedCapabilities.validate(project, settings: settings)
         let rate = settings.frameRate ?? project.frameRate
         guard rate.denominator == 1 else {
             throw VideoError.unsupportedFeature("Media3 image-sequence frame timing currently requires an integer frame rate.")
@@ -28,15 +30,15 @@ public actor AndroidVideoRenderer: VideoRendering {
         let plan = try AndroidRenderPlan(project: project, settings: settings)
         let encoded = try JSONEncoder().encode(plan)
         guard let json = String(data: encoded, encoding: .utf8) else { throw VideoError.invalidProject("Cannot serialize Android render plan.") }
-        let clips = Dictionary(uniqueKeysWithValues: project.tracks.flatMap(\.clips).map { ($0.id.uuidString, $0) })
+        return json
+    }
+
+    public func render(_ project: VideoProject, to destination: URL, settings: ExportSettings,
+                       progress: @escaping @Sendable (ExportProgress) -> Void) async throws {
+        let json = try Self.serializedPlan(project, settings: settings)
         let session = try Media3ExportSession()
         progress(ExportProgress(phase: .preparing, fraction: 0))
-        try session.start(json: json, outputPath: destination.path) { id, microseconds in
-            guard let clip = clips[id], let time = try? VideoTime(value: Int64(microseconds.rounded()), timescale: 1_000_000),
-                  (try? clip.timeRange.contains(time)) == true,
-                  let transform = try? clip.visualTransform(at: time) else { return [0.5, 0.5, 1, 0, 0] }
-            return [transform.x, transform.y, transform.scale, transform.rotation, transform.opacity]
-        }
+        try session.start(json: json, outputPath: destination.path, sample: AndroidRenderPlan.visualSampler(for: project))
         do {
             while true {
                 try Task.checkCancellation()

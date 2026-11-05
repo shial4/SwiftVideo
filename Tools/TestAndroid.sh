@@ -18,6 +18,11 @@ collect_results() {
         printf '%s\n' 'Swift Testing events from the failed Android test run:'
         cat "$reports/swt-events.jsonl"
     fi
+    # These copied runtimes and fixtures can consume hundreds of megabytes.
+    # Keep repeated local runs from filling an otherwise reusable emulator.
+    if [[ "${remote:-}" == /data/local/tmp/swiftvideo-tests.* ]]; then
+        adb shell "rm -rf '$remote'" || true
+    fi
     exit "$test_status"
 }
 trap collect_results EXIT
@@ -31,6 +36,8 @@ adb shell "cd '$remote' && chmod +x tests.xctest && LD_LIBRARY_PATH=. LLVM_PROFI
 # Pull native coverage before instrumentation so a later failure cannot lose it.
 adb shell "cd '$remote' && tar -cf profiles.tar coverage-*.profraw"
 adb pull "$remote/profiles.tar" "$reports/profiles.tar"
+adb shell "rm -rf '$remote'"
+remote=
 
 adb shell cat /proc/meminfo > "$reports/meminfo-before-instrumentation.txt" || true
 adb install -r -t "$artifacts/tests.apk"

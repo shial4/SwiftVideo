@@ -59,6 +59,71 @@ Use your existing matching Swift toolchain/Android SDK and Skip installation. Fo
 
 The public SwiftVideo module has bridging disabled; its result-builder API is intended for compiled Swift. Keep composition code in a native Fuse wrapper and expose only the operations the Lite app needs. Enable bridging on that wrapper and use Skip's default Swift-compatible bridge types for a transpiled caller. The [wrapper pattern below](#native-android-and-kotlin) also applies, with `bridging: true` in place of the Kotlin-specific options. See [Skip's module and bridging modes](https://skip.dev/docs/modes/).
 
+### Experimental Android preview
+
+Pin `0.1.0-alpha.3` explicitly to use the Media3 `1.12.0-alpha02` preview. Install Android SDK 37 and use compile/target SDK 37 in the consuming app. The minimum supported API remains 28. Declare the SDK in the app's own `Sources/<AppModule>/Skip/skip.yml`, as in the [example configuration](../Example/Sources/SwiftVideoEditor/Skip/skip.yml); a dependency's setting alone does not override an earlier version-catalog default:
+
+```yaml
+settings:
+  contents:
+    - block: 'dependencyResolutionManagement'
+      contents:
+        - block: 'versionCatalogs'
+          contents:
+            - block: 'create("libs")'
+              contents:
+                - 'version("android-sdk-compile", "37")'
+```
+
+Keep the existing `skip` configuration in that file. In the standard generated Skip app shell, this catalog value sets both compile and target SDK. Do not edit generated Gradle output.
+
+On Android, retain `AndroidVideoPreview(project:settings:)` for an immutable project snapshot. Construction validates and serializes the project using the same native Swift code as export, then starts background preparation. Its `session` exposes status, play, pause, seek, and release operations. Release the old owner when replacing the project. An explicit `session.release()` cancels preparation and schedules cleanup; releasing the owner also releases the session.
+
+This alpha supplies a low-level renderer, not a SwiftUI preview view. A Swift-authored transpiled platform adapter must attach a `SurfaceView` through `Media3PreviewSession.attachSurfaceView(_:)` and detach that same view when it leaves the UI. Android surface types are deliberately excluded from the native Swift bridge. The native owner and generated JVM adapter must refer to the same session. The [test probe](../Tests/SwiftVideoTestSupport/Media3PreviewProbe.swift) demonstrates surface attachment and replacement; it is not an app UI component.
+
+Add the `SwiftVideoMedia3` product to the target that imports the session in its
+surface adapter, alongside its existing `SwiftVideo` dependency:
+
+```swift
+.product(name: "SwiftVideoMedia3", package: "SwiftVideo")
+```
+
+Keep this dependency unconditional. Skip needs its type metadata when generating
+the adapter during an Apple build too. Depending only on `SwiftVideo` leaves the
+Android-only module out of a clean Apple dependency graph and fails bridge
+generation. Ordinary composition and export clients only need `SwiftVideo`.
+
+Controls requested during preparation are retained. Prepared status means the composition is ready; a surface and player are still required to display frames. Rapid seeks are coalesced over 16 ms and rebuild the player to obtain the requested paused frame. Surfaces remain owned by the caller, which must keep them alive until detached or the session is released. Keep source files readable throughout the session.
+
+Preview decodes audio sources into session-owned PCM files to preserve trim and
+seek boundaries. It caches only the bounding source range used by each URL,
+with a whole-second origin and adjusted audio trims. Its disk budget reserves
+256 MiB of available space and caps the session at 2,147,483,647 bytes. It still
+decodes the compressed prefix and stores gaps between distant source ranges;
+this is not a streaming audio implementation. Exceeding the budget fails
+preparation with a message and removes temporary files. Cancellation and cleanup
+complete asynchronously. Apple preview remains the application's responsibility,
+and the example editor continues to preview exported movies. See the
+[API contract](APIReference.md#experimental-android-preview) and
+[known verification limits](Testing.md#010-alpha3-verification).
+
+The preview waits for the first-frame callback before starting
+playback and for Media3's ended state before reporting completion. Pending video
+output can finish after the clock reaches the project duration; the displayed
+position stays at that duration while output drains.
+
+The session owns the attached view's surface callbacks. It releases
+the old player before `surfaceDestroyed` returns, then rebuilds against the new
+surface with the saved playhead and playback intent. View attachment, detachment,
+and release run immediately when called on the main looper; calls from other
+threads are dispatched to it. Call `detachSurfaceView` from the view's main-thread
+disposal callback. A late detach for an older view cannot detach its replacement.
+Media3 negotiates its output format through a fixed holder, so its frame writer
+cannot close an in-flight image in response to the view's lifecycle callbacks.
+While paused, the session retains its playhead snapshot even if Media3's clock
+settles asynchronously. Surface replacement after completion restores the final
+frame while the public playhead remains at the project duration.
+
 ## Native Android and Kotlin
 
 This is an adapter integration, not a published SwiftVideo Maven dependency. Version 0.0.1 does not ship a Kotlin facade or prebuilt AARs. You build and own the small public wrapper; SwiftVideo owns the composition and export implementation. The walkthrough below illustrates that boundary and must be built and tested with your Android app.

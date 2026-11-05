@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Software Deck Pty Ltd; SPDX-License-Identifier: Apache-2.0 -->
-# Third-party dependencies for 0.0.1
+# Third-party dependencies for 0.1.0-alpha.3
 
 SwiftVideo's Apache 2.0 license applies to first-party work. The dependencies below retain their own licenses and copyrights. License texts are copied verbatim. Source links identify the exact resolved revisions, including corresponding source for MPL-covered components. No dependency sources are modified.
 
@@ -19,7 +19,7 @@ SwiftVideo's Apache 2.0 license applies to first-party work. The dependencies be
 | swift-android-native | 1.5.3 | [License](swift-android-native-LICENSE.txt) | [d757c18d7126](https://github.com/skiptools/swift-android-native/tree/d757c18d7126dea382534e6e4f484b29240f3545) |
 | swift-jni | 0.5.1 | [License](swift-jni-LICENSE.txt) | [71385f88cfff](https://github.com/skiptools/swift-jni/tree/71385f88cfff14409fe105e27fcad3ebd44348d0) |
 
-Android rendering also uses AndroidX Media3 Transformer and Effect 1.11.1 under Apache 2.0. Their POMs identify transitive dependencies; downstream applications must retain notices for the versions they resolve and distribute. [Media3 source](https://github.com/androidx/media/tree/1.11.1), [license](https://github.com/androidx/media/blob/1.11.1/LICENSE).
+Android rendering and preview use AndroidX Media3 Transformer, Effect, and Inspector 1.12.0-alpha02 under Apache 2.0. Inspector supplies container-aware audio extraction. Their POMs identify transitive dependencies; downstream applications must retain notices for the versions they resolve and distribute. [Media3 source](https://github.com/androidx/media/tree/1.12.0-alpha02), [license](https://github.com/androidx/media/blob/1.12.0-alpha02/LICENSE).
 
 The example platform shells were produced by Skip 1.9.19. The Android shell is unmodified generated output. Its Gradle wrapper is Gradle project code under Apache 2.0: [Gradle license and notices](https://github.com/gradle/gradle/blob/v9.0.0/LICENSE).
 

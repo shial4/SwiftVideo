@@ -79,8 +79,10 @@ public struct TextShadow: Hashable, Codable, Sendable {
 }
 
 public struct TextStyle: Hashable, Codable, Sendable {
-    /// A platform font name, or a font file URL to load a supplied custom font on both platforms.
+    /// A platform font name; availability differs between platforms.
     public let fontName: String?
+    /// A local font file, or an HTTPS reference in a hosted document.
+    /// Download hosted fonts and replace this URL with the local copy before rendering.
     public let fontURL: URL?
     /// Size in project canvas pixels; scales when export resolution differs.
     public let fontSize: Double

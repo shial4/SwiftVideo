@@ -115,4 +115,16 @@ struct AndroidRenderPlan: Encodable {
         guard !rounded.overflow, rounded.partialValue <= UInt64(Int64.max) else { throw VideoError.timeOverflow }
         return Int64(rounded.partialValue)
     }
+
+    /// Native timeline evaluation shared by Android export and preview consumers.
+    static func visualSampler(for project: VideoProject) -> @Sendable (String, Double) -> [Double] {
+        let clips = Dictionary(uniqueKeysWithValues: project.tracks.flatMap(\.clips).map { ($0.id.uuidString, $0) })
+        return { id, microseconds in
+            guard microseconds.isFinite, microseconds >= 0, microseconds < Double(Int64.max),
+                  let clip = clips[id], let time = try? VideoTime(value: Int64(microseconds.rounded()), timescale: 1_000_000),
+                  (try? clip.timeRange.contains(time)) == true,
+                  let transform = try? clip.visualTransform(at: time) else { return [0.5, 0.5, 1, 0, 0] }
+            return [transform.x, transform.y, transform.scale, transform.rotation, transform.opacity]
+        }
+    }
 }
