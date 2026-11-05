@@ -3,7 +3,7 @@
 
 [Documentation index](README.md) | [Public API reference](APIReference.md)
 
-The main-branch playback and filter verification snapshot was measured on November 5, 2026. The stable 0.0.1 tag predates these APIs. Coverage reports contain executable-line counts, not estimates.
+The playback and filter verification snapshot for the 0.1.0 release candidate was measured on November 5, 2026. The 0.0.1 tag predates these APIs. Coverage reports contain executable-line counts, not estimates.
 
 | Target | Observed result | Coverage |
 | --- | --- | --- |
