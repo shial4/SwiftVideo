@@ -3,7 +3,7 @@
 
 [Documentation index](README.md) | [Quick start and SwiftPM manifest](../README.md#install) | [API reference](APIReference.md)
 
-SwiftVideo 0.0.1 exposes a native Swift API. Apple apps and Skip Fuse modules use it directly. Kotlin and Skip Lite callers need an application-owned native Swift wrapper with a generated bridge.
+SwiftVideo exposes a native Swift API. Apple apps and Skip Fuse modules use it directly. Kotlin and Skip Lite callers need an application-owned native Swift wrapper with a generated bridge.
 
 ## Swift Package Manager
 
@@ -12,6 +12,8 @@ Add the dependency to your package's `dependencies` array:
 ```swift
 .package(url: "https://github.com/shial4/SwiftVideo.git", from: "0.0.1")
 ```
+
+The latest stable release is `0.0.1`. For the unreleased speed and track-filter APIs documented on `main`, use `branch: "main"` in place of `from: "0.0.1"`.
 
 Add the product to the consuming target's `dependencies` array:
 

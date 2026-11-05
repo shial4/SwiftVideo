@@ -81,7 +81,7 @@ individual clips and effects; it does not flatten or re-encode source media.
 
 ## Playback speed and track effects
 
-Available on `main` and `0.1.0-alpha.5`; the stable `0.0.1` tag does not contain these APIs.
+Available on `main` for the planned 0.1.0 release; these APIs are not in 0.0.1. Clip and track rates combine without changing the selected source range.
 
 ```swift
 let clip = try MediaClip.video(inputURL, duration: VideoTime(value: 8, timescale: 1))

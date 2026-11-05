@@ -222,7 +222,7 @@ For previews, use a separate exporter at a lower resolution, debounce rapid edit
 
 ## Retimed commentary with track EQ
 
-These APIs are available on `main` and `0.1.0-alpha.5`. The source clip below selects eight seconds
+These APIs are available on `main` for the planned 0.1.0 release. The source clip below selects eight seconds
 of footage, plays it in four project seconds, and applies clip filters before
 track filters. Track EQ processes each clip before mixing.
 

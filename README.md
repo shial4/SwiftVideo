@@ -24,7 +24,7 @@ Built with SwiftVideo: [run the example editor on iOS or Android](Example/README
 - **One Swift composition, three platforms.** Use the same API with AVFoundation on Apple and Media3 through Skip Fuse on Android.
 - **GPU-backed visuals.** Metal-backed Core Image and Media3's OpenGL pipeline handle transforms, filters, and compositing. Text is prepared once for each export.
 - **Editing with predictable results.** Rational time, atomic edit batches, and split/trim operations preserve source offsets and effect timing.
-- **Clip and track speed and effects.** Retiming with preserved pitch, inherited visual filters, and ordered audio EQ. [Usage and timing rules](Documentation/Guide.md#playback-speed-and-track-effects) (available on `main` and `0.1.0-alpha.5`; not in the `0.0.1` tag).
+- **Clip and track speed and effects.** Retiming with preserved pitch, inherited visual filters, and ordered audio EQ. [Usage and timing rules](Documentation/Guide.md#playback-speed-and-track-effects) (available on `main`; planned for 0.1.0).
 - **Export with control.** Async/await, progress, cancellation, and destination protection are built in. Projects are Codable, Hashable, and Sendable.
 
 ## Quick start
@@ -84,6 +84,8 @@ let package = Package(
 
 Then `import SwiftVideo`. For an existing package, merge these dependency entries into its manifest. Android applications also need the Skip setup below.
 
+The latest stable release is `0.0.1`. Clip and track speed, inherited filters, and audio EQ are on `main` for the planned `0.1.0` release. To try those APIs before release, replace the dependency requirement with `branch: "main"`.
+
 ### Android preview alpha
 
 `0.1.0-alpha.5` adds clip and track playback speed, ordered visual and audio filters, and example editor controls. It includes experimental direct composition playback on Android with Media3 `1.12.0-alpha02` and HTTPS custom-font references for hosted documents. Opt in with an exact version:
@@ -94,7 +96,7 @@ Then `import SwiftVideo`. For an existing package, merge these dependency entrie
 
 The alpha requires Android compile/target SDK 37; minimum Android API 28 and Apple deployment targets are unchanged. It fixes playback after timeline gaps, preserves single-frame MP4 duration, and adds seek-aware audio preparation. The third alpha waits for rendered frames at playback boundaries, stops the old frame processor before a surface is destroyed, and retains the exact paused playhead across surface replacement. It exposes a low-level Android preview session; applications must provide the surface adapter. The example editor still previews exported movies.
 
-Android export-color and paused-seek checks remain failing, and a retimed-audio comparison failed intermittently. This prerelease does not establish a passing Android release gate. Its preview audio cache stores the source ranges used by the composition within a bounded disk budget; it still decodes compressed prefixes and stores gaps between distant ranges. Download hosted fonts and replace their URLs with local copies before preview or export. See [preview integration](Documentation/Integration.md#experimental-android-preview) and [alpha verification](Documentation/Testing.md#010-alpha5-verification) before adopting it.
+Android export-color and paused-seek checks remain failing, and a retimed-audio comparison failed intermittently. This prerelease does not establish a passing Android release gate. Its preview audio cache stores the source ranges used by the composition within a bounded disk budget; it still decodes compressed prefixes and stores gaps between distant ranges. Download hosted fonts and replace their URLs with local copies before preview or export. See [preview integration](Documentation/Integration.md#experimental-android-preview) and [alpha verification](Documentation/Testing.md#latest-complete-coverage-snapshot-010-alpha5) before adopting it.
 
 | Your project | Requirements | Integration |
 | --- | --- | --- |
@@ -142,8 +144,8 @@ The [Kotlin integration walkthrough](Documentation/Integration.md#native-android
 | Title scenes and captions | Image overlays, timed text, font/color/alignment/shadow, custom font files |
 | Commentary and picture-in-picture | Overlapping video tracks, crop, fit/fill/stretch, position, rotation, opacity |
 | Animation and effects | Keyframes with easing; brightness, contrast, saturation, blur, and sepia |
-| Timeline editing | Split, trim, offset, sequential arrangement, atomic edit batches |
-| Soundtracks | Video audio and music mixing, gain, mute, stereo pan, fades |
+| Timeline editing | Clip and track speed (0.25x-4x), split, trim, offset, sequential arrangement, atomic edit batches |
+| Soundtracks | Pitch-preserving speed, video audio and music mixing, gain, mute, stereo pan, fades, ordered EQ |
 | Export | H.264 / HEVC, configurable resolution/frame rate/bitrate, progress and cancellation |
 
 Apple supports MP4/MOV and rational frame rates; Android supports MP4 and integer frame rates. Output is SDR, codec support depends on the device, and platform fonts/colors can differ. The stable release exports compositions; the alpha additionally exposes experimental direct Android preview. [Full platform limits](Documentation/Guide.md#platform-architecture-and-limits).
@@ -175,13 +177,13 @@ Documentation is hosted in this GitHub repository. Select your dependency's rele
 
 ## Tests and coverage
 
-[![iOS coverage](https://img.shields.io/badge/iOS%20lines-95.1%25-brightgreen)](Documentation/Coverage/ios.json)
-[![Android Swift coverage](https://img.shields.io/badge/Android%20Swift%20core-94.8%25-brightgreen)](Documentation/Coverage/android-core.json)
-[![Media3 coverage](https://img.shields.io/badge/Media3%20bridge-90.1%25-green)](Documentation/Coverage/android-media3.json)
+[![iOS coverage](https://img.shields.io/badge/iOS%20lines-95.38%25-brightgreen)](Documentation/Coverage/ios.json)
+[![Android Swift coverage](https://img.shields.io/badge/Android%20Swift%20core-95.94%25-brightgreen)](Documentation/Coverage/android-core.json)
+[![Media3 coverage](https://img.shields.io/badge/Media3%20bridge-91.38%25-green)](Documentation/Coverage/android-media3.json)
 
 Apple and Android CI exercise timeline rules, serialization, atomic edits, cancellation, destination protection, and real media exports. Integration tests independently decode frames and PCM audio to check placement, motion, filters, opacity, duration, and fades.
 
-These coverage badges are the **0.0.1 verification snapshot**; the workflow badges above show live CI status. Android Swift core and Media3 bridge coverage measure separate layers. [Scope, thresholds, reports, and test commands](Documentation/Testing.md).
+These coverage badges show the **November 5, 2026 verification snapshot**; the workflow badges above show live CI status. Android Swift core and Media3 bridge coverage measure separate layers. [Scope, thresholds, reports, and test commands](Documentation/Testing.md).
 
 ## Help and contribute
 
