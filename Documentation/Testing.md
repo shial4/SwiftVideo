@@ -3,7 +3,7 @@
 
 [Documentation index](README.md) | [Public API reference](APIReference.md)
 
-## 0.1.0-alpha.5 verification
+## Latest complete coverage snapshot: 0.1.0-alpha.5
 
 This alpha adds clip and track speed, ordered visual filter inheritance, audio
 EQ, and example editor controls. Preview and export share the same resolved
@@ -15,8 +15,8 @@ library tests on an iOS 27 simulator, 39 native Android core tests on API 34 arm
 and six example editor model tests. Android bridge/native compilation, both example app builds, all 71 source
 headers, local documentation links, and whitespace checks pass.
 
-Measured [iOS coverage](Coverage/0.1.0-alpha.5/ios.json) is 1,499/1,570 executable
-lines (95.48%); [Android core coverage](Coverage/0.1.0-alpha.5/android-core.json)
+Measured [iOS coverage](Coverage/ios.json) is 1,499/1,570 executable
+lines (95.48%); [Android core coverage](Coverage/android-core.json)
 is 955/1,000 (95.50%). Both exceed their unchanged 90% gates. The iOS report uses
 the direct LLVM export of the passing test binary and its profile because the
 Xcode `xccov` summary again omitted first-party sources.
@@ -35,211 +35,26 @@ without changing their 0.01 tolerance or the audio implementation. This
 intermittent result remains unresolved; the passing rerun does not establish
 that the issue is fixed. No failing assertion was disabled or relaxed.
 
-Measured [Media3 coverage](Coverage/0.1.0-alpha.5/android-media3.json) is
+Measured [Media3 coverage](Coverage/android-media3.json) is
 1,190/1,310 executable lines (90.84%), above the unchanged 75% gate. Coverage
 measures executed code even when assertions fail; it does not establish a
 passing Android gate. Hosted CI at the alpha release commit and physical-device
 behavior remain unverified. This is an experimental prerelease.
 
-## 0.1.0-alpha.4 verification
+## Earlier verification records
 
-Hosted documents can retain HTTPS custom-font references through validation,
-Codable round-trips, and editing. The consuming app downloads each font once and
-replaces its reference with an owned local file. Export and both native renderers
-reject unresolved hosted fonts before rendering or writing output.
+Historical test reports and diagnostics live at their release tags. The current
+branch keeps only the three compact coverage summaries used by the README.
+Raw profiles, logs, and test bundles belong in local build folders or CI artifacts.
 
-Local verification on November 4, 2026 passes all 43 macOS library tests, 43 iOS
-tests on an iOS 27 simulator, 34 native Android core tests on API 33 arm64, and
-five example editor model tests. Android bridge generation, native compilation,
-the iOS example build, all 64 license headers, and whitespace checks pass.
-The consuming app passes all 163 host tests against the candidate source with
-its other dependency pins unchanged. This includes font deduplication, exact
-text styling and animation preservation, durable local ownership, and rollback
-when a font download fails after media has already been copied.
-
-Measured [iOS coverage](Coverage/0.1.0-alpha.4/ios.json) is 1,162/1,220 executable
-lines (95.25%); [Android core coverage](Coverage/0.1.0-alpha.4/android-core.json)
-is 722/766 (94.26%). Both exceed their unchanged 90% gates. Xcode 27.2's `xccov`
-summary returned zero library source files for this passing run. Direct LLVM
-export of the same test binary and generated profile contains all 12 Apple
-source files. The native Codable coverage reader now accepts that LLVM report
-for iOS as well as the existing `xccov` format; missing source data and
-conflicting duplicate entries still fail validation.
-
-The Media3 implementation and its six known color/legacy-seek failures are
-unchanged. Its full instrumentation suite was not repeated for the font change;
-the preceding complete run is recorded below. The new Android preflight check
-runs before entering Media3 and passes in the native core suite. Hosted CI at
-the new release commit and physical-device behavior remain unverified. This
-alpha does not establish a passing Android or stable-release gate.
-
-## Frame inspection and seek controls
-
-The independent Android frame inspector now handles decoder output arriving out
-of presentation order. An API 33 arm64 run emitted timestamps 2.466666, 2.4,
-2.433333, and 2.6 seconds before the frame needed for a 2.49-second request.
-Stopping at the first timestamp beyond the request incorrectly selected a red
-frame. Apple's independent decode confirms the source changes to green at exactly
-2.5 seconds; the packaged and source fixture SHA-256 hashes match.
-
-Inspection now retains the closest timestamp until an exact match or end of
-stream, with later timestamps winning ties. Only improving candidates copy YUV
-planes, and the selected frame is converted to RGB once. The unchanged four
-boundary cases pass on API 33 arm64, including both sides of the midpoint and
-end-of-stream fallback. All 40 host tests pass. The complete 56-test Android run
-finished in 135.026 seconds with the same six known assertion failures: two
-legacy paused-seek checks and four BT.709 color checks across the raw Media3
-control and SwiftVideo export. No color tolerances or preview deadlines changed.
-
-The paused seek/reset/recreation control now exercises both the legacy video
-graph and the alpha's `DefaultGlFrameProcessor`. The latter uses the same fixed
-RGBA surface-holder integration as production preview. All three frame-processor
-cases pass pixel checks across the initial background, overlay, gap, and backward
-seek. The original legacy seek/reset cases remain enabled and failing. Production
-retains player recreation and its verified PCM trim and surface lifecycle handling.
-These test-support changes landed after `0.1.0-alpha.3` and are included in
-`0.1.0-alpha.4`.
-
-## 0.1.0-alpha.3 verification
-
-[SwiftVideo 0.1.0-alpha.3](https://github.com/shial4/SwiftVideo/releases/tag/0.1.0-alpha.3)
-is published at `a811b8ad63eac0f90898dd3a81631f2c45bf9d6f`. The consuming app
-pins that release and explicitly declares the `SwiftVideoMedia3` product.
-Its 150 host tests, iOS and Android builds, complete phone rotation workflow,
-featured-template editing/export/reopening workflow, and isolated iPhone/iPad
-startup checks pass against the published tag. Startup checks do not exercise
-complete iOS editing interactions.
-
-The cache now retains the bounding source range used by each URL and adjusts
-preview audio trims without changing the source or original render plan. Its
-default disk budget replaces the fixed 64 MiB limit. Playback now waits for the first
-rendered-frame callback, and completion waits for Media3 to drain pending video
-output. The displayed position remains bounded by the project duration. Surface
-callbacks now stop the old player before destruction and preserve playback intent
-and the exact paused playhead when the surface or its view is replaced.
-
-Local checks on November 4, 2026 passed all 40 macOS tests, Android bridge/native
-library/test APK builds, and the 64-file header check. The final API 33 arm64
-instrumentation run completed 55 tests in 217.808 seconds with the same six
-known color and legacy paused-seek issues. Short 34 ms and 100 ms clips, all four
-gap/trim cases, mixed-media final-frame playback, all 20 audio playback/seek
-cases, shared-range byte comparisons, the 362-second cache, source-duration
-rejection, quota failure, cancellation, and cleanup checks passed. The unchanged
-player failed both short-clip cases with zero captured frames at completion and
-one frame after a one-second diagnostic wait; that wait does not change the
-assertion. [Media3 coverage](Coverage/0.1.0-alpha.3/android-media3.json) is
-1,111 / 1,229 executable lines, 90.40%, above the
-75% gate. No tolerance or failing assertion was weakened.
-
-The surface regression captures real rendered frames through the public
-SurfaceView adapter. It alternates twelve surface and view replacements during
-playback, checks late disposal of an older view, and repeats both replacements
-while paused. Before the fix it reproduced the app's `Image is already closed`
-frame-processing exception. A later run exposed a 1 ms paused-clock change after
-Media3 settled its asynchronous pause. The session now retains its own paused
-snapshot instead of resampling that clock. The regression passes in 5.272 seconds,
-including repeated pause calls and both paused replacement paths. The mixed-media
-test also verifies that replacing a completed surface preserves the final video
-frame and completed playhead before replaying from the start.
-
-A disposable build of the consuming Skip Fuse app passed its complete phone
-rotation workflow against the surface-callback commit `5ff9a68`. The rendered title and playback
-clock survive both rotations, pause and seeking remain usable, and the saved
-project remains byte-for-byte unchanged. The subsequent complete phone rotation
-check also passes after the app adopted the published alpha.3 tag.
-
-The subsequent paused-clock fix at `3bee402` passed the app's complete API 34
-foldable workflow: open, book, tabletop, closed, and restored-open layouts;
-playback and seeking in both book and closed postures; hinge and header bounds;
-rendered title pixels; delete, undo, and redo; and folded inspector access.
-The saved project remained byte-for-byte unchanged. The captured app-process
-log contained no frame-processing exceptions. This used a disposable emulator;
-physical dual-screen behavior remains unverified.
-
-The alpha also exposes `SwiftVideoMedia3` as an explicit package product for
-preview surface adapters. A clean consumer iOS build exposed missing bridge type
-metadata when the adapter relied on SwiftVideo's Android-only transitive
-dependency. With the explicit product dependency, the consuming app and its
-Swift-authored UI test target compile for arm64 and x86_64 iOS simulators. All 40
-host tests and the standalone Apple bridge-target build pass. Native Android
-compilation and consumer APK packaging also pass. The rebuilt app passes its
-API 33 phone rotation workflow, preserving rendered title pixels, playback,
-pause, seek, and the complete saved project. Its captured process log contains
-no linkage failures or frame-processing exceptions.
-The bridge product uses automatic linkage so SwiftPM can share its target
-between the app and library's dynamic products. The consumer's Android build
-also completes Skip's iOS metadata prebuild with `SKIP_DYNAMIC_LIBRARIES=1`;
-an explicitly dynamic bridge product fails that prebuild's dependency planning.
-The iOS UI test has compiled but has not run: the local CoreSimulator version is
-older than the installed Xcode requires.
-
-[Apple CI at the release commit](https://github.com/shial4/SwiftVideo/actions/runs/41678695422)
-passed 40 host tests, 40 iOS tests, five example-model tests, and the iOS example
-build, with 1,147 / 1,205 covered iOS lines (95.19%).
-[Android CI at the same commit](https://github.com/shial4/SwiftVideo/actions/runs/41678695210)
-passed bridge generation, native compilation, test APK packaging, and the
-example-editor build within the existing 45-minute build limit. Its device job
-passed 31 core tests. Instrumentation passed surface/view replacement, short-clip
-playback, mixed-media preview, and all 20 audio trim/seek cases, but reached the
-five-minute test-command limit before the full suite finished. Two reference
-color assertions and two legacy paused-seek assertions failed before the timeout.
-Hosted coverage was skipped. The complete hosted Android gate remains failing;
-the full local runs and their measured coverage above do not establish a passing
-hosted gate. No CI timeout or assertion was changed for this release.
-
-## 0.1.0-alpha.2 verification
-
-This follow-up preserves single-frame MP4 duration, keeps playback intent during surface replacement, and configures SDR surfaces before attaching the player. Local checks ran on November 3, 2026 with Media3 `1.12.0-alpha02`, compile/target SDK 37, and an API 33 arm64 emulator.
-
-| Check | Observed result |
+| Release | Verification record |
 | --- | --- |
-| macOS library and example model | 39 library tests and 5 example tests pass |
-| Android bridge and test APK | Builds pass |
-| Android instrumentation | 51 tests complete in 140.429 seconds with the same six known failing assertions |
-| Media3 bytecode coverage | [992 / 1,143 lines, 86.79%](Coverage/0.1.0-alpha.2/android-media3.json); exceeds the 75% gate |
-| Single-frame export | Independently decoded 1/30-second and 1/40-second movies retain duration, size, and pixels |
-| Consuming Skip Fuse app | Two complete orientation runs preserve the playback clock, rendered title, pause/seek controls, and saved JSON |
-
-The six local failures remain four BT.709 export-color assertions and two legacy paused-seek assertions. Production preview, gap/source-trim, audio-boundary, surface replacement, and cache checks pass locally. No failing assertion was disabled. The shared Swift core is unchanged from the [alpha.1 coverage measurement](Coverage/0.1.0-alpha.1/android-core.json); that measurement was not repeated for this follow-up.
-
-The [alpha.2 hosted Android run](https://github.com/shial4/SwiftVideo/actions/runs/41632246965) built successfully and completed 51 instrumentation tests in 237.333 seconds with eight issues: the six above plus two short-video preview cases at timeline start zero, with source trims of zero and 250 ms. Both reported zero rendered frames. The 31 native Swift core tests passed. Unlike the earlier [alpha.1 run](https://github.com/shial4/SwiftVideo/actions/runs/41616294181), this run completed without reaching its runtime deadline. These differences from the local emulator remain unresolved. The full Android test gate is still failing. Physical-device and interactive iOS verification remain outstanding, and the published alpha's whole-source preview audio cache still has a cumulative 64 MiB limit. This is an experimental prerelease; stable release gates below still apply.
-
-## 0.1.0-alpha.1 verification
-
-The Media3 `1.12.0-alpha02` candidate was checked on November 3, 2026 with compile/target SDK 37 and an API 33 arm64 emulator.
-
-| Check | Observed result |
-| --- | --- |
-| macOS library and example model | 39 library tests and 5 example tests pass |
-| Android native Swift core | 31 tests pass; [707 / 751 lines, 94.14%](Coverage/0.1.0-alpha.1/android-core.json) |
-| Android instrumentation | 50 tests complete in 209.79 seconds with six known failing assertions |
-| Media3 bytecode coverage | [993 / 1,136 lines, 87.41%](Coverage/0.1.0-alpha.1/android-media3.json) |
-| Android bridge, native library, test APK | Builds pass |
-| Android example consumer | Native build, APK packaging, and launch pass; packaged compile/target SDK 37, minimum API 28 |
-| Generic iOS example | Build passes |
-
-Both measured Android coverage thresholds pass. The complete Android test gate remains failing because of the assertions below; coverage does not make that suite green. These local results do not establish a passing release CI run.
-
-The 50-test Android diagnostic run recorded six issues: four BT.709 export-color assertions and two legacy paused-seek control assertions. Those assertions remain enabled. The production preview checks passed mixed-media playback, all four gap/source-trim cases, animation, rapid seeking, surface replacement, and 16 audio trim/seek cases. Cache tests passed source onset, exact sample counts, reuse, quota enforcement, cancellation, and release cleanup. See [fixture provenance and diagnostics](../Tests/SwiftVideoTests/Resources/Milestone/README.md).
-
-The direct preview is experimental and is not integrated into the example editor. Its whole-source PCM cache has a cumulative 64 MiB limit. Physical-device behavior is unverified. Interactive iOS tests are currently unavailable locally because the installed CoreSimulator framework does not match Xcode; a generic build does not replace those tests. A stable release requires stable dependencies and verification of its final commit against the gates below.
-
-## 0.0.1 verification snapshot
-
-The 0.0.1 verification snapshot was measured on October 25, 2026. Coverage reports contain executable-line counts, not estimates.
-
-| Target | Observed result | Coverage |
-| --- | --- | --- |
-| macOS library | 36 tests, 6 suites passed | Integration and core behavior |
-| iOS 26.5 Simulator | 36 tests, 6 suites passed | 1,128 / 1,186 lines, 95.11% |
-| Android API 34 arm64 instrumentation | 35 tests, 6 suites passed | Real Media3 exports and native Swift tests |
-| Android native Swift core | 30 tests, 4 suites passed | 688 / 726 lines, 94.77% |
-| Android Media3 bridge | Instrumentation coverage | 326 / 362 generated lines, 90.06% |
-| Example editor model on macOS | 5 tests passed | Asset loading, edits, history, selection, failure handling |
-
-See the checked-in [iOS](Coverage/ios.json), [Android core](Coverage/android-core.json), and [Media3](Coverage/android-media3.json) reports. These are release snapshots. GitHub Actions uploads reports for each run; README workflow badges link to the current result.
-
-Manual editor checks covered macOS, iOS Simulator, and Android Emulator. The final Android example export was independently decoded as an 8-second, 1920x1080, 30 fps MP4 with audio; inspected frames confirmed the image/title scene and captioned picture-in-picture scene.
+| 0.1.0-alpha.6 | [Layer preview checks and limitations](https://github.com/shial4/SwiftVideo/releases/tag/0.1.0-alpha.6) |
+| 0.1.0-alpha.4 | [Hosted fonts, frame inspection, and seek controls](https://github.com/shial4/SwiftVideo/blob/0.1.0-alpha.4/Documentation/Testing.md) |
+| 0.1.0-alpha.3 | [Preview caching, audio boundaries, surface lifecycle, and hosted CI](https://github.com/shial4/SwiftVideo/blob/0.1.0-alpha.3/Documentation/Testing.md) |
+| 0.1.0-alpha.2 | [Single-frame export and preview follow-up](https://github.com/shial4/SwiftVideo/blob/0.1.0-alpha.2/Documentation/Testing.md) |
+| 0.1.0-alpha.1 | [Initial experimental preview verification](https://github.com/shial4/SwiftVideo/blob/0.1.0-alpha.1/Documentation/Testing.md) |
+| 0.0.1 | [Original stable verification snapshot](https://github.com/shial4/SwiftVideo/blob/0.0.1/Documentation/Testing.md) |
 
 ## What the tests verify
 
