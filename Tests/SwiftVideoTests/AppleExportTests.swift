@@ -97,13 +97,9 @@ import Testing
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("speed-tone-\(UUID()).wav")
         defer { try? FileManager.default.removeItem(at: url) }
         try makeMusic(url)
-        let asset = AVURLAsset(url: url)
-        let track = try #require(try await asset.loadTracks(withMediaType: .audio).first)
         let clip = try MediaClip.audio(url, duration: VideoTime(value: 1, timescale: 1)).speed(rate)
-        let source = try AppleClipAudioSource(asset: asset, track: track, clip: clip)
         let count = Int64((clip.duration.seconds * 48_000).rounded())
-        var samples: [Float] = []
-        for index in 0..<count { samples.append(try source.sample(at: index).0) }
+        let samples = try await AppleVideoRenderer().audioSamples(url: url, clip: clip, frames: 0..<count)
         let window = Array(samples[Int(count / 4)..<Int(count * 3 / 4)])
         let crossings = zip(window, window.dropFirst()).filter { $0 <= 0 && $1 > 0 }.count
         let frequency = Double(crossings) * 48_000 / Double(window.count)
@@ -119,24 +115,19 @@ import Testing
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("eq-tone-\(UUID()).wav")
         defer { try? FileManager.default.removeItem(at: url) }
         try makeMusic(url)
-        let asset = AVURLAsset(url: url)
-        let track = try #require(try await asset.loadTracks(withMediaType: .audio).first)
         let duration = try VideoTime(value: 1, timescale: 1)
-        func energy(_ filters: [AudioFilter]) throws -> Double {
+        let renderer = AppleVideoRenderer()
+        func energy(_ filters: [AudioFilter]) async throws -> Double {
             let clip = MediaClip.audio(url, duration: duration).audio(AudioSettings(filters: filters))
-            let source = try AppleClipAudioSource(asset: asset, track: track, clip: clip)
-            var sum = 0.0
-            for frame in 12_000..<18_000 {
-                let value = Double(try source.sample(at: Int64(frame)).0)
-                sum += value * value
-            }
+            let samples = try await renderer.audioSamples(url: url, clip: clip, frames: 12_000..<18_000)
+            let sum = samples.reduce(0.0) { $0 + Double($1) * Double($1) }
             return sqrt(sum / 6_000)
         }
-        let dry = try energy([])
-        #expect(try energy([.lowPass(cutoffHz: 100)]) < dry * 0.15)
-        #expect(try energy([.highPass(cutoffHz: 2_000)]) < dry * 0.15)
-        #expect(try energy([.parametricEQ(frequencyHz: 440, gainDB: -12, bandwidthOctaves: 1)]) < dry * 0.35)
-        #expect(try energy([.highPass(cutoffHz: 80), .lowPass(cutoffHz: 4_000)]) > dry * 0.8)
+        let dry = try await energy([])
+        #expect(try await energy([.lowPass(cutoffHz: 100)]) < dry * 0.15)
+        #expect(try await energy([.highPass(cutoffHz: 2_000)]) < dry * 0.15)
+        #expect(try await energy([.parametricEQ(frequencyHz: 440, gainDB: -12, bandwidthOctaves: 1)]) < dry * 0.35)
+        #expect(try await energy([.highPass(cutoffHz: 80), .lowPass(cutoffHz: 4_000)]) > dry * 0.8)
     }
 
     @Test @MainActor func fastVideoSelectsLaterSourceFramesAndEndsOnTime() async throws {
@@ -288,6 +279,17 @@ import Testing
         var square = 0.0
         for index in 0..<count { let sample = try source.sample(at: start + Int64(index)).0; square += Double(sample * sample) }
         return sqrt(square / Double(count))
+    }
+}
+
+private extension AppleVideoRenderer {
+    // Exercise decoder and DSP internals on their production owner's executor.
+    // Only the resulting PCM values cross back to the test task.
+    func audioSamples(url: URL, clip: MediaClip, frames: Range<Int64>) async throws -> [Float] {
+        let asset = AVURLAsset(url: url)
+        let track = try #require(try await asset.loadTracks(withMediaType: .audio).first)
+        let source = try AppleClipAudioSource(asset: asset, track: track, clip: clip)
+        return try frames.map { try source.sample(at: $0).0 }
     }
 }
 #endif
