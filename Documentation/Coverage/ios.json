@@ -1,6 +1,6 @@
 {
-  "covered" : 1465,
-  "executable" : 1536,
+  "covered" : 1467,
+  "executable" : 1538,
   "files" : [
     {
       "covered" : 157,
@@ -23,8 +23,8 @@
       "file" : "Sources/SwiftVideo/AppleMediaSources.swift"
     },
     {
-      "covered" : 248,
-      "executable" : 271,
+      "covered" : 250,
+      "executable" : 273,
       "file" : "Sources/SwiftVideo/AppleVideoRenderer.swift"
     },
     {
@@ -83,6 +83,6 @@
       "file" : "Sources/SwiftVideo/VisualStyle.swift"
     }
   ],
-  "linePercent" : 95.37760416666666,
+  "linePercent" : 95.38361508452536,
   "suite" : "ios"
 }

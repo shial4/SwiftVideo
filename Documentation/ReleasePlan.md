@@ -1,0 +1,127 @@
+<!-- Copyright 2026 Software Deck Pty Ltd; SPDX-License-Identifier: Apache-2.0 -->
+# SwiftVideo release plan
+
+[Documentation index](README.md) | [Tests and coverage](Testing.md)
+
+Reviewed November 9, 2026. Stabilize the existing library for **0.0.2 first**, continue experimental preview separately, and add extensibility afterward. This scope supersedes the earlier proposal to include extensibility in 0.0.2.
+
+## Release scope
+
+| Release | Contents | Dependency and branch policy |
+| --- | --- | --- |
+| `0.0.2-beta.1` then `0.0.2` | Existing composition/export API, clip and track speed, inherited visual filters, ordered audio EQ, and reliability fixes | Start `codex/stabilize-0.0.2` from `main`; retain stable Media3 1.11.1 |
+| Next `0.1.0-alpha.N`, then `0.1.0-beta.N`, then `0.1.0` | Experimental composition and layer preview from PR #1 | Keep the preview branch separate; merge only after both platform gates and stable dependency criteria pass |
+| Later release, version to be assigned | Custom visual/audio effects, motion titles, animation extensions, masks and background removal | Design after 0.0.2; estimate and deliver in separate increments |
+
+Existing `0.1.0-alpha.*` tags remain unchanged. They are not renamed or promoted to `0.0.2`: these are different release lines. `0.0.1` remains the stable installation recommendation until 0.0.2 is published. Preview users must explicitly select the preview prerelease.
+
+## Starting evidence
+
+`main` is at `d2977a2` with stable Media3 1.11.1. The stabilization branch now contains the focused backports and a one-frame export fix. Its [November 9 local verification](Testing.md) passes macOS, iOS and Android API 34/35 tests, both example builds, and all three coverage gates. Hosted candidate CI, physical-device verification and beta observation remain pending.
+
+[PR #1](https://github.com/shial4/SwiftVideo/pull/1) is draft at `c9577c1`. Its [Apple CI run passed](https://github.com/shial4/SwiftVideo/actions/runs/42112198363); its [Android CI run failed](https://github.com/shial4/SwiftVideo/actions/runs/42112198340). Android core tests passed, but instrumentation recorded four color assertions and three raw paused-seek assertions. The Android coverage gate did not execute after that failure. These results do not establish a passing 0.0.2 candidate.
+
+## Implementation sequence
+
+Estimates assume one engineer, existing toolchains, access to physical devices, and no newly discovered major regression. Codex owns implementation, diagnostics and release preparation; the maintainer owns product acceptance and access to representative devices. Existing authorization to merge after the release gates pass remains in effect.
+
+| Step | Work | Exit condition | Engineering effort |
+| --- | --- | --- | --- |
+| 1. Prepare stable candidate | Create the release branch from `main`; backport the Apple blocking-media fix and focused test/coverage improvements | Reviewed diff contains stable features and dependencies only | 0.5-1 day |
+| 2. Verify and fix | Run the complete Apple and Android suites; investigate any failure on this branch before attributing it to preview or upstream | Required tests and coverage pass; no unexplained failures | 2-4 days |
+| 3. Verify consumers and devices | Exercise the title/image and captioned picture-in-picture examples, speed/filter combinations, and documented integration paths | Candidate works on representative Apple and Android devices; documentation matches the candidate | 1-2 days |
+| 4. Publish and observe beta | Tag a passing candidate as `0.0.2-beta.1`; exercise it through actual package consumers and record findings | Five working days of beta use with no open release-blocking defect | 0.5-1 day, plus observation window |
+| 5. Release | Merge the passing candidate, verify the resulting `main` SHA, tag `0.0.2`, publish matching notes and update installation guidance | Published tag resolves to the tested commit; package consumer smoke checks pass | 0.5-1 day |
+
+Step 1 reuses these focused changes:
+
+- `c9577c1`: run blocking Apple decoder/audio work on a dedicated serial executor and test it through that executor.
+- `b29374f`: run every applicable Apple suite and retain useful diagnostics when a runner stalls.
+- `39c1b84`: collect iOS coverage from the tested binary and matching profiles. Bring the collector and workflow change, not preview-specific release statements.
+- `c65d2a9`: clean only the Android runtime directory created by the test invocation, after collecting results.
+- `40e56f9`: set the Android muxer's video endpoint so one-frame exports retain their duration. The stable-branch regression reproduced 0 ms output before the fix and passed afterward on API 34 and 35.
+
+Local verification also required the LLVM coverage parser used by the collector and replacement of read-only generated Android coverage inputs during repeated packaging. Native core test stderr is now retained in the test artifact.
+
+Keep the current Swift, Skip and Android toolchains. Do not install a redundant local Swift toolchain, change Skip modes, or introduce new rendering abstractions for stabilization. Bring additional CI changes only when a candidate failure or measured build bottleneck justifies them.
+
+## Release gates
+
+All required checks refer to the candidate's exact commit and resolved dependencies. A green result on an older alpha commit is not release evidence.
+
+| Area | Required evidence |
+| --- | --- |
+| Apple | Complete macOS Swift Testing suites, editor model tests, all applicable iOS suites, and example build; no hangs or missing suites |
+| Android | Native Swift core tests, real Media3 instrumentation exports, and example build on hosted API 34; targeted API 35 checks for the previously observed audio/timing failures |
+| Coverage | At least 90% iOS source lines, 90% Android shared Swift core lines, and 75% Media3 bridge bytecode lines, using the existing scopes |
+| Behavior | Correct clip/track speed composition, pitch preservation, source ranges, filter order, timing, decoded overlays and audio; cancellation, cleanup and destination protection remain correct |
+| Compatibility | Existing project JSON decodes; native Apple SwiftPM consumer and Skip example build and export; the documented Kotlin wrapper packaging and invocation smoke test passes |
+| Physical devices | At least one supported iPhone/iPad and one representative Android phone complete a short export with image/title, picture-in-picture, captions, speed and EQ; record OS, codec, result and any limitation |
+| Dependencies | Release artifacts resolve without local patches or unpublished native libraries; stable releases use stable dependency versions |
+| Documentation | API availability, examples, coverage date/scope, installation version and known limitations agree with the released tag |
+
+Keep routine render fixtures at **320x180** with short durations. Retain decoded frame and PCM assertions; reducing resolution is not permission to reduce behavioral coverage. Use a small delivery-resolution device smoke export outside the routine suite. Do not impose full-HD work on every CI test.
+
+Fix flaky tests or their underlying implementation. Do not retry until green, relax tolerances to conceal a failure, or reduce coverage thresholds. After changing a known intermittent path, repeat that focused scenario enough to assess the fix and retain every result; then run the full candidate suite once. If media behavior changes during beta, issue a new beta and restart its observation window. Documentation-only corrections need documentation checks.
+
+After merging, rerun required checks if the merge produced a new SHA. Tag only a passing commit. If a released defect is found, preserve existing tags, document affected versions, and prepare a corrective patch; do not silently replace release artifacts.
+
+## Preview blockers and disposition
+
+| Finding | What is established | Next action and release impact |
+| --- | --- | --- |
+| Preview dependency | The alpha uses Media3 1.12.0-alpha02. The attempted 1.11.1 preview path lacks the required builder/packaged native support | Keep PR #1 draft. Test each relevant upstream candidate, then require stable, published dependencies before merging preview into `main`. Does not itself block the stable export branch |
+| Paused seeking across gaps | Raw player variants can fail to display the expected overlay. Our recreate/coalesce adapter passed production-path tests on API 34, but broader evidence is incomplete | Reproduce both the public SwiftVideo path and raw control on API 34/35 and a phone. Missing/stale frames in the supported public path remain blocking |
+| Audio and timing | A local API 35 preview run also failed retimed audio, trim-clock and PCM-cache checks; the cause is unresolved | Isolate each failure, compare with stable export, and fix or demonstrate the unsupported experimental scope. A failure in a shipped feature blocks that release |
+| BT.709 color | A synthetic red value decoded as 253 but rendered near 230; raw SurfaceTexture also showed the shift before SwiftVideo effects | Compare synthetic and ordinary footage on a physical device. Consider a bounded, documented limitation; do not describe human visibility or an upstream fix as established |
+
+The proposed color exception applies only to this measured SDR color-conversion difference. Keep its diagnostic and measurements visible. Before making it nonblocking, record the affected device/codec scope and the accepted visual result. General color regressions, alpha/opacity errors, missing frames and broken filters remain failures. No test or gate is changed by this plan.
+
+Upstream work to watch:
+
+- [Media3 #2439](https://github.com/androidx/media/issues/2439): open multi-sequence seeking issue. Maintainers describe active frame-processor work; no committed date for our exact failures.
+- [Media3 #3470](https://github.com/androidx/media/pull/3470): GL-thread latch fix merged October 30, after alpha02. Confirm inclusion in a published artifact and rerun our reproduction; this addresses a crash, not proof that missing-frame assertions are fixed.
+- [Media3 #3482](https://github.com/androidx/media/issues/3482) and [#3483](https://github.com/androidx/media/pull/3483): paused no-op seek can flush audio; the proposed fix remains open. It is related to audio behavior, but not a confirmed explanation for our PCM/RMS failures.
+
+No exact upstream ticket has been identified for the observed color conversion. Prepare a minimal reproduction with codec, device, input color metadata and raw output measurements before deciding where to report it. Do not wait for an unrelated issue to close as evidence of a fix.
+
+## Monitoring and promotion
+
+Use this plan's blocker list and existing CI artifacts as the release record. For each candidate, record: SwiftVideo SHA/tag, resolved Media3 version, device/OS, test failures, coverage results, artifact links and the release decision. Keep raw logs and media in CI artifacts, not in source control.
+
+Review upstream **weekly**, and again when a relevant Media3 version appears. This is the proposed operating cadence; no scheduled automation has been installed.
+
+1. Check the [official release index](https://developer.android.com/jetpack/androidx/releases/media3) and linked issues/PRs. Record whether a fix is merely proposed, merged, published, or reproduced as passing locally.
+2. For a relevant published version, update all related Media3 artifacts together on an isolated candidate branch. Confirm dependency resolution and packaged native libraries before runtime testing.
+3. Run the small seeking/audio/color reproductions first, then public preview/export tests. Run the full platform gates only after the targeted results justify promotion.
+4. Publish another `0.1.0-alpha.N` while behavior or packaging remains experimental. Describe open failures explicitly.
+5. Consider `0.1.0-beta.1` once public preview behavior passes on both platforms, the API is frozen, and the dependency is at least beta. Keep it off `main` while its dependency is prerelease.
+6. Promote preview to stable only with stable dependencies, passing exact-commit CI and device checks, and at least five working days of beta use without release-blocking defects. A dependency reaching stable alone is insufficient.
+
+Raw upstream controls and accepted diagnostic limitations may eventually be reported separately from supported API gates, but that classification must have evidence and an explicit documented contract. Existing failures remain visible; PR #1 cannot be merged simply by relabeling failed tests.
+
+## Timing and uncertainty
+
+For **0.0.2**, budget roughly **5-9 engineering days plus the beta observation window**, usually **2-3 calendar weeks**. Reassess after the first complete stable-branch Android run. A reproducible production regression or unavailable device evidence can extend this estimate; Media3 preview development need not be on this release's critical path.
+
+For preview, the official Media3 history gives a planning range, not a fix commitment:
+
+| Media3 version | First alpha | Stable | Elapsed |
+| --- | --- | --- | --- |
+| 1.9.0 | October 22, 2025 | December 17, 2025 | 56 days |
+| 1.10.0 | February 6, 2026 | March 26, 2026 | 48 days |
+| 1.11.0 | June 24, 2026 | August 5, 2026 | 42 days |
+
+These [official release dates](https://developer.android.com/jetpack/androidx/releases/media3) suggest early-to-mid December 2026 for a possible 1.12 stable release, following its October 21 first alpha. Allow a January buffer. This is our inference; it does not establish when the seeking, audio or color issues will be resolved. Budget another 1-2 weeks for SwiftVideo preview verification and beta use after a suitable upstream build, assuming no further defects.
+
+## Extensibility after stabilization
+
+Revisit this work after 0.0.2 ships; it is not part of its release gate.
+
+1. Define a small effect contract: identity and version, validated Codable parameters, supported platforms, ordering, resource lifetime, cancellation and explicit unsupported-effect errors. Preserve the existing built-in effects and project compatibility.
+2. Add a custom visual-effect adapter on each platform. Keep frame processing on Core Image/Metal and Media3/OpenGL; avoid per-frame GPU-to-CPU copies. Prove it with one custom effect on both platforms before expanding the API.
+3. Add reusable motion-title and animation presets using the existing fonts and whole-layer keyframes. Treat per-glyph layout/animation as separate work with explicit platform parity tests.
+4. Add a bounded audio-processing extension with defined sample format, state/reset rules and scheduling. Audio DSP may remain on CPU where that is the appropriate backend; do not promise GPU execution for arbitrary audio effects.
+5. Add mask/chroma-key support, then evaluate ML segmentation as an optional capability with explicit quality, model, device and performance constraints.
+
+The earlier rough estimate remains **6-8 engineer-weeks for useful extensibility**, or **10-16 weeks total for the broader feature set including segmentation with existing models**. Re-estimate after the two-platform custom-effect prototype. Keep integration samples and meaningful parity/performance checks in each increment rather than postponing them to the end.

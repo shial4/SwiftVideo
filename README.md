@@ -24,7 +24,7 @@ Built with SwiftVideo: [run the example editor on iOS or Android](Example/README
 - **One Swift composition, three platforms.** Use the same API with AVFoundation on Apple and Media3 through Skip Fuse on Android.
 - **GPU-backed visuals.** Metal-backed Core Image and Media3's OpenGL pipeline handle transforms, filters, and compositing. Text is prepared once for each export.
 - **Editing with predictable results.** Rational time, atomic edit batches, and split/trim operations preserve source offsets and effect timing.
-- **Clip and track speed and effects.** Retiming with preserved pitch, inherited visual filters, and ordered audio EQ. [Usage and timing rules](Documentation/Guide.md#playback-speed-and-track-effects) (available on `main`; planned for 0.1.0).
+- **Clip and track speed and effects.** Retiming with preserved pitch, inherited visual filters, and ordered audio EQ. [Usage and timing rules](Documentation/Guide.md#playback-speed-and-track-effects) (available on `main`; planned for 0.0.2).
 - **Export with control.** Async/await, progress, cancellation, and destination protection are built in. Projects are Codable, Hashable, and Sendable.
 
 ## Quick start
@@ -84,7 +84,7 @@ let package = Package(
 
 Then `import SwiftVideo`. For an existing package, merge these dependency entries into its manifest. Android applications also need the Skip setup below.
 
-The latest stable release is `0.0.1`. Clip and track speed, inherited filters, and audio EQ are on `main` for the planned `0.1.0` release. To try those APIs before release, replace the dependency requirement with `branch: "main"`.
+The latest stable release is `0.0.1`. Clip and track speed, inherited filters, and audio EQ are on `main` for the planned `0.0.2` release. To try those APIs before release, replace the dependency requirement with `branch: "main"`. See the [release plan](Documentation/ReleasePlan.md) for stabilization gates and the separate experimental preview release.
 
 | Your project | Requirements | Integration |
 | --- | --- | --- |
@@ -167,11 +167,11 @@ Documentation is hosted in this GitHub repository. Select your dependency's rele
 
 [![iOS coverage](https://img.shields.io/badge/iOS%20lines-95.38%25-brightgreen)](Documentation/Coverage/ios.json)
 [![Android Swift coverage](https://img.shields.io/badge/Android%20Swift%20core-95.94%25-brightgreen)](Documentation/Coverage/android-core.json)
-[![Media3 coverage](https://img.shields.io/badge/Media3%20bridge-91.38%25-green)](Documentation/Coverage/android-media3.json)
+[![Media3 coverage](https://img.shields.io/badge/Media3%20bridge-91.40%25-green)](Documentation/Coverage/android-media3.json)
 
 Apple and Android CI exercise timeline rules, serialization, atomic edits, cancellation, destination protection, and real media exports. Integration tests independently decode frames and PCM audio to check placement, motion, filters, opacity, duration, and fades.
 
-These coverage badges show the **November 5, 2026 verification snapshot**; the workflow badges above show live CI status. Android Swift core and Media3 bridge coverage measure separate layers. [Scope, thresholds, reports, and test commands](Documentation/Testing.md).
+These coverage badges show the **November 9, 2026 local verification snapshot**; the workflow badges above show live CI status. Android Swift core and Media3 bridge coverage measure separate layers. [Scope, thresholds, reports, and test commands](Documentation/Testing.md).
 
 ## Help and contribute
 

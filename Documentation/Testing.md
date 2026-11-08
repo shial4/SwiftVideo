@@ -3,20 +3,20 @@
 
 [Documentation index](README.md) | [Public API reference](APIReference.md)
 
-The playback and filter verification snapshot for the 0.1.0 release candidate was measured on November 5, 2026. The 0.0.1 tag predates these APIs. Coverage reports contain executable-line counts, not estimates.
+The local verification snapshot for [0.0.2 stabilization](ReleasePlan.md) was measured on November 9, 2026. The 0.0.1 tag predates the playback speed and ordered filter APIs. Coverage reports contain executable-line counts, not estimates. Hosted candidate CI, physical-device checks and beta observation remain separate release gates.
 
 | Target | Observed result | Coverage |
 | --- | --- | --- |
 | macOS library | 44 tests, 6 suites passed | Integration and core behavior |
-| iOS 27.0 Simulator | 44 tests, 6 suites passed | 1,465 / 1,536 lines, 95.38% |
-| Android API 34 arm64 instrumentation | 42 tests, 6 suites passed | Real Media3 exports and native Swift tests |
+| iOS 27.0 Simulator | 44 tests, 6 suites passed | 1,467 / 1,538 lines, 95.38% |
+| Android API 34 and API 35 arm64 instrumentation | 43 tests, 6 suites passed on each | Real Media3 exports and native Swift tests |
 | Android native Swift core | 35 tests, 4 suites passed | 921 / 960 lines, 95.94% |
-| Android Media3 bridge | Instrumentation coverage | 403 / 441 generated lines, 91.38% |
+| Android Media3 bridge | API 34 instrumentation coverage | 404 / 442 generated lines, 91.40% |
 | Example editor model on macOS | 6 tests passed | Asset loading, edits, history, selection, failure handling |
 
 See the checked-in [iOS](Coverage/ios.json), [Android core](Coverage/android-core.json), and [Media3](Coverage/android-media3.json) reports. These are verification snapshots for the documented revision. GitHub Actions uploads reports for each run; README workflow badges link to the current result.
 
-The November 5 example builds pass for iOS Simulator and Android, with six editor model tests passing on macOS. The original 0.0.1 manual editor checks covered macOS, iOS Simulator, and Android Emulator. The final Android example export was independently decoded as an 8-second, 1920x1080, 30 fps MP4 with audio; inspected frames confirmed the image/title scene and captioned picture-in-picture scene.
+The November 9 example builds pass for iOS Simulator and Android, with six editor model tests passing on macOS. The original 0.0.1 manual editor checks covered macOS, iOS Simulator, and Android Emulator. That release's Android example export was independently decoded as an 8-second, 1920x1080, 30 fps MP4 with audio; inspected frames confirmed the image/title scene and captioned picture-in-picture scene.
 
 ## What the tests verify
 
@@ -27,6 +27,7 @@ The November 5 example builds pass for iOS Simulator and Android, with six edito
 - Atomic edits, missing targets, failed-batch rollback, split/trim source ranges, animation continuity, and audio envelopes.
 - Export progress, cancellation, cleanup after failure, unsupported capabilities, and protection of existing destinations.
 - Independently decoded real exports: duration, dimensions, frame changes, filters, crop, stacking, image opacity, text/animation, audio energy, stereo pan, and fades.
+- One-frame Android MP4 exports retain their requested 25 ms or 33.33 ms duration and decode the expected image. The regression test reproduced zero-duration output before the muxer endpoint fix.
 - Android fixture copies have independent file contents, so parallel tests cannot overwrite media another test is decoding.
 
 The media fixtures are deterministic red/blue videos, a green image, and synthesized audio. Pixel and PCM measurements use platform decoders independently of the compositor. Tests allow codec/color conversion tolerances; they do not compare byte-identical compressed files across platforms.
@@ -43,7 +44,7 @@ Apple has additional renderer-specific failure and text-orientation tests, which
 
 CI requires at least 90% iOS source lines, 90% Android shared Swift core lines, and 75% Media3 bridge bytecode lines.
 
-The iOS report includes executable first-party `Sources/SwiftVideo` code for that target, including the Apple renderer. Duplicate Xcode package/product coverage entries are checked and deduplicated.
+The iOS report includes executable first-party `Sources/SwiftVideo` code for that target, including the Apple renderer. The collector uses the tested binary's LLVM mapping and profiles for the result bundle's devices, because Xcode's `xccov` summary can omit package sources. The report parser also accepts `xccov` input and checks duplicate package/product entries for consistency.
 
 Android core coverage runs an instrumented native Swift test process without a JVM. `SWIFTVIDEO_CORE_COVERAGE` excludes real Android media tests from this process. The Android renderer facade is excluded from this specific percentage because it needs an initialized Android app/JVM; it is exercised by the separate instrumentation suite. The native core percentage must not be described as coverage of the entire Android backend.
 
@@ -54,14 +55,14 @@ JaCoCo measures the generated Kotlin bytecode for the Swift-authored `SwiftVideo
 From the repository root:
 
 ```sh
-swift test --disable-xctest --enable-code-coverage
-swift test --package-path Example --disable-xctest
+swift test --build-system native --disable-xctest --enable-code-coverage
+swift test --build-system native --package-path Example --disable-xctest
 swift Tools/CheckHeaders.swift
 ```
 
-For iOS, use the `xcodebuild` command in [apple.yml](../.github/workflows/apple.yml), selecting an installed simulator. It selects the six Swift Testing suites explicitly, writes an `.xcresult`, exports `xccov` JSON, and checks coverage with `Tools/Coverage.swift`.
+For iOS, use the `xcodebuild` command in [apple.yml](../.github/workflows/apple.yml), selecting an installed simulator. It runs all applicable suites and writes an `.xcresult`. [CollectIOSCoverage.sh](../Tools/CollectIOSCoverage.sh) requires a passing, nonempty result, exports matching LLVM coverage, and enforces the iOS threshold through `Tools/Coverage.swift`.
 
-Local verification used Xcode 27.1, the iOS 27.0 Simulator, and macOS 26.6. CI selects Xcode 26.6 on `macos-26`. Apple video tests require a Metal-capable rendering environment.
+Local verification used Xcode 27.2, the iOS 27.0 Simulator, and macOS 26.6.2. CI selects Xcode 26.6 on `macos-26`. Apple video tests require a Metal-capable rendering environment. Blocking decoder and offline audio operations run on the renderer's dedicated serial executor.
 
 ## Reproduce Android tests
 
@@ -71,8 +72,8 @@ The workflow performs these steps in order:
 
 1. Generate Skip metadata with `SKIP_DYNAMIC_LIBRARIES=1 xcrun swift build --build-system native --scratch-path .build-media3 --target SwiftVideoTests`.
 2. Build the native `SwiftVideo` library and Swift Testing bundle into the generated module's JNI directories.
-3. [BuildAndroidTests.sh](../Tools/BuildAndroidTests.sh) builds the instrumented native core executable, runtime libraries, and Media3 test APK, and packages their matching coverage metadata. The macOS job also compiles the example editor APK.
-4. On the emulator host, [TestAndroid.sh](../Tools/TestAndroid.sh) runs the core executable and Android instrumentation APK, pulls native profiles and JaCoCo data, and retains Swift Testing events and logcat even when a test fails. It checks the JUnit result explicitly because Android's instrumentation command can exit zero after test failures.
+3. [BuildAndroidTests.sh](../Tools/BuildAndroidTests.sh) builds the instrumented native core executable, runtime libraries, and Media3 test APK, and replaces their generated coverage inputs so read-only files from a prior run do not break packaging. The macOS job also compiles the example editor APK.
+4. On the emulator host, [TestAndroid.sh](../Tools/TestAndroid.sh) runs the core executable and Android instrumentation APK, pulls native profiles and JaCoCo data, and retains core output, Swift Testing events and logcat even when a test fails. It removes its copied runtime directory after collecting profiles and on failure. It checks the JUnit result explicitly because Android's instrumentation command can exit zero after test failures.
 5. Process the core profiles with the matching NDK `llvm-profdata` and `llvm-cov`, generate the Media3 JaCoCo XML report, and enforce both Android coverage gates.
 
 For local use after generating metadata and building the JNI libraries, set `ANDROID_MODULE` to the generated `SwiftVideo` Gradle module and `SWIFT_VERSION` to the installed version. Run `bash Tools/BuildAndroidTests.sh`, then `bash Tools/TestAndroid.sh` with an emulator connected. Both scripts accept `ANDROID_TEST_ARTIFACTS` to override the default `.build-android-tests` directory. Standard `ANDROID_SERIAL` selects a specific connected device.

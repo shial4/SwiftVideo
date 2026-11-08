@@ -4,10 +4,16 @@
 #if canImport(AVFoundation)
 import AVFoundation
 import CoreImage
+import Dispatch
 import Metal
 
 /// AVFoundation decoding/encoding, Core Image composition, and Core Animation text rendering.
 public actor AppleVideoRenderer: VideoRendering {
+    // AVAssetReader and offline audio rendering can block while system media
+    // queues make progress. Keep those calls off Swift's cooperative pool.
+    private nonisolated let mediaQueue = DispatchSerialQueue(label: "SwiftVideo.AppleVideoRenderer", qos: .userInitiated)
+    public nonisolated var unownedExecutor: UnownedSerialExecutor { mediaQueue.asUnownedSerialExecutor() }
+
     public nonisolated let capabilities = RendererCapabilities(
         name: "AVFoundation", features: Set(CompositionFeature.allCases),
         codecs: [.h264, .hevc], containers: [.mp4, .mov])

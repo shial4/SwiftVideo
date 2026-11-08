@@ -30,5 +30,7 @@ cp -R "$core_build/"*.resources "$artifacts/core/"
 SKIP_BRIDGE_ANDROID_BUILD_DISABLED=1 gradle --console=plain -p "$ANDROID_MODULE/.." \
     :SwiftVideo:assembleDebugAndroidTest
 cp "$ANDROID_MODULE/build/outputs/apk/androidTest/debug/SwiftVideo-debug-androidTest.apk" "$artifacts/tests.apk"
+# Replace previous coverage inputs; generated Kotlin sources can be read-only.
+rm -rf "$artifacts/media3/classes" "$artifacts/media3/kotlin"
 cp -R "$ANDROID_MODULE/../SwiftVideoMedia3/build/intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes" "$artifacts/media3/"
 cp -R "$ANDROID_MODULE/../SwiftVideoMedia3/src/main/kotlin" "$artifacts/media3/"
