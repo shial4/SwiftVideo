@@ -20,6 +20,16 @@ For development against this branch, add both products to your app target:
 
 The normal `SwiftVideo` product has no MediaPipe dependency or model resources. The optional Android product links MediaPipe Tasks Vision/Core 1.2.2. Your application supplies local model files; the library never downloads models. Kotlin callers can keep this configuration inside their [native Swift wrapper](Integration.md#native-android-and-kotlin).
 
+For a native Kotlin app consuming raw AAR files, add `SwiftVideoSegmentation` to that wrapper's SwiftPM target dependencies. Rebuild and include the optional `SwiftVideoSegmentation` and `SwiftVideoSegmentationMedia3` AARs alongside the other modules from the same build. Local AAR files do not supply Maven transitive-dependency metadata, so also declare the optional runtime in the Android app:
+
+```kotlin
+dependencies {
+    implementation("com.google.mediapipe:tasks-vision:1.2.2")
+}
+```
+
+Keep the core Media3 dependencies from the integration guide. Pass an app-private local model path into the Swift wrapper; select `androidCompute: .cpu` explicitly when testing on the documented emulator. The standalone Kotlin consumer verification below uses this packaging arrangement.
+
 ## Export a cutout over a background
 
 ```swift
