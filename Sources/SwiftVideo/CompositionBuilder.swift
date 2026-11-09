@@ -53,6 +53,7 @@ extension MediaClip {
     public func filter(_ filter: MediaFilter) -> MediaClip { replacing(filters: filters + [filter]) }
     public func audio(_ settings: AudioSettings) -> MediaClip { replacing(audio: settings) }
     public func animations(_ animations: [KeyframeAnimation]) -> MediaClip { replacing(animations: animations) }
+    public func textMotion(_ motion: TextMotion?) -> MediaClip { replacing(textMotion: .some(motion)) }
     public func animate(_ property: AnimationProperty, keyframes: [Keyframe], repetition: AnimationRepetition? = nil) -> MediaClip {
         // One owner per animated property, matching project validation.
         replacing(animations: animations.filter { $0.property != property } + [KeyframeAnimation(property: property, keyframes: keyframes, repetition: repetition)])

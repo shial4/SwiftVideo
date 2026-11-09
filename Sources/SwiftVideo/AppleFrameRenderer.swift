@@ -9,12 +9,13 @@ import QuartzCore
 
 enum AppleFrameRenderer {
     static func compose(_ project: VideoProject, visualClips: [MediaClip], at time: VideoTime, size: VideoSize,
-                        videos: [UUID: AppleVideoSource], images: [UUID: CIImage], effects: AppleVisualEffects) throws -> CIImage {
+                        videos: [UUID: AppleVideoSource], images: [UUID: CIImage], titles: [UUID: AppleMotionTitle], effects: AppleVisualEffects) throws -> CIImage {
         let canvas = CGRect(x: 0, y: 0, width: size.width, height: size.height)
         var frame = CIImage(color: project.background.ciColor).cropped(to: canvas)
         for clip in visualClips where try clip.timeRange.contains(time) {
             let source: CIImage
-            if let video = videos[clip.id] {
+            if let title = titles[clip.id] { source = try title.image(at: time) }
+            else if let video = videos[clip.id] {
                 source = try video.image(at: clip.sourceTime(at: time))
             } else if let image = images[clip.id] { source = image }
             else { throw VideoError.invalidMedia("No visual source was prepared for clip \(clip.id).") }
@@ -71,19 +72,7 @@ enum AppleFrameRenderer {
     @MainActor
     static func textImage(_ text: String, style: TextStyle, project: VideoProject, size: VideoSize, rasterSize: VideoSize) throws -> CIImage {
         let scale = Double(size.width) / Double(project.canvas.width)
-        let font: CTFont
-        if let url = style.fontURL {
-            guard let provider = CGDataProvider(url: url as CFURL), let cgFont = CGFont(provider) else {
-                throw VideoError.invalidMedia("Cannot load custom font at \(url.lastPathComponent).")
-            }
-            font = CTFontCreateWithGraphicsFont(cgFont, style.fontSize * scale, nil, nil)
-        } else {
-            font = CTFontCreateWithName((style.fontName ?? "Helvetica") as CFString, style.fontSize * scale, nil)
-            if let name = style.fontName, CTFontCopyPostScriptName(font) as String != name,
-               CTFontCopyFamilyName(font) as String != name {
-                throw VideoError.invalidMedia("Font \(name) is not available on this device. Supply a font file for portability.")
-            }
-        }
+        let font = try makeFont(style, size: style.fontSize * scale)
         let layer = CATextLayer()
         layer.frame = CGRect(x: 0, y: 0, width: rasterSize.width, height: rasterSize.height)
         layer.contentsScale = 1
@@ -115,6 +104,23 @@ enum AppleFrameRenderer {
         layer.render(in: context)
         guard let image = context.makeImage() else { throw VideoError.renderingFailed("Cannot render text bitmap.") }
         return CIImage(cgImage: image)
+    }
+
+    static func makeFont(_ style: TextStyle, size: Double) throws -> CTFont {
+        let font: CTFont
+        if let url = style.fontURL {
+            guard let provider = CGDataProvider(url: url as CFURL), let cgFont = CGFont(provider) else {
+                throw VideoError.invalidMedia("Cannot load custom font at \(url.lastPathComponent).")
+            }
+            font = CTFontCreateWithGraphicsFont(cgFont, size, nil, nil)
+        } else {
+            font = CTFontCreateWithName((style.fontName ?? "Helvetica") as CFString, size, nil)
+            if let name = style.fontName, CTFontCopyPostScriptName(font) as String != name,
+               CTFontCopyFamilyName(font) as String != name {
+                throw VideoError.invalidMedia("Font \(name) is not available on this device. Supply a font file for portability.")
+            }
+        }
+        return font
     }
 }
 

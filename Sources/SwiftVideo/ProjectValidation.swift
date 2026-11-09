@@ -66,24 +66,10 @@ private func validateClip(_ clip: MediaClip) throws {
     try require([c.x, c.y, c.width, c.height].allSatisfy(\.isFinite) && c.x >= 0 && c.y >= 0 && c.width > 0
                 && c.height > 0 && c.x + c.width <= 1 && c.y + c.height <= 1, "Crop must fit within the source image.")
     try validateFilters(clip.filters)
-    var properties: Set<AnimationProperty> = []
-    for animation in clip.animations {
-        try require(properties.insert(animation.property).inserted, "Only one animation per property is allowed on a clip.")
-        try require(!animation.keyframes.isEmpty, "Animations require at least one keyframe.")
-        if let repetition = animation.repetition {
-            try repetition.validate()
-            try require(animation.keyframes.count >= 2, "Repeating animations require at least two keyframes.")
-        }
-        var previous: VideoTime?
-        for keyframe in animation.keyframes {
-            try keyframe.curve?.validate()
-            try require(keyframe.time >= .zero && keyframe.time <= clip.effectsDuration && keyframe.value.isFinite,
-                        "Keyframes require a finite value and a time inside the original effect duration.")
-            if let previous { try require(keyframe.time > previous, "Keyframe times must be strictly increasing.") }
-            if animation.property == .opacity { try require((0...1).contains(keyframe.value), "Animated opacity must be between zero and one.") }
-            if animation.property == .scale { try require(keyframe.value > 0, "Animated scale must be positive.") }
-            previous = keyframe.time
-        }
+    try validateAnimations(clip.animations, duration: clip.effectsDuration)
+    if let motion = clip.textMotion {
+        guard case .text(let text, _) = clip.source else { throw VideoError.invalidProject("Text motion requires a text clip.") }
+        try motion.validate(text: text, duration: clip.effectsDuration)
     }
     let a = clip.audio
     try require(clip.source.hasAudio || a.filters.isEmpty, "Audio filters require a video or audio clip.")
@@ -101,6 +87,28 @@ private func validateFilters(_ filters: [MediaFilter]) throws {
         case .gaussianBlur(let value): try require(value.isFinite && value >= 0, "Blur radius must be nonnegative.")
         case .sepia(let value): try require(value.isFinite && (0...1).contains(value), "Sepia intensity must be between zero and one.")
         case .custom(let reference): try reference.validate()
+        }
+    }
+}
+
+func validateAnimations(_ animations: [KeyframeAnimation], duration: VideoTime) throws {
+    var properties: Set<AnimationProperty> = []
+    for animation in animations {
+        try require(properties.insert(animation.property).inserted, "Only one animation per property is allowed on a clip.")
+        try require(!animation.keyframes.isEmpty, "Animations require at least one keyframe.")
+        if let repetition = animation.repetition {
+            try repetition.validate()
+            try require(animation.keyframes.count >= 2, "Repeating animations require at least two keyframes.")
+        }
+        var previous: VideoTime?
+        for keyframe in animation.keyframes {
+            try keyframe.curve?.validate()
+            try require(keyframe.time >= .zero && keyframe.time <= duration && keyframe.value.isFinite,
+                        "Keyframes require a finite value and a time inside the original effect duration.")
+            if let previous { try require(keyframe.time > previous, "Keyframe times must be strictly increasing.") }
+            if animation.property == .opacity { try require((0...1).contains(keyframe.value), "Animated opacity must be between zero and one.") }
+            if animation.property == .scale { try require(keyframe.value > 0, "Animated scale must be positive.") }
+            previous = keyframe.time
         }
     }
 }

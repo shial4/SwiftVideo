@@ -54,6 +54,7 @@ public actor AppleVideoRenderer: VideoRendering {
         var videoTracks: [UUID: AVAssetTrack] = [:]
         var audioTracks: [UUID: AVAssetTrack] = [:]
         var images: [UUID: CIImage] = [:]
+        var titles: [UUID: AppleMotionTitle] = [:]
         for clip in clips {
             try Task.checkCancellation()
             switch clip.source {
@@ -93,8 +94,12 @@ public actor AppleVideoRenderer: VideoRendering {
                 }
                 images[clip.id] = image
             case .text(let text, let style):
-                images[clip.id] = try await AppleFrameRenderer.textImage(text, style: style, project: project, size: size,
-                                                                       rasterSize: clip.textRasterSize(for: size))
+                if clip.textMotion != nil {
+                    titles[clip.id] = try AppleMotionTitle(text: text, style: style, clip: clip, project: project, size: size)
+                } else {
+                    images[clip.id] = try await AppleFrameRenderer.textImage(text, style: style, project: project, size: size,
+                                                                           rasterSize: clip.textRasterSize(for: size))
+                }
             }
         }
 
@@ -175,7 +180,7 @@ public actor AppleVideoRenderer: VideoRendering {
                     throw VideoError.renderingFailed("Cannot allocate output video frame.")
                 }
                 try autoreleasepool {
-                    let image = try AppleFrameRenderer.compose(project, visualClips: visualClips, at: videoTime, size: size, videos: videos, images: images, effects: visualEffects)
+                    let image = try AppleFrameRenderer.compose(project, visualClips: visualClips, at: videoTime, size: size, videos: videos, images: images, titles: titles, effects: visualEffects)
                     context.render(image, to: buffer, bounds: CGRect(x: 0, y: 0, width: size.width, height: size.height), colorSpace: colorSpace)
                 }
                 guard adaptor.append(buffer, withPresentationTime: videoTime.cmTime) else {

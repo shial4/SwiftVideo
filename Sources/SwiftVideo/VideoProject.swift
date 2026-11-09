@@ -56,6 +56,7 @@ public struct MediaClip: Identifiable, Hashable, Codable, Sendable {
     public let transform: VisualTransform
     public let filters: [MediaFilter]
     public let animations: [KeyframeAnimation]
+    public let textMotion: TextMotion?
     public let audio: AudioSettings
     /// Splits and trims preserve the original animation and audio envelope clock.
     public let effectsOffset: VideoTime
@@ -64,11 +65,13 @@ public struct MediaClip: Identifiable, Hashable, Codable, Sendable {
     public init(id: UUID = UUID(), source: MediaSource, start: VideoTime = .zero, duration: VideoTime,
                 sourceStart: VideoTime = .zero, zIndex: Int = 0, transform: VisualTransform = VisualTransform(),
                 filters: [MediaFilter] = [], animations: [KeyframeAnimation] = [], audio: AudioSettings = AudioSettings(),
-                effectsOffset: VideoTime = .zero, effectsDuration: VideoTime? = nil, playbackRate: PlaybackRate = .normal) {
+                effectsOffset: VideoTime = .zero, effectsDuration: VideoTime? = nil, playbackRate: PlaybackRate = .normal,
+                textMotion: TextMotion? = nil) {
         self.id = id; self.source = source; self.start = start; self.duration = duration
         self.playbackRate = playbackRate
         self.sourceStart = sourceStart; self.zIndex = zIndex; self.transform = transform
         self.filters = filters; self.animations = animations; self.audio = audio
+        self.textMotion = textMotion
         self.effectsOffset = effectsOffset; self.effectsDuration = effectsDuration ?? duration
     }
 
@@ -76,12 +79,7 @@ public struct MediaClip: Identifiable, Hashable, Codable, Sendable {
 
     public func visualTransform(at projectTime: VideoTime) throws -> VisualTransform {
         let time = try projectTime.subtracting(start).adding(effectsOffset)
-        var values: [AnimationProperty: Double] = [:]
-        for animation in animations { values[animation.property] = animation.value(at: time) }
-        return VisualTransform(x: values[.x] ?? transform.x, y: values[.y] ?? transform.y,
-                               width: transform.width, height: transform.height, scale: values[.scale] ?? transform.scale,
-                               rotation: values[.rotation] ?? transform.rotation, opacity: values[.opacity] ?? transform.opacity,
-                               crop: transform.crop, contentMode: transform.contentMode)
+        return transform.applying(animations, at: time)
     }
 
     public func audioGain(at projectTime: VideoTime) throws -> Double {
@@ -93,12 +91,12 @@ public struct MediaClip: Identifiable, Hashable, Codable, Sendable {
                    sourceStart: VideoTime? = nil, effectsOffset: VideoTime? = nil, source: MediaSource? = nil,
                    zIndex: Int? = nil, transform: VisualTransform? = nil, filters: [MediaFilter]? = nil,
                    animations: [KeyframeAnimation]? = nil, audio: AudioSettings? = nil,
-                   effectsDuration: VideoTime? = nil, playbackRate: PlaybackRate? = nil) -> MediaClip {
+                   effectsDuration: VideoTime? = nil, playbackRate: PlaybackRate? = nil, textMotion: TextMotion?? = nil) -> MediaClip {
         MediaClip(id: id ?? self.id, source: source ?? self.source, start: start ?? self.start, duration: duration ?? self.duration,
                   sourceStart: sourceStart ?? self.sourceStart, zIndex: zIndex ?? self.zIndex, transform: transform ?? self.transform,
                   filters: filters ?? self.filters, animations: animations ?? self.animations, audio: audio ?? self.audio,
                   effectsOffset: effectsOffset ?? self.effectsOffset, effectsDuration: effectsDuration ?? self.effectsDuration,
-                  playbackRate: playbackRate ?? self.playbackRate)
+                  playbackRate: playbackRate ?? self.playbackRate, textMotion: textMotion ?? self.textMotion)
     }
 }
 
@@ -164,7 +162,7 @@ extension AudioSettings {
 }
 
 extension MediaClip {
-    private enum CodingKeys: String, CodingKey { case id, source, start, duration, sourceStart, zIndex, transform, filters, animations, audio, effectsOffset, effectsDuration, playbackRate }
+    private enum CodingKeys: String, CodingKey { case id, source, start, duration, sourceStart, zIndex, transform, filters, animations, audio, effectsOffset, effectsDuration, playbackRate, textMotion }
 
     public init(from decoder: any Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
@@ -181,7 +179,8 @@ extension MediaClip {
             audio: try values.decode(AudioSettings.self, forKey: .audio),
             effectsOffset: try values.decode(VideoTime.self, forKey: .effectsOffset),
             effectsDuration: try values.decode(VideoTime.self, forKey: .effectsDuration),
-            playbackRate: try values.decodeIfPresent(PlaybackRate.self, forKey: .playbackRate) ?? .normal)
+            playbackRate: try values.decodeIfPresent(PlaybackRate.self, forKey: .playbackRate) ?? .normal,
+            textMotion: try values.decodeIfPresent(TextMotion.self, forKey: .textMotion))
     }
 }
 

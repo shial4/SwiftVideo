@@ -11,10 +11,7 @@ import android.net.Uri
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.Typeface
-import android.text.TextPaint
 import android.text.StaticLayout
-import android.text.Layout
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import androidx.media3.common.__
@@ -23,7 +20,6 @@ import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.effect.__
 import androidx.media3.transformer.__
 import java.io.File
-import java.io.FileOutputStream
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import org.json.JSONObject
@@ -52,7 +48,8 @@ public final class Media3ExportSession {
     }
 
     public func start(json: String, outputPath: String, sample: @escaping @Sendable (String, Double) -> [Double],
-                      audio: @escaping @Sendable (String, Int, Int, Data, Bool) throws -> Data) throws {
+                      audio: @escaping @Sendable (String, Int, Int, Data, Bool) throws -> Data,
+                      titleMotion: @escaping @Sendable (String, Double) throws -> Data) throws {
         #if SKIP
         guard status.compareAndSet(0, 1) else { throw IllegalStateException("An export session can only start once.") }
         handler.post {
@@ -62,7 +59,7 @@ public final class Media3ExportSession {
                 let folder = File(context.getCacheDir(), "swiftvideo-" + UUID().uuidString)
                 guard folder.mkdirs() else { throw IllegalStateException("Cannot create export scratch directory.") }
                 self.directory = folder
-                let composition = try self.makeComposition(plan, folder: folder, sample: sample, audio: audio)
+                let composition = try self.makeComposition(plan, folder: folder, sample: sample, audio: audio, titleMotion: titleMotion)
                 let encoder = DefaultEncoderFactory.Builder(context)
                     .setEnableFallback(false)
                     .setRequestedVideoEncoderSettings(VideoEncoderSettings.Builder().setBitrate(plan.getInt("videoBitRate")).build())
@@ -161,7 +158,8 @@ public final class Media3ExportSession {
     }
 
     private func makeComposition(_ plan: JSONObject, folder: File, sample: @escaping (String, Double) -> [Double],
-                                 audio: @escaping (String, Int, Int, Data, Bool) throws -> Data) throws -> Composition {
+                                 audio: @escaping (String, Int, Int, Data, Bool) throws -> Data,
+                                 titleMotion: @escaping (String, Double) throws -> Data) throws -> Composition {
         let sequences = java.util.ArrayList<EditedMediaItemSequence>()
         let visualIDs = java.util.ArrayList<String>()
         let width = plan.getInt("width")
@@ -192,8 +190,13 @@ public final class Media3ExportSession {
             let length = clip.getLong("durationUs")
             let sourceStart = clip.getLong("sourceStartUs")
             let item: MediaItem
+            var motionRaster: MotionTitleRaster? = nil
             if kind == "text" {
-                let path = try textBitmap(clip, width: width, height: height, folder: folder)
+                let path: String
+                if clip.has("textMotion") {
+                    let raster = try Media3TextRaster.motion(clip, width: width, height: height, folder: folder)
+                    motionRaster = raster; path = raster.path
+                } else { path = try textBitmap(clip, width: width, height: height, folder: folder) }
                 item = imageItem(path, duration: length)
             } else if kind == "image" {
                 item = imageItem(clip.getString("url"), duration: length)
@@ -203,6 +206,7 @@ public final class Media3ExportSession {
                         .setEndPositionUs(sourceStart + clip.getLong("sourceDurationUs")).build()).build()
             }
             let visualEffects = java.util.ArrayList<Effect>()
+            if let raster = motionRaster { visualEffects.add(MotionTitleEffect(raster: raster, sample: titleMotion)) }
             let transform = clip.getJSONObject("transform")
             let crop = transform.getJSONObject("crop")
             visualEffects.add(Crop(Float(crop.getDouble("x") * 2 - 1), Float((crop.getDouble("x") + crop.getDouble("width")) * 2 - 1),
@@ -323,43 +327,19 @@ public final class Media3ExportSession {
         let bitmap = Bitmap.createBitmap(textWidth, textHeight, Bitmap.Config.ARGB_8888)
         let canvas = Canvas(bitmap)
         let style = clip.getJSONObject("textStyle")
-        let paint = TextPaint(android.graphics.Paint.ANTI_ALIAS_FLAG)
-        paint.setTextSize(Float(style.getDouble("fontSize")))
-        paint.setColor(color(style.getJSONObject("color")))
-        if style.has("fontURL") {
-            paint.setTypeface(Typeface.createFromFile(Uri.parse(style.getString("fontURL")).getPath()))
-        } else if style.has("fontName") {
-            paint.setTypeface(Typeface.create(style.getString("fontName"), Typeface.NORMAL))
-        } else { paint.setTypeface(Typeface.DEFAULT) }
-        if style.has("shadow") {
-            let shadow = style.getJSONObject("shadow")
-            paint.setShadowLayer(Float(shadow.getDouble("radius")), Float(shadow.getDouble("x")),
-                                 Float(shadow.getDouble("y")), color(shadow.getJSONObject("color")))
-        }
-        let alignment: Layout.Alignment
-        switch style.getString("alignment") {
-        case "leading": alignment = Layout.Alignment.ALIGN_NORMAL
-        case "trailing": alignment = Layout.Alignment.ALIGN_OPPOSITE
-        default: alignment = Layout.Alignment.ALIGN_CENTER
-        }
+        let paint = Media3TextRaster.paint(style)
+        let alignment = Media3TextRaster.alignment(style)
         let text = clip.getString("text")
         let layout = StaticLayout.Builder.obtain(text, 0, text.length, paint, textWidth).setAlignment(alignment).setIncludePad(false).build()
         layout.draw(canvas)
         return try saveBitmap(bitmap, name: clip.getString("id") + ".png", folder: folder)
     }
 
-    private func color(_ value: JSONObject) -> Int {
-        Color.argb(Int(value.getDouble("alpha") * 255), Int(value.getDouble("red") * 255),
-                   Int(value.getDouble("green") * 255), Int(value.getDouble("blue") * 255))
-    }
+    private func color(_ value: JSONObject) -> Int { Media3TextRaster.color(value) }
 
     private func saveBitmap(_ bitmap: Bitmap, name: String, folder: File) throws -> String {
         defer { bitmap.recycle() }
-        let file = File(folder, name)
-        let stream = FileOutputStream(file)
-        defer { stream.close() }
-        guard bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream) else { throw IllegalStateException("Cannot encode overlay image.") }
-        return Uri.fromFile(file).toString()
+        return try Media3TextRaster.write(bitmap, name: name, folder: folder)
     }
     #endif
 }

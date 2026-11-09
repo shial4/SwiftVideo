@@ -22,6 +22,7 @@ struct AndroidRenderPlan: Encodable {
         let url: String
         let text: String
         let textStyle: TextStyle?
+        let textMotion: TitleMotion?
         let startUs: Int64
         let durationUs: Int64
         let sourceStartUs: Int64
@@ -37,6 +38,7 @@ struct AndroidRenderPlan: Encodable {
         let envelope: [GainPoint]
     }
     struct AudioEffect: Encodable { let kind: String; let frequencyHz: Double; let gainDB: Double; let bandwidthOctaves: Double }
+    struct TitleMotion: Encodable { let unit: TextMotionUnit; let ranges: [TextMotion.Range] }
     struct Filter: Encodable {
         let kind: String
         let value: Double
@@ -113,7 +115,8 @@ struct AndroidRenderPlan: Encodable {
             let envelope = breakpoints.map { time in
                 GainPoint(seconds: time - start, gain: clip.audio.gain(atSeconds: time, durationSeconds: clip.effectsDuration.seconds, includeEnd: true))
             }
-            return Clip(id: clip.id.uuidString, kind: kind, url: clip.source.url?.absoluteString ?? "", text: text, textStyle: style,
+            let textMotion = clip.textMotion.map { TitleMotion(unit: $0.unit, ranges: $0.ranges(in: text)) }
+            return Clip(id: clip.id.uuidString, kind: kind, url: clip.source.url?.absoluteString ?? "", text: text, textStyle: style, textMotion: textMotion,
                         startUs: try Self.microseconds(clip.start), durationUs: try Self.microseconds(clip.duration),
                         sourceStartUs: try Self.microseconds(clip.sourceStart),
                         sourceDurationUs: try Self.microseconds(clip.sourceDuration), speed: clip.playbackRate.multiplier,

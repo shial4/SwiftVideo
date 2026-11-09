@@ -46,7 +46,7 @@ public struct ExportSettings: Hashable, Codable, Sendable {
 
 public enum CompositionFeature: String, Codable, Sendable, CaseIterable {
     case video, images, text, filters, animation, audioMixing, audioFades, audioPan, customFonts, playbackSpeed, audioFilters
-    case customVisualEffects, customAudioEffects
+    case customVisualEffects, customAudioEffects, motionTitles
 }
 
 public struct RendererCapabilities: Sendable {
@@ -80,6 +80,7 @@ public struct RendererCapabilities: Sendable {
                 required.insert(.customVisualEffects)
             }
             if !clip.animations.isEmpty { required.insert(.animation) }
+            if clip.textMotion != nil { required.insert(.motionTitles) }
             if clip.source.hasAudio && !clip.audio.isMuted {
                 required.insert(.audioMixing)
                 if clip.audio.fadeIn > .zero || clip.audio.fadeOut > .zero { required.insert(.audioFades) }

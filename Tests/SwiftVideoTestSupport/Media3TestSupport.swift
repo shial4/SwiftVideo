@@ -69,6 +69,36 @@ public final class Media3TestSupport {
         Array(try audioStats(path: path, duration: 2).prefix(3))
     }
 
+    /// Foreground count, centroid, brightest RGB and ink width/height, for white titles over blue.
+    public static func titleStats(path: String, timeUs: Int64) throws -> [Double] {
+        #if SKIP
+        let retriever = MediaMetadataRetriever()
+        defer { retriever.release() }
+        retriever.setDataSource(path)
+        guard let bitmap = retriever.getFrameAtTime(timeUs, MediaMetadataRetriever.OPTION_CLOSEST) else {
+            throw IllegalStateException("Cannot decode exported title frame.")
+        }
+        defer { bitmap.recycle() }
+        var count = 0.0, xSum = 0.0, ySum = 0.0
+        var red = 0, green = 0, blue = 0
+        var minX = bitmap.getWidth(), maxX = -1, minY = bitmap.getHeight(), maxY = -1
+        for y in 0..<bitmap.getHeight() {
+            for x in 0..<bitmap.getWidth() {
+                let pixel = bitmap.getPixel(x, y), r = Color.red(pixel), g = Color.green(pixel)
+                if r > 70 && g > 70 {
+                    count += 1; xSum += Double(x); ySum += Double(y)
+                    minX = min(minX, x); maxX = max(maxX, x); minY = min(minY, y); maxY = max(maxY, y)
+                }
+                if r > red { red = r; green = g; blue = Color.blue(pixel) }
+            }
+        }
+        return [count, count > 0 ? xSum / count : -1.0, count > 0 ? ySum / count : -1.0, Double(red), Double(green), Double(blue),
+                Double(max(0, maxX - minX + 1)), Double(max(0, maxY - minY + 1))]
+        #else
+        throw unavailable()
+        #endif
+    }
+
     /// RMS at the beginning, middle and end, followed by central tone frequency and RMS.
     public static func audioStats(path: String, duration: Double) throws -> [Double] {
         #if SKIP

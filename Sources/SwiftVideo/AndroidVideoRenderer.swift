@@ -30,11 +30,15 @@ public actor AndroidVideoRenderer: VideoRendering {
         let plan = try AndroidRenderPlan(project: project, settings: settings, effects: effects)
         let encoded = try JSONEncoder().encode(plan)
         guard let json = String(data: encoded, encoding: .utf8) else { throw VideoError.invalidProject("Cannot serialize Android render plan.") }
-        let clips = Dictionary(uniqueKeysWithValues: project.tracks.flatMap(\.clips).map { ($0.id.uuidString, $0) })
+        let clips = Dictionary(uniqueKeysWithValues: try project.renderClips().map { ($0.id.uuidString, $0) })
         let session = try Media3ExportSession()
-        let audioEffects = Dictionary(uniqueKeysWithValues: try project.renderClips()
+        let audioEffects = Dictionary(uniqueKeysWithValues: clips.values
             .filter { $0.audio.filters.contains(where: \.isCustom) }
             .map { ($0.id.uuidString, AndroidAudioEffects(clip: $0, registry: effects)) })
+        let titleClips = Dictionary(uniqueKeysWithValues: clips.values.compactMap { clip -> (String, (MediaClip, TextMotion, Int))? in
+            guard case .text(let text, _) = clip.source, let motion = clip.textMotion else { return nil }
+            return (clip.id.uuidString, (clip, motion, motion.ranges(in: text).count))
+        })
         defer { for effect in audioEffects.values { effect.finish() } }
         progress(ExportProgress(phase: .preparing, fraction: 0))
         try session.start(json: json, outputPath: destination.path, sample: { id, microseconds in
@@ -45,6 +49,18 @@ public actor AndroidVideoRenderer: VideoRendering {
         }, audio: { id, sampleRate, channels, data, reset in
             guard let effect = audioEffects[id] else { throw VideoError.renderingFailed("A custom audio effect was not prepared.") }
             return try effect.process(data, sampleRate: sampleRate, channels: channels, reset: reset)
+        }, titleMotion: { id, microseconds in
+            guard let (clip, motion, count) = titleClips[id] else { throw VideoError.renderingFailed("A motion title was not prepared.") }
+            let time = try VideoTime(value: Int64(microseconds.rounded()), timescale: 1_000_000).subtracting(clip.start).adding(clip.effectsOffset)
+            var values = [Float](repeating: 0, count: count * 5)
+            for index in 0..<count {
+                let t = try motion.transform(forUnit: index, at: time)
+                values[index * 5] = Float(t.x); values[index * 5 + 1] = Float(t.y)
+                values[index * 5 + 2] = Float(t.scale); values[index * 5 + 3] = Float(t.rotation)
+                values[index * 5 + 4] = Float(t.opacity)
+            }
+            // Only transform scalars cross JNI once per frame; glyph pixels stay on the GPU.
+            return values.withUnsafeBytes { Data($0) }
         })
         do {
             while true {

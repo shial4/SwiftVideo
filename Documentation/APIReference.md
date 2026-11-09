@@ -94,7 +94,8 @@ MediaClip(id: UUID = UUID(), source: MediaSource,
           filters: [MediaFilter] = [], animations: [KeyframeAnimation] = [],
           audio: AudioSettings = AudioSettings(),
           effectsOffset: VideoTime = .zero, effectsDuration: VideoTime? = nil,
-          playbackRate: PlaybackRate = .normal)
+          playbackRate: PlaybackRate = .normal,
+          textMotion: TextMotion? = nil)
 ```
 
 All parameters are exposed as read-only properties. `effectsDuration` defaults to the initial `duration`.
@@ -143,6 +144,7 @@ All factories start at project/source time zero with the standard `MediaClip` de
 | `audio(_:)` | Replaces audio settings. |
 | `animate(_:keyframes:)` | Replaces the animation for the specified property. |
 | `animations(_:)` | Replaces all animations. |
+| `textMotion(_ motion: TextMotion?)` | Unreleased: animates words or characters inside a text clip; nil restores a static title. See [motion titles](MotionTitles.md). |
 
 Modifiers preserve the ID. Speed retimes the effect clock; other modifiers preserve it, and do not mutate their receiver or validate the project. Pass stable IDs when deriving a project repeatedly from SwiftUI state. Use editing operations for split/trim; there is no duration modifier that silently resets the original effect clock.
 
@@ -190,6 +192,8 @@ Filters run in array order. All arguments must be finite.
 Font size must be finite and positive. Font size and shadow dimensions use project canvas pixels and scale with export resolution. Text wraps inside the clip's layer bounds and is rasterized once per clip before GPU transforms. Keep those bounds large enough for the intended text; each resulting bitmap dimension must be positive and at most 8192 pixels. Use a readable local `fontURL` for portable typography; platform font names and glyph availability differ. The caller must include the font's required license.
 
 ## Animation
+
+Unreleased per-word and per-character animation uses `TextMotion(unit:stagger:animations:)` and the `.textMotion(_:)` clip modifier. See [motion-title presets, sampling, limits, and GPU behavior](MotionTitles.md).
 
 - `AnimationProperty` cases: `.x`, `.y`, `.scale`, `.rotation`, `.opacity`.
 - `Keyframe(time: VideoTime, value: Double, easing: Easing = .linear)` exposes those three values. Time is relative to the original clip's effect clock, not project time.
