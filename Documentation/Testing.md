@@ -36,7 +36,7 @@ The media fixtures are deterministic red/blue videos, a green image, and synthes
 
 Android Media3 exports share the serialized `RenderBehaviorTests` suite so concurrent tests do not compete for the hosted emulator's graphics and codec resources. Core and fixture tests remain parallel.
 
-Routine composition tests on both platforms render at 320x180. They verify decoded pixels, overlay placement, relative text motion, timing, and audio fades with much less rendering work than a full HD export. The separate manual example checks cover 1080p output.
+Routine composition tests on both platforms render at 320x180. They verify decoded pixels, overlay placement, relative text motion, timing, and audio fades with much less rendering work than a full HD export. The separate 0.0.2 release smoke checks exported the eight-second title/image and captioned picture-in-picture example at 1280x720 and 30 fps with H.264 video and AAC audio on iOS 27.0 Simulator and Android API 34/35 arm64 emulators. These checks used clip 2x and track 0.5x audio rates together with a 1000 Hz low-pass filter. iOS used the editor UI; Android used the same canonical scene through the public Swift API and a native Kotlin consumer.
 
 CI compiles Android binaries on macOS and runs them on an Ubuntu KVM emulator with two virtual CPU cores and 4 GB of RAM. Emulator 36.6.11 is pinned to match the version used for local verification. CI uses the same composition tests and Media3 timeout as local tests. The device-test command has a five-minute deadline so an unresponsive emulator cannot hold the job indefinitely.
 
@@ -95,7 +95,9 @@ A separate diagnostic on candidate `7947b27` confirms a synthetic BT.709 color s
 | Android MediaMetadataRetriever | 255 / 255 | 231 / 239 |
 | Independent Apple sRGB decode | 252 / 252 | 232 / 240 |
 
-The independent decode confirms a difference in the exported file, not only in one inspection API. These measurements do not establish how noticeable it is in ordinary footage or its scope on physical devices. General export tests passing does not prove color fidelity. The [release plan](ReleasePlan.md#known-limitations-and-preview-blockers) tracks acceptance of this bounded limitation separately; existing pixel assertions and coverage thresholds are unchanged.
+The independent decode confirms a difference in the exported file, not only in one inspection API. A first-frame comparison of the bundled coastal example also showed RGB differences in both iOS Simulator and Android emulator exports; that comparison includes scaling and encoding differences and is not a perceptual-visibility score. The coastal source is generated artwork animated into video, as recorded in the [asset provenance](../Example/ASSETS.md).
+
+On November 9, 2026, the maintainer accepted these measured SDR color differences as a documented limitation for 0.0.2. They do not block this release. The measurements do not establish visibility across ordinary footage or scope on physical devices. General export tests passing does not prove color fidelity. See the [bounded release exception](ReleasePlan.md#known-limitations-and-preview-blockers); existing pixel assertions and coverage thresholds are unchanged.
 
 ## Limits of verification
 

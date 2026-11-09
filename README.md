@@ -173,7 +173,7 @@ Apple and Android CI exercise timeline rules, serialization, atomic edits, cance
 
 These coverage badges show the **November 9, 2026 local verification snapshot**; the workflow badges above show live CI status. Android Swift core and Media3 bridge coverage measure separate layers. [Scope, thresholds, reports, and test commands](Documentation/Testing.md).
 
-Release checks use iOS Simulator and Android emulators. Physical-device behavior remains unverified; see the [verification limits](Documentation/Testing.md#limits-of-verification) and [measured Android color limitation](Documentation/Testing.md#known-color-limitation).
+Release checks use iOS Simulator and Android emulators. Physical-device behavior remains unverified; see the [verification limits](Documentation/Testing.md#limits-of-verification). Version 0.0.2 ships with a [documented SDR color limitation](Documentation/Testing.md#known-color-limitation): exported colors can differ from the source.
 
 ## Help and contribute
 
