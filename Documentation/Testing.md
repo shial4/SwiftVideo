@@ -3,7 +3,7 @@
 
 [Documentation index](README.md) | [Public API reference](APIReference.md)
 
-The local verification snapshot for [0.0.2 stabilization](ReleasePlan.md) was measured on November 9, 2026. The 0.0.1 tag predates the playback speed and ordered filter APIs. Coverage reports contain executable-line counts, not estimates. Hosted candidate CI, physical-device checks and beta observation remain separate release gates.
+The local verification snapshot for [0.0.2 stabilization](ReleasePlan.md) was measured on November 9, 2026. The 0.0.1 tag predates the playback speed and ordered filter APIs. Coverage reports contain executable-line counts, not estimates. Release verification uses iOS Simulator and Android emulators; physical-device access is not a prerequisite. Beta observation remains a separate release gate.
 
 | Target | Observed result | Coverage |
 | --- | --- | --- |
@@ -15,6 +15,8 @@ The local verification snapshot for [0.0.2 stabilization](ReleasePlan.md) was me
 | Example editor model on macOS | 6 tests passed | Asset loading, edits, history, selection, failure handling |
 
 See the checked-in [iOS](Coverage/ios.json), [Android core](Coverage/android-core.json), and [Media3](Coverage/android-media3.json) reports. These are verification snapshots for the documented revision. GitHub Actions uploads reports for each run; README workflow badges link to the current result.
+
+Candidate `7947b27` also passed [hosted Apple CI](https://github.com/shial4/SwiftVideo/actions/runs/42527055392) and [hosted Android CI](https://github.com/shial4/SwiftVideo/actions/runs/42527055454), including all three coverage gates and the example builds. A standalone SwiftPM consumer exported a title with combined clip/track speed and filters. The documented Kotlin wrapper was packaged into AARs and invoked from a standalone native Kotlin consumer on API 34; export/decode and missing-input cleanup checks passed. An unsigned Release build for physical iPhones also compiled, but has not been run on hardware.
 
 The November 9 example builds pass for iOS Simulator and Android, with six editor model tests passing on macOS. The original 0.0.1 manual editor checks covered macOS, iOS Simulator, and Android Emulator. That release's Android example export was independently decoded as an 8-second, 1920x1080, 30 fps MP4 with audio; inspected frames confirmed the image/title scene and captioned picture-in-picture scene.
 
@@ -84,6 +86,17 @@ For a CI instrumentation failure, download the `android-test-results` artifact. 
 
 After editing Swift-authored Media3 code, clean that generated module before rebuilding if Kotlin's incremental cache retains stale internal visibility metadata. Do not patch generated Kotlin or Gradle output to fix a Swift source problem.
 
+## Known color limitation
+
+A separate diagnostic on candidate `7947b27` confirms a synthetic BT.709 color shift with stable Media3 1.11.1. This affects the stable candidate as well as the preview branch. The API 34 arm64 emulator used SwiftShader and exported one second at 1280x720 through the documented Kotlin wrapper. The source was the [320x180 tagged BT.709 fixture](https://github.com/shial4/SwiftVideo/blob/c9577c1f6f75434576aac28810ada1d8fc10f78c/Tests/SwiftVideoTests/Resources/Milestone/bt709.mp4), SHA-256 `60afd7ee563ab14f0497e2898efa2da4242f7972a51535b866761e3223478b5c`.
+
+| Inspection at 0.5 seconds | Source red / blue channel | Export red / blue channel |
+| --- | --- | --- |
+| Android MediaMetadataRetriever | 255 / 255 | 231 / 239 |
+| Independent Apple sRGB decode | 252 / 252 | 232 / 240 |
+
+The independent decode confirms a difference in the exported file, not only in one inspection API. These measurements do not establish how noticeable it is in ordinary footage or its scope on physical devices. General export tests passing does not prove color fidelity. The [release plan](ReleasePlan.md#known-limitations-and-preview-blockers) tracks acceptance of this bounded limitation separately; existing pixel assertions and coverage thresholds are unchanged.
+
 ## Limits of verification
 
-The recorded Android results use an emulator, not a matrix of physical phones. Hardware codec availability, thermal behavior, memory limits, and sustained export throughput require release-build testing on your target devices. No frame-rate or GPU-utilization performance claim is inferred from line coverage. Manual editor checks complement the tests; there is no automated cross-platform UI coverage percentage.
+The recorded iOS and Android runtime results use simulators and emulators. This is the agreed release-verification scope; physical-device checks are follow-up work when hardware becomes available. Hardware codec availability, vendor GPU/driver behavior, thermal limits, memory pressure and sustained export throughput on phones remain unverified. No frame-rate or GPU-utilization performance claim is inferred from line coverage. Manual editor checks complement the tests; there is no automated cross-platform UI coverage percentage.
