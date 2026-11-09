@@ -1,6 +1,6 @@
 {
-  "covered" : 434,
-  "executable" : 475,
+  "covered" : 578,
+  "executable" : 635,
   "files" : [
     {
       "covered" : 69,
@@ -13,9 +13,14 @@
       "file" : "Sources/SwiftVideoMedia3/Media3Effects.kt"
     },
     {
-      "covered" : 271,
-      "executable" : 298,
+      "covered" : 301,
+      "executable" : 327,
       "file" : "Sources/SwiftVideoMedia3/Media3ExportSession.kt"
+    },
+    {
+      "covered" : 114,
+      "executable" : 131,
+      "file" : "Sources/SwiftVideoMedia3/Media3PCMTrimmer.kt"
     },
     {
       "covered" : 30,
@@ -23,6 +28,6 @@
       "file" : "Sources/SwiftVideoMedia3/Media3TimelineMuxer.kt"
     }
   ],
-  "linePercent" : 91.36842105263158,
+  "linePercent" : 91.02362204724409,
   "suite" : "android-media3"
 }

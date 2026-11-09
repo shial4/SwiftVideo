@@ -165,13 +165,13 @@ Documentation is hosted in this GitHub repository. Select your dependency's rele
 
 ## Tests and coverage
 
-[![iOS coverage](https://img.shields.io/badge/iOS%20lines-95.38%25-brightgreen)](Documentation/Coverage/ios.json)
+[![iOS coverage](https://img.shields.io/badge/iOS%20lines-95.39%25-brightgreen)](Documentation/Coverage/ios.json)
 [![Android Swift coverage](https://img.shields.io/badge/Android%20Swift%20core-95.94%25-brightgreen)](Documentation/Coverage/android-core.json)
-[![Media3 coverage](https://img.shields.io/badge/Media3%20bridge-91.40%25-green)](Documentation/Coverage/android-media3.json)
+[![Media3 coverage](https://img.shields.io/badge/Media3%20bridge-91.02%25-green)](Documentation/Coverage/android-media3.json)
 
 Apple and Android CI exercise timeline rules, serialization, atomic edits, cancellation, destination protection, and real media exports. Integration tests independently decode frames and PCM audio to check placement, motion, filters, opacity, duration, and fades.
 
-These coverage badges show the **November 9, 2026 local verification snapshot**; the workflow badges above show live CI status. Android Swift core and Media3 bridge coverage measure separate layers. [Scope, thresholds, reports, and test commands](Documentation/Testing.md).
+These coverage badges show the **November 10, 2026 beta.4 CI snapshot**; the workflow badges above show live CI status. Android Swift core and Media3 bridge coverage measure separate layers. [Scope, thresholds, reports, and test commands](Documentation/Testing.md).
 
 Release checks use iOS Simulator and Android emulators. Physical-device behavior remains unverified; see the [verification limits](Documentation/Testing.md#limits-of-verification). Version 0.0.2 ships with a [documented SDR color limitation](Documentation/Testing.md#known-color-limitation): exported colors can differ from the source.
 
