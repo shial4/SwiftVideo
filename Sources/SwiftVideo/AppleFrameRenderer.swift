@@ -9,7 +9,7 @@ import QuartzCore
 
 enum AppleFrameRenderer {
     static func compose(_ project: VideoProject, visualClips: [MediaClip], at time: VideoTime, size: VideoSize,
-                        videos: [UUID: AppleVideoSource], images: [UUID: CIImage]) throws -> CIImage {
+                        videos: [UUID: AppleVideoSource], images: [UUID: CIImage], effects: AppleVisualEffects) throws -> CIImage {
         let canvas = CGRect(x: 0, y: 0, width: size.width, height: size.height)
         var frame = CIImage(color: project.background.ciColor).cropped(to: canvas)
         for clip in visualClips where try clip.timeRange.contains(time) {
@@ -19,21 +19,23 @@ enum AppleFrameRenderer {
             } else if let image = images[clip.id] { source = image }
             else { throw VideoError.invalidMedia("No visual source was prepared for clip \(clip.id).") }
             let transform = try clip.visualTransform(at: time)
-            let image = apply(clip.filters, to: source)
+            let image = try apply(clip.filters, to: source, clipID: clip.id, effects: effects)
             let placed = place(image, transform: transform, canvas: canvas)
             frame = placed.composited(over: frame).cropped(to: canvas)
         }
         return frame
     }
 
-    static func apply(_ filters: [MediaFilter], to source: CIImage) -> CIImage {
-        filters.reduce(source) { image, filter in
+    static func apply(_ filters: [MediaFilter], to source: CIImage, clipID: UUID, effects: AppleVisualEffects) throws -> CIImage {
+        try filters.enumerated().reduce(source) { image, entry in
+            let (index, filter) = entry
             switch filter {
-            case .brightness(let value): image.applyingFilter("CIColorControls", parameters: [kCIInputBrightnessKey: value])
-            case .contrast(let value): image.applyingFilter("CIColorControls", parameters: [kCIInputContrastKey: value])
-            case .saturation(let value): image.applyingFilter("CIColorControls", parameters: [kCIInputSaturationKey: value])
-            case .sepia(let value): image.applyingFilter("CISepiaTone", parameters: [kCIInputIntensityKey: value])
-            case .gaussianBlur(let value): image.clampedToExtent().applyingFilter("CIGaussianBlur", parameters: [kCIInputRadiusKey: value]).cropped(to: image.extent)
+            case .brightness(let value): return image.applyingFilter("CIColorControls", parameters: [kCIInputBrightnessKey: value])
+            case .contrast(let value): return image.applyingFilter("CIColorControls", parameters: [kCIInputContrastKey: value])
+            case .saturation(let value): return image.applyingFilter("CIColorControls", parameters: [kCIInputSaturationKey: value])
+            case .sepia(let value): return image.applyingFilter("CISepiaTone", parameters: [kCIInputIntensityKey: value])
+            case .gaussianBlur(let value): return image.clampedToExtent().applyingFilter("CIGaussianBlur", parameters: [kCIInputRadiusKey: value]).cropped(to: image.extent)
+            case .custom: return try effects.apply(to: image, clipID: clipID, filterIndex: index)
             }
         }
     }

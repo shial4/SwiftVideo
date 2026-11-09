@@ -159,6 +159,7 @@ Choose a smaller resolution for previews and the required delivery resolution fo
 | [Usage guide](Documentation/Guide.md) | Timelines, editing, effects, audio, export, and persistence |
 | [API reference](Documentation/APIReference.md) | Public types, defaults, validation, and errors |
 | [Composition recipes](Documentation/Recipes.md) | Image/title scenes, video-in-video, captions, crossfades, and SwiftUI |
+| [Custom visual effects](Documentation/CustomEffects.md) | Unreleased extensibility: versioned registration and GPU filters for Apple and Android |
 | [SwiftVideo Studio example](Example/README.md) | Shared editor with playback, undo/redo, scrubbing, and 720p/1080p export |
 
 Documentation is hosted in this GitHub repository. Select your dependency's release tag to read matching docs; `main` follows current development.

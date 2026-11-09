@@ -13,6 +13,106 @@ import CoreGraphics
 #endif
 
 @Suite(.serialized) struct RenderBehaviorTests {
+    @Test(arguments: [false, true]) func customGPUFiltersChangeImageAndVideoPixels(video: Bool) async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("custom-effect-\(UUID())")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        #if os(Android)
+        let source = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: video ? "blue.mp4" : "green.png"))
+        #else
+        let source = try #require(Bundle.module.url(forResource: video ? "blue" : "green", withExtension: video ? "mp4" : "png"))
+        #endif
+        let clip = MediaClip(source: video ? .video(source) : .image(source), duration: try VideoTime(value: 1, timescale: 1),
+                             audio: AudioSettings(isMuted: true))
+        let project = VideoProject(tracks: [MediaTrack(clips: [clip]).filter(.custom(EffectReference(CustomEffectFixture.id)))])
+        let destination = folder.appendingPathComponent("custom.mp4")
+        try await VideoExporter(effects: CustomEffectFixture.registry()).export(project, to: destination,
+            settings: ExportSettings(resolution: VideoSize(width: 320, height: 180)))
+        let rgb = try await centerPixel(destination)
+        // Channel rotation maps green images to red and blue video to green.
+        let selected = video ? 1 : 0
+        #expect(rgb[selected] > 190, "Decoded RGB: \(rgb)")
+        // Compare channel separation: codec/color conversion can retain small residuals.
+        #expect(rgb.enumerated().filter { $0.offset != selected }.allSatisfy { rgb[selected] - $0.element > 150 }, "Decoded RGB: \(rgb)")
+    }
+
+    @Test func customClipFilterRunsBeforeBuiltInTrackFilters() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("custom-order-\(UUID())")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        #if os(Android)
+        let image = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "green.png"))
+        #else
+        let image = try #require(Bundle.module.url(forResource: "green", withExtension: "png"))
+        #endif
+        let clip = MediaClip.image(image, duration: try VideoTime(value: 1, timescale: 1))
+            .filter(.custom(EffectReference(CustomEffectFixture.id)))
+        let project = VideoProject(tracks: [MediaTrack(clips: [clip]).filter(.saturation(0))])
+        let destination = folder.appendingPathComponent("ordered.mp4")
+        try await VideoExporter(effects: CustomEffectFixture.registry()).export(project, to: destination,
+            settings: ExportSettings(resolution: VideoSize(width: 320, height: 180)))
+        let rgb = try await centerPixel(destination)
+        #expect(abs(rgb[0] - rgb[1]) < 12 && abs(rgb[1] - rgb[2]) < 12, "Decoded RGB: \(rgb)")
+        // Desaturating red after rotation is darker than desaturating the original green.
+        #expect(rgb.allSatisfy { $0 > 25 && $0 < 170 }, "Decoded RGB: \(rgb)")
+    }
+
+    @Test func customGPUAlphaCompositesWithoutPremultiplyingTwice() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("custom-alpha-\(UUID())")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        #if os(Android)
+        let image = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "green.png"))
+        #else
+        let image = try #require(Bundle.module.url(forResource: "green", withExtension: "png"))
+        #endif
+        let clip = MediaClip.image(image, duration: try VideoTime(value: 1, timescale: 1))
+            .filter(.custom(EffectReference(CustomEffectFixture.id, parameters: ["opacity": .number(0.5)])))
+        let project = VideoProject(background: VideoColor(red: 0, green: 0, blue: 1), tracks: [MediaTrack(clips: [clip])])
+        let destination = folder.appendingPathComponent("alpha.mp4")
+        try await VideoExporter(effects: CustomEffectFixture.registry()).export(project, to: destination,
+            settings: ExportSettings(resolution: VideoSize(width: 320, height: 180)))
+        let rgb = try await centerPixel(destination)
+        #expect(rgb[1] < 30, "Decoded RGB: \(rgb)")
+        #expect(rgb[0] > 80 && rgb[0] < 220 && rgb[2] > 80 && rgb[2] < 220, "Decoded RGB: \(rgb)")
+        #expect(abs(rgb[0] - rgb[2]) < 25, "Half-transparent red should contribute as much as its blue background: \(rgb)")
+    }
+
+    @Test func unregisteredCustomEffectFailsBeforeMediaIO() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("custom-missing-\(UUID())")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let clip = MediaClip.image(folder.appendingPathComponent("missing.png"), duration: try VideoTime(value: 1, timescale: 1))
+            .filter(.custom(EffectReference(CustomEffectFixture.id)))
+        await #expect(throws: VideoError.unsupportedFeature("Effect 'test.channel-rotation' version 1 is not registered.")) {
+            try await VideoExporter().export(VideoProject(tracks: [MediaTrack(clips: [clip])]), to: folder.appendingPathComponent("output.mp4"))
+        }
+        #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path).isEmpty)
+    }
+
+    @Test func failingGPUImplementationCleansUpAndExporterCanBeReused() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("custom-failure-\(UUID())")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        #if os(Android)
+        let image = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "green.png"))
+        #else
+        let image = try #require(Bundle.module.url(forResource: "green", withExtension: "png"))
+        #endif
+        let clip = MediaClip.image(image, duration: try VideoTime(value: 1, timescale: 1))
+        let exporter = VideoExporter(effects: try CustomEffectFixture.failingRegistry())
+        let settings = ExportSettings(resolution: VideoSize(width: 320, height: 180))
+        let destination = folder.appendingPathComponent("output.mp4")
+        await #expect(throws: VideoError.self) {
+            try await exporter.export(VideoProject(tracks: [MediaTrack(clips: [clip.filter(.custom(EffectReference(CustomEffectFixture.failingID)))])]),
+                                      to: destination, settings: settings)
+        }
+        #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path).isEmpty)
+        try await exporter.export(VideoProject(tracks: [MediaTrack(clips: [clip])]), to: destination, settings: settings)
+        let rgb = try await centerPixel(destination)
+        #expect(rgb[1] > 190 && rgb[0] < 35 && rgb[2] < 35, "Decoded RGB after recovery: \(rgb)")
+    }
+
     @Test func filtersAffectDecodedPixels() async throws {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("filter-test-\(UUID())")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)

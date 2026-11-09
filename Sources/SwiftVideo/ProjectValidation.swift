@@ -95,6 +95,7 @@ private func validateFilters(_ filters: [MediaFilter]) throws {
         case .contrast(let value), .saturation(let value): try require(value.isFinite && value >= 0, "Contrast and saturation must be nonnegative.")
         case .gaussianBlur(let value): try require(value.isFinite && value >= 0, "Blur radius must be nonnegative.")
         case .sepia(let value): try require(value.isFinite && (0...1).contains(value), "Sepia intensity must be between zero and one.")
+        case .custom(let reference): try reference.validate()
         }
     }
 }

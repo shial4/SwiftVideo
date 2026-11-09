@@ -10,13 +10,15 @@ public actor AndroidVideoRenderer: VideoRendering {
     public nonisolated let capabilities = RendererCapabilities(name: "Media3 Transformer",
         features: Set(CompositionFeature.allCases), codecs: [.h264, .hevc], containers: [.mp4])
 
-    public init() {}
+    private let effects: EffectRegistry
+    public init(effects: EffectRegistry = .empty) { self.effects = effects }
 
     public func render(_ project: VideoProject, to destination: URL, settings: ExportSettings,
                        progress: @escaping @Sendable (ExportProgress) -> Void) async throws {
         try project.validate()
         try settings.validate(for: project)
         try capabilities.validate(project, settings: settings)
+        try effects.validate(project, for: .android)
         let rate = settings.frameRate ?? project.frameRate
         guard rate.denominator == 1 else {
             throw VideoError.unsupportedFeature("Media3 image-sequence frame timing currently requires an integer frame rate.")
@@ -25,7 +27,7 @@ public actor AndroidVideoRenderer: VideoRendering {
         guard size.width <= 8192, size.height <= 8192, rate.framesPerSecond <= 240 else {
             throw VideoError.unsupportedFeature("This renderer supports output up to 8192 pixels per dimension and 240 fps.")
         }
-        let plan = try AndroidRenderPlan(project: project, settings: settings)
+        let plan = try AndroidRenderPlan(project: project, settings: settings, effects: effects)
         let encoded = try JSONEncoder().encode(plan)
         guard let json = String(data: encoded, encoding: .utf8) else { throw VideoError.invalidProject("Cannot serialize Android render plan.") }
         let clips = Dictionary(uniqueKeysWithValues: project.tracks.flatMap(\.clips).map { ($0.id.uuidString, $0) })
@@ -64,6 +66,6 @@ public actor AndroidVideoRenderer: VideoRendering {
 }
 
 extension VideoExporter {
-    public init() { self.init(renderer: AndroidVideoRenderer()) }
+    public init(effects: EffectRegistry = .empty) { self.init(renderer: AndroidVideoRenderer(effects: effects)) }
 }
 #endif

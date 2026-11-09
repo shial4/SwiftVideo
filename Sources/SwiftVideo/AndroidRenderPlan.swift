@@ -36,10 +36,17 @@ struct AndroidRenderPlan: Encodable {
         let envelope: [GainPoint]
     }
     struct AudioEffect: Encodable { let kind: String; let frequencyHz: Double; let gainDB: Double; let bandwidthOctaves: Double }
-    struct Filter: Encodable { let kind: String; let value: Double }
+    struct Filter: Encodable {
+        let kind: String
+        let value: Double
+        let shader: AndroidVisualEffect?
+        init(kind: String, value: Double = 0, shader: AndroidVisualEffect? = nil) {
+            self.kind = kind; self.value = value; self.shader = shader
+        }
+    }
     struct GainPoint: Encodable { let seconds: Double; let gain: Double }
 
-    init(project: VideoProject, settings: ExportSettings) throws {
+    init(project: VideoProject, settings: ExportSettings, effects: EffectRegistry = .empty) throws {
         let size = settings.resolution ?? project.canvas
         width = size.width; height = size.height
         frameRate = (settings.frameRate ?? project.frameRate).framesPerSecond
@@ -71,13 +78,21 @@ struct AndroidRenderPlan: Encodable {
                                   fontSize: original.fontSize * scale,
                                   color: original.color, alignment: original.alignment, shadow: shadow)
             }
-            let filters = clip.filters.map { filter -> Filter in
+            let filters = try clip.filters.map { filter -> Filter in
                 switch filter {
-                case .brightness(let value): Filter(kind: "brightness", value: value)
-                case .contrast(let value): Filter(kind: "contrast", value: value)
-                case .saturation(let value): Filter(kind: "saturation", value: value)
-                case .sepia(let value): Filter(kind: "sepia", value: value)
-                case .gaussianBlur(let value): Filter(kind: "blur", value: value)
+                case .brightness(let value): return Filter(kind: "brightness", value: value)
+                case .contrast(let value): return Filter(kind: "contrast", value: value)
+                case .saturation(let value): return Filter(kind: "saturation", value: value)
+                case .sepia(let value): return Filter(kind: "sepia", value: value)
+                case .gaussianBlur(let value): return Filter(kind: "blur", value: value)
+                case .custom(let reference):
+                    let (definition, parameters) = try effects.resolve(reference, for: .android)
+                    guard let factory = definition.androidFactory else {
+                        throw VideoError.unsupportedFeature("The custom effect has no Android implementation.")
+                    }
+                    let shader = try factory(parameters)
+                    try shader.validate()
+                    return Filter(kind: "custom", shader: shader)
                 }
             }
             let audioFilters = clip.audio.filters.map { filter -> AudioEffect in

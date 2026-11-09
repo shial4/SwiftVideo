@@ -18,7 +18,8 @@ public actor AppleVideoRenderer: VideoRendering {
         name: "AVFoundation", features: Set(CompositionFeature.allCases),
         codecs: [.h264, .hevc], containers: [.mp4, .mov])
 
-    public init() {}
+    private let effects: EffectRegistry
+    public init(effects: EffectRegistry = .empty) { self.effects = effects }
 
     // CIContext is thread-safe and owns expensive Metal kernel/command-queue caches.
     // Share it across preview and export instances instead of rebuilding it per edit.
@@ -31,6 +32,7 @@ public actor AppleVideoRenderer: VideoRendering {
         try project.validate()
         try settings.validate(for: project)
         try capabilities.validate(project, settings: settings)
+        try effects.validate(project, for: .apple)
         guard let context = Self.context else {
             throw VideoError.unsupportedFeature("A Metal-capable GPU is required for Apple video composition.")
         }
@@ -46,6 +48,8 @@ public actor AppleVideoRenderer: VideoRendering {
         let visualClips = clips.enumerated().filter { $0.element.source.isVisual }.sorted {
             $0.element.zIndex == $1.element.zIndex ? $0.offset < $1.offset : $0.element.zIndex < $1.element.zIndex
         }.map(\.element)
+        let visualEffects = try AppleVisualEffects(clips: visualClips, registry: effects)
+        defer { visualEffects.finish() }
         var assets: [UUID: AVAsset] = [:]
         var videoTracks: [UUID: AVAssetTrack] = [:]
         var audioTracks: [UUID: AVAssetTrack] = [:]
@@ -171,7 +175,7 @@ public actor AppleVideoRenderer: VideoRendering {
                     throw VideoError.renderingFailed("Cannot allocate output video frame.")
                 }
                 try autoreleasepool {
-                    let image = try AppleFrameRenderer.compose(project, visualClips: visualClips, at: videoTime, size: size, videos: videos, images: images)
+                    let image = try AppleFrameRenderer.compose(project, visualClips: visualClips, at: videoTime, size: size, videos: videos, images: images, effects: visualEffects)
                     context.render(image, to: buffer, bounds: CGRect(x: 0, y: 0, width: size.width, height: size.height), colorSpace: colorSpace)
                 }
                 guard adaptor.append(buffer, withPresentationTime: videoTime.cmTime) else {
@@ -263,6 +267,6 @@ public actor AppleVideoRenderer: VideoRendering {
 }
 
 extension VideoExporter {
-    public init() { self.init(renderer: AppleVideoRenderer()) }
+    public init(effects: EffectRegistry = .empty) { self.init(renderer: AppleVideoRenderer(effects: effects)) }
 }
 #endif

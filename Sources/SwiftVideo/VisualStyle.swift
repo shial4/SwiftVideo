@@ -64,6 +64,7 @@ public enum MediaFilter: Hashable, Codable, Sendable {
     case saturation(Double)
     case gaussianBlur(Double)
     case sepia(Double)
+    case custom(EffectReference)
 }
 
 public enum TextAlignment: String, Codable, Sendable { case leading, center, trailing }
