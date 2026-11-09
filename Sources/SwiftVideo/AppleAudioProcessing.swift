@@ -50,6 +50,9 @@ private final class AppleAudioProcessor {
             throw VideoError.renderingFailed("Cannot allocate audio processing buffers.")
         }
         self.format = format; self.output = output
+        // Enter offline mode before touching the graph. Accessing the main mixer
+        // first initializes device I/O, which can block or abort in headless exports.
+        try engine.enableManualRenderingMode(.offline, format: format, maximumFrameCount: output.frameCapacity)
         engine.attach(player)
         var last: AVAudioNode = player
         if clip.playbackRate != .normal {
@@ -74,7 +77,6 @@ private final class AppleAudioProcessor {
             last = equalizer
         }
         engine.connect(last, to: engine.mainMixerNode, format: format)
-        try engine.enableManualRenderingMode(.offline, format: format, maximumFrameCount: output.frameCapacity)
         engine.prepare()
         try engine.start()
         latencyFrames = Int64((engine.attachedNodes.reduce(0) { $0 + $1.latency } * format.sampleRate).rounded(.up))

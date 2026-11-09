@@ -8,6 +8,14 @@ import SwiftVideoTestSupport
 @testable import SwiftVideo
 
 @Suite struct AndroidExportTests {
+    @Test(arguments: [Int64(1_000_000), Int64(2_000_000)])
+    func cancellationBeforeFirstVideoSampleClosesTheMuxer(durationUs: Int64) throws {
+        let output = FileManager.default.temporaryDirectory.appendingPathComponent("empty-muxer-\(UUID()).mp4")
+        defer { try? FileManager.default.removeItem(at: output) }
+        try Media3TestSupport.closeEmptyTimelineMuxer(path: output.path, durationUs: durationUs)
+        #expect(try Data(contentsOf: output).isEmpty, "Cancellation before the first sample should leave an empty staging file.")
+    }
+
     @Test func fixtureCopiesHaveIndependentContents() throws {
         let first = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "green.png"))
         let second = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "green.png"))

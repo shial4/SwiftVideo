@@ -17,6 +17,29 @@ import java.io.FileOutputStream
 
 /// Integration fixtures and independent Android output inspection, linked only by tests.
 public final class Media3TestSupport {
+    /// Exercise the actual internal factory without adding test APIs to the library bridge.
+    public static func closeEmptyTimelineMuxer(path: String, durationUs: Int64) throws {
+        #if SKIP
+        let type = java.lang.Class.forName("swift.video.media3.TimelineMuxerFactory")
+        let constructor = type.getDeclaredConstructor(java.lang.Long.TYPE)
+        constructor.setAccessible(true)
+        let factory = constructor.newInstance(durationUs)
+        let factoryType = java.lang.Class.forName("androidx.media3.muxer.Muxer$Factory")
+        let muxer = factoryType.getMethod("create", java.lang.Class.forName("java.lang.String")).invoke(factory, path)
+        let builderType = java.lang.Class.forName("androidx.media3.common.Format$Builder")
+        let builder = builderType.getDeclaredConstructor().newInstance()
+        builderType.getMethod("setSampleMimeType", java.lang.Class.forName("java.lang.String")).invoke(builder, "video/avc")
+        builderType.getMethod("setWidth", java.lang.Integer.TYPE).invoke(builder, 320)
+        builderType.getMethod("setHeight", java.lang.Integer.TYPE).invoke(builder, 180)
+        let format = builderType.getMethod("build").invoke(builder)
+        let muxerType = java.lang.Class.forName("androidx.media3.muxer.Muxer")
+        muxerType.getMethod("addTrack", java.lang.Class.forName("androidx.media3.common.Format")).invoke(muxer, format)
+        muxerType.getMethod("close").invoke(muxer)
+        #else
+        throw unavailable()
+        #endif
+    }
+
     /// Width, height, transparent/opaque pixels, top/bottom ink, and center RGBA.
     public static func layerImageStats(path: String) throws -> [Int] {
         #if SKIP
