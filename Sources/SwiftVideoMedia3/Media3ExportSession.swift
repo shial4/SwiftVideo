@@ -211,7 +211,7 @@ public final class Media3ExportSession {
                 if filter.getString("kind") == "blur" {
                     if filter.getDouble("value") > 0 { visualEffects.add(GaussianBlur(Float(filter.getDouble("value")))) }
                 } else if filter.getString("kind") == "custom" {
-                    visualEffects.add(CustomShaderEffect(shader: filter.getJSONObject("shader")))
+                    visualEffects.add(CustomShaderEffect(shader: filter.getJSONObject("shader"), clock: filter.getJSONObject("clock")))
                 } else { visualEffects.add(ColorMatrixEffect(kind: filter.getString("kind"), value: filter.getDouble("value"))) }
             }
             let layout: Int

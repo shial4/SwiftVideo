@@ -21,14 +21,14 @@ import Testing
         let second = MediaClip.text("Second", duration: first.duration).filter(.custom(EffectReference(id)))
         let effects = try AppleVisualEffects(clips: [first, second], registry: registry)
         let input = CIImage(color: .red).cropped(to: CGRect(x: 0, y: 0, width: 16, height: 16))
-        _ = try effects.apply(to: input, clipID: first.id, filterIndex: 0)
-        _ = try effects.apply(to: input, clipID: first.id, filterIndex: 0)
-        _ = try effects.apply(to: input, clipID: second.id, filterIndex: 0)
+        _ = try effects.apply(to: input, clipID: first.id, filterIndex: 0, projectTime: 0)
+        _ = try effects.apply(to: input, clipID: first.id, filterIndex: 0, projectTime: 0.5)
+        _ = try effects.apply(to: input, clipID: second.id, filterIndex: 0, projectTime: 0)
         effects.finish()
         effects.finish()
         let result = counts.state.withLock { $0 }
         #expect(result.created == 2 && result.applied == 3 && result.finished == 2)
-        #expect(throws: VideoError.self) { try effects.apply(to: input, clipID: first.id, filterIndex: 0) }
+        #expect(throws: VideoError.self) { try effects.apply(to: input, clipID: first.id, filterIndex: 0, projectTime: 0) }
     }
 
     @Test func laterFactoryFailureReleasesAlreadyPreparedProcessors() throws {
@@ -60,7 +60,7 @@ import Testing
             .filter(.custom(EffectReference(id)))
         let effects = try AppleVisualEffects(clips: [clip], registry: registry)
         let input = CIImage(color: .red).cropped(to: CGRect(x: 0, y: 0, width: 16, height: 16))
-        #expect(throws: VideoError.self) { try effects.apply(to: input, clipID: clip.id, filterIndex: 0) }
+        #expect(throws: VideoError.self) { try effects.apply(to: input, clipID: clip.id, filterIndex: 0, projectTime: 0) }
         effects.finish()
         await #expect(throws: VideoError.self) {
             try await VideoExporter(effects: registry).export(VideoProject(tracks: [MediaTrack(clips: [clip])]), to: folder.appendingPathComponent("output.mp4"))
@@ -103,7 +103,7 @@ private final class LifecycleProcessor: AppleVisualEffectProcessor {
         self.invalidExtent = invalidExtent
         self.cancelOnApply = cancelOnApply
     }
-    func apply(to image: CIImage) throws -> CIImage {
+    func apply(to image: CIImage, context: EffectContext) throws -> CIImage {
         counts.state.withLock { $0.applied += 1 }
         if cancelOnApply { withUnsafeCurrentTask { $0?.cancel() } }
         return invalidExtent ? CIImage(color: .red) : image

@@ -16,11 +16,12 @@ import org.json.JSONObject
 /// Only app-registered shader source reaches this internal service boundary.
 final class CustomShaderEffect: GlEffect {
     private let shader: JSONObject
-    init(shader: JSONObject) { self.shader = shader }
+    private let clock: JSONObject
+    init(shader: JSONObject, clock: JSONObject) { self.shader = shader; self.clock = clock }
 
     override func toGlShaderProgram(context: Context, useHdr: Bool) -> GlShaderProgram {
         guard !useHdr else { throw VideoFrameProcessingException("Custom shaders currently support SDR only.") }
-        do { return CustomShaderProgram(shader: shader) }
+        do { return CustomShaderProgram(shader: shader, clock: clock) }
         catch { throw VideoFrameProcessingException(String(describing: error)) }
     }
 }
@@ -29,9 +30,18 @@ final class CustomShaderEffect: GlEffect {
 private final class CustomShaderProgram: BaseGlShaderProgram {
     private let program: GlProgram
     private let hasInputSampler: Bool
+    private let effectOffset: Double
+    private let effectDuration: Double
+    private let sourceOffset: Double
+    private let sourceRate: Double
+    private let timeUniforms: [String]
 
-    init(shader: JSONObject) {
+    init(shader: JSONObject, clock: JSONObject) {
         super.init(false, 1)
+        effectOffset = clock.getDouble("effectOffset")
+        effectDuration = clock.getDouble("effectDuration")
+        sourceOffset = clock.getDouble("sourceOffset")
+        sourceRate = clock.getDouble("sourceRate")
         program = GlProgram("""
             attribute vec4 aPosition;
             varying vec2 vTexCoord;
@@ -41,8 +51,12 @@ private final class CustomShaderProgram: BaseGlShaderProgram {
             }
             """, shader.getString("fragmentShader"))
         hasInputSampler = program.getUniformLocation("uTexSampler") >= 0
+        timeUniforms = ["uProjectTime", "uEffectTime", "uSourceTime", "uProgress"].filter { program.getUniformLocation($0) >= 0 }
         do {
             program.setBufferAttribute("aPosition", GlUtil.getNormalizedCoordinateBounds(), 4)
+            if program.getUniformLocation("uEffectDuration") >= 0 {
+                program.setFloatUniform("uEffectDuration", Float(effectDuration))
+            }
             let uniforms = shader.getJSONObject("uniforms")
             let names = uniforms.keys()
             while names.hasNext() {
@@ -75,6 +89,17 @@ private final class CustomShaderProgram: BaseGlShaderProgram {
             // Constant-color generators may legitimately omit the input sampler.
             if hasInputSampler {
                 program.setSamplerTexIdUniform("uTexSampler", inputTexId, 0)
+            }
+            let projectTime = Double(presentationTimeUs) / 1_000_000
+            for name in timeUniforms {
+                let value: Double
+                switch name {
+                case "uEffectTime": value = projectTime + effectOffset
+                case "uSourceTime": value = projectTime * sourceRate + sourceOffset
+                case "uProgress": value = max(0.0, min(1.0, (projectTime + effectOffset) / effectDuration))
+                default: value = projectTime
+                }
+                program.setFloatUniform(name, Float(value))
             }
             program.bindAttributesAndUniforms()
             GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)

@@ -40,8 +40,9 @@ struct AndroidRenderPlan: Encodable {
         let kind: String
         let value: Double
         let shader: AndroidVisualEffect?
-        init(kind: String, value: Double = 0, shader: AndroidVisualEffect? = nil) {
-            self.kind = kind; self.value = value; self.shader = shader
+        let clock: EffectClock?
+        init(kind: String, value: Double = 0, shader: AndroidVisualEffect? = nil, clock: EffectClock? = nil) {
+            self.kind = kind; self.value = value; self.shader = shader; self.clock = clock
         }
     }
     struct GainPoint: Encodable { let seconds: Double; let gain: Double }
@@ -92,7 +93,7 @@ struct AndroidRenderPlan: Encodable {
                     }
                     let shader = try factory(parameters)
                     try shader.validate()
-                    return Filter(kind: "custom", shader: shader)
+                    return Filter(kind: "custom", shader: shader, clock: EffectClock(clip: clip))
                 }
             }
             let audioFilters = clip.audio.filters.map { filter -> AudioEffect in

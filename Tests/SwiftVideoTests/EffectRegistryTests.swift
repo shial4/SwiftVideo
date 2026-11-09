@@ -106,10 +106,32 @@ import Testing
                        AndroidVisualEffect(fragmentShader: "shader", uniforms: ["": [1]]),
                        AndroidVisualEffect(fragmentShader: "shader", uniforms: ["uTexSampler": [0]]),
                        AndroidVisualEffect(fragmentShader: "shader", uniforms: ["uTexelSize": [1, 1]]),
+                       AndroidVisualEffect(fragmentShader: "shader", uniforms: ["uEffectTime": [1]]),
                        AndroidVisualEffect(fragmentShader: "shader", uniforms: ["value": []]),
                        AndroidVisualEffect(fragmentShader: "shader", uniforms: ["value": [.nan]]),
                        AndroidVisualEffect(fragmentShader: "shader", uniforms: ["value": [1, 2, 3, 4, 5]])] {
             #expect(throws: VideoError.self) { try shader.validate() }
         }
+    }
+
+    @Test func effectClockPreservesAuthoredTimeAfterEditsAndRetiming() async throws {
+        let clip = try MediaClip.video(URL(fileURLWithPath: "/video.mp4"), duration: VideoTime(value: 4, timescale: 1))
+            .starting(at: VideoTime(value: 2, timescale: 1)).sourceStarting(at: VideoTime(value: 1, timescale: 1)).speed(.double)
+        let track = try MediaTrack(clips: [clip]).speed(.half)
+        let editor = try VideoEditor(project: VideoProject(tracks: [track]))
+        _ = try await editor.apply([.trim(clip.id, keeping: VideoTimeRange(start: VideoTime(value: 1, timescale: 1), duration: VideoTime(value: 2, timescale: 1)))])
+        let project = try await editor.apply([.split(clip.id, at: VideoTime(value: 4, timescale: 1), rightID: UUID())])
+        let resolved = try project.renderClips()
+        let left = EffectClock(clip: resolved[0])
+        let right = EffectClock(clip: resolved[1])
+        #expect(left.context(at: 3.5).effectTime == 1.5)
+        #expect(left.context(at: 3.5).sourceTime == 2.5)
+        #expect(right.context(at: 4.5).effectTime == 2.5)
+        #expect(right.context(at: 4.5).sourceTime == 3.5)
+        #expect(right.context(at: 4.5).effectDuration == 4)
+        #expect(right.context(at: 4.5).projectTime == 4.5)
+        #expect(right.context(at: 4.5).progress == 0.625)
+        #expect(right.context(at: 0).progress == 0)
+        #expect(right.context(at: 10).progress == 1)
     }
 }

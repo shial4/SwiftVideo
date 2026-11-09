@@ -19,14 +19,14 @@ enum AppleFrameRenderer {
             } else if let image = images[clip.id] { source = image }
             else { throw VideoError.invalidMedia("No visual source was prepared for clip \(clip.id).") }
             let transform = try clip.visualTransform(at: time)
-            let image = try apply(clip.filters, to: source, clipID: clip.id, effects: effects)
+            let image = try apply(clip.filters, to: source, clipID: clip.id, projectTime: time.seconds, effects: effects)
             let placed = place(image, transform: transform, canvas: canvas)
             frame = placed.composited(over: frame).cropped(to: canvas)
         }
         return frame
     }
 
-    static func apply(_ filters: [MediaFilter], to source: CIImage, clipID: UUID, effects: AppleVisualEffects) throws -> CIImage {
+    static func apply(_ filters: [MediaFilter], to source: CIImage, clipID: UUID, projectTime: Double, effects: AppleVisualEffects) throws -> CIImage {
         try filters.enumerated().reduce(source) { image, entry in
             let (index, filter) = entry
             switch filter {
@@ -35,7 +35,7 @@ enum AppleFrameRenderer {
             case .saturation(let value): return image.applyingFilter("CIColorControls", parameters: [kCIInputSaturationKey: value])
             case .sepia(let value): return image.applyingFilter("CISepiaTone", parameters: [kCIInputIntensityKey: value])
             case .gaussianBlur(let value): return image.clampedToExtent().applyingFilter("CIGaussianBlur", parameters: [kCIInputRadiusKey: value]).cropped(to: image.extent)
-            case .custom: return try effects.apply(to: image, clipID: clipID, filterIndex: index)
+            case .custom: return try effects.apply(to: image, clipID: clipID, filterIndex: index, projectTime: projectTime)
             }
         }
     }

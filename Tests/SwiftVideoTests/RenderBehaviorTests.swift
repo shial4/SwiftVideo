@@ -13,6 +13,32 @@ import CoreGraphics
 #endif
 
 @Suite(.serialized) struct RenderBehaviorTests {
+    @Test(arguments: [false, true]) func customEffectClockSurvivesRetimingTrimmingAndSplitting(video: Bool) async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("custom-clock-\(UUID())")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        #if os(Android)
+        let source = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: video ? "blue.mp4" : "green.png"))
+        #else
+        let source = try #require(Bundle.module.url(forResource: video ? "blue" : "green", withExtension: video ? "mp4" : "png"))
+        #endif
+        let fifth = try VideoTime(value: 1, timescale: 5)
+        let clip = try MediaClip(source: video ? .video(source) : .image(source), start: fifth,
+            duration: VideoTime(value: 4, timescale: 5), sourceStart: VideoTime(value: 1, timescale: 10),
+            audio: AudioSettings(isMuted: true)).speed(.double)
+        let track = try MediaTrack(clips: [clip]).speed(.quarter).filter(.custom(EffectReference(CustomEffectFixture.clockID)))
+        let editor = try VideoEditor(project: VideoProject(tracks: [track]))
+        _ = try await editor.apply([.trim(clip.id, keeping: VideoTimeRange(start: VideoTime(value: 2, timescale: 5), duration: VideoTime(value: 4, timescale: 5)))])
+        let project = try await editor.apply([.split(clip.id, at: VideoTime(value: 1, timescale: 1), rightID: UUID())])
+        let destination = folder.appendingPathComponent("clock.mp4")
+        try await VideoExporter(effects: CustomEffectFixture.clockRegistry()).export(project, to: destination,
+            settings: ExportSettings(resolution: VideoSize(width: 320, height: 180)))
+        let early = try await centerPixel(destination, at: 0.8)
+        let later = try await centerPixel(destination, at: 1.2)
+        #expect(early[1] > 190 && early[0] < 35 && early[2] < 35, "Before split: \(early)")
+        #expect(later[2] > 190 && later[0] < 35 && later[1] < 35, "After split: \(later)")
+    }
+
     @Test(arguments: [false, true]) func customGPUFiltersChangeImageAndVideoPixels(video: Bool) async throws {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("custom-effect-\(UUID())")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -175,13 +201,15 @@ import CoreGraphics
         #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path).isEmpty)
     }
 
-    private func centerPixel(_ url: URL) async throws -> [Double] {
+    private func centerPixel(_ url: URL, at seconds: Double = 0.5) async throws -> [Double] {
         #if os(Android)
-        let stats = try Media3TestSupport.frameStats(path: url.path, timeUs: 500_000)
+        let stats = try Media3TestSupport.frameStats(path: url.path, timeUs: Int64((seconds * 1_000_000).rounded()))
         return Array(stats[3...5])
         #else
         let generator = AVAssetImageGenerator(asset: AVURLAsset(url: url))
-        let image = try await generator.image(at: CMTime(seconds: 0.5, preferredTimescale: 600)).image
+        generator.requestedTimeToleranceBefore = .zero
+        generator.requestedTimeToleranceAfter = .zero
+        let image = try await generator.image(at: CMTime(seconds: seconds, preferredTimescale: 600)).image
         var bytes = [UInt8](repeating: 0, count: image.width * image.height * 4)
         try bytes.withUnsafeMutableBytes { storage in
             let context = try #require(CGContext(data: storage.baseAddress, width: image.width, height: image.height,

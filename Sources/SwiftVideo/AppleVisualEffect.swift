@@ -9,7 +9,7 @@ import Foundation
 /// Return a lazy Core Image graph; the renderer evaluates it using its shared Metal CIContext.
 /// Keep the input extent and premultiplied alpha. Do not read pixels back to the CPU.
 public protocol AppleVisualEffectProcessor: AnyObject {
-    func apply(to image: CIImage) throws -> CIImage
+    func apply(to image: CIImage, context: EffectContext) throws -> CIImage
     /// Called exactly once after preparation, including failure and cancellation paths.
     func finish()
 }
@@ -26,7 +26,11 @@ extension VisualEffectDefinition {
 
 /// Export-owned processors. No processor or mutable filter instance is shared across exports.
 final class AppleVisualEffects {
-    private var processors: [UUID: [Int: any AppleVisualEffectProcessor]] = [:]
+    private struct PreparedEffect {
+        let processor: any AppleVisualEffectProcessor
+        let clock: EffectClock
+    }
+    private var processors: [UUID: [Int: PreparedEffect]] = [:]
 
     init(clips: [MediaClip], registry: EffectRegistry) throws {
         do {
@@ -37,7 +41,7 @@ final class AppleVisualEffects {
                     guard let factory = definition.appleFactory else {
                         throw VideoError.unsupportedFeature("The custom effect has no Apple implementation.")
                     }
-                    processors[clip.id, default: [:]][index] = try factory(parameters)
+                    processors[clip.id, default: [:]][index] = try PreparedEffect(processor: factory(parameters), clock: EffectClock(clip: clip))
                 }
             }
         } catch {
@@ -46,11 +50,11 @@ final class AppleVisualEffects {
         }
     }
 
-    func apply(to image: CIImage, clipID: UUID, filterIndex: Int) throws -> CIImage {
-        guard let processor = processors[clipID]?[filterIndex] else {
+    func apply(to image: CIImage, clipID: UUID, filterIndex: Int, projectTime: Double) throws -> CIImage {
+        guard let effect = processors[clipID]?[filterIndex] else {
             throw VideoError.renderingFailed("A custom visual effect was not prepared.")
         }
-        let result = try processor.apply(to: image)
+        let result = try effect.processor.apply(to: image, context: effect.clock.context(at: projectTime))
         guard !result.extent.isEmpty, !result.extent.isInfinite,
               result.extent == image.extent else {
             throw VideoError.renderingFailed("A custom visual effect must preserve its input image extent.")
@@ -59,7 +63,7 @@ final class AppleVisualEffects {
     }
 
     func finish() {
-        for chain in processors.values { for processor in chain.values { processor.finish() } }
+        for chain in processors.values { for effect in chain.values { effect.processor.finish() } }
         processors.removeAll()
     }
 }

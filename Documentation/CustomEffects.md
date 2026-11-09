@@ -51,7 +51,7 @@ final class ChannelRotation: AppleVisualEffectProcessor {
     let amount: Double
     init(amount: Double) { self.amount = amount }
 
-    func apply(to image: CIImage) throws -> CIImage {
+    func apply(to image: CIImage, context: EffectContext) throws -> CIImage {
         image.applyingFilter("CIColorMatrix", parameters: [
             "inputRVector": CIVector(x: 1 - amount, y: amount, z: 0, w: 0),
             "inputGVector": CIVector(x: 0, y: 1 - amount, z: amount, w: 0),
@@ -93,6 +93,24 @@ Keep older effect versions registered when restoring projects that use them. Inc
 
 On Apple, the factory runs once per clip/filter/export. Return a fresh processor each time. Its synchronous methods run on the renderer's serial executor. Build a lazy Core Image graph, optionally using your own compiled Core Image Metal kernels. Preserve the input extent and premultiplied alpha. The renderer evaluates the graph through its shared Metal-backed `CIContext`; do not create another context or read pixels back to the CPU. Override `finish()` to release your resources. It is called once for every successfully prepared processor, including later preparation failures, render failures and cancellation.
 
-On Android, the factory returns an OpenGL ES 2.0 fragment shader and float uniforms. Media3 compiles it once on the GL context's thread and releases its program and output textures when the export ends. Use `uTexSampler` for the input 2D texture and `vTexCoord` for normalized texture coordinates. Optional `uTexelSize` is a `vec2` containing reciprocal input width and height. User uniforms support float, vec2, vec3 and vec4 values and must match active uniforms in the shader. The two renderer-owned uniform names cannot be overridden. Preserve the input size and write straight-alpha RGBA: reducing opacity changes alpha without multiplying RGB. Media3's compositor multiplies the source RGB by alpha when blending. No pixel transfer through the Swift/Kotlin bridge is added.
+On Android, the factory returns an OpenGL ES 2.0 fragment shader and float uniforms. Media3 compiles it once on the GL context's thread and releases its program and output textures when the export ends. Use `uTexSampler` for the input 2D texture and `vTexCoord` for normalized texture coordinates. Optional `uTexelSize` is a `vec2` containing reciprocal input width and height. User uniforms support float, vec2, vec3 and vec4 values and must match active uniforms in the shader. Renderer-owned uniform names cannot be overridden. Preserve the input size and write straight-alpha RGBA: reducing opacity changes alpha without multiplying RGB. Media3's compositor multiplies the source RGB by alpha when blending. No pixel transfer through the Swift/Kotlin bridge is added.
 
-The current contract is for spatial SDR filters with fixed per-export parameters. Time-varying shader parameters, additional texture inputs, custom audio processors, motion-title presets and segmentation are later milestones. Shader compilation and device GL limits can still cause export failure; the normal staging cleanup and destination protection apply. Emulator results verify behavior, not physical-device throughput or vendor GPU compatibility.
+## Animate an effect
+
+Apple's `apply(to:context:)` receives an `EffectContext`. Android shaders can declare the corresponding optional float uniforms. All times below are render-time seconds; model editing still uses exact rational `VideoTime` values.
+
+| Apple context property | Android uniform | Meaning |
+| --- | --- | --- |
+| `projectTime` | `uProjectTime` | Position on the composition timeline |
+| `effectTime` | `uEffectTime` | Position in the original effect, including time removed by trim/split |
+| `effectDuration` | `uEffectDuration` | Original effect duration after clip and track retiming |
+| `sourceTime` | `uSourceTime` | Selected source position, using the combined playback rate |
+| `progress` | `uProgress` | `effectTime / effectDuration`, clamped to `0...1` |
+
+For example, declare `uniform float uProgress;` and compute `float amount = 0.5 - 0.5 * cos(6.2831853 * uProgress);` in a fragment shader to animate a full pulse on the GPU. On Apple, use `context.progress` as an input to your Core Image graph or compiled kernel. Timing uniforms are updated only when present in the Android shader; shader compilation and resource preparation stay outside the frame loop.
+
+Trim and split preserve the original clock. Speed changes retime the effect duration alongside the clip's existing animations and fades. Track effects use each clip's clock, including its inherited rate, rather than a shared track-wide clock. For still images and text, `sourceTime` is the virtual source clock; `effectTime` or `progress` is normally the appropriate animation input.
+
+Apple evaluates custom filters on composition frames. Media3 evaluates a video's custom filters on decoded input frames, then holds the processed result between those frames. If the video's frame rate is lower than the export rate, its procedural effect therefore updates less often on Android. Image and text effects use the requested output frame rate on both platforms.
+
+The current contract supports spatial SDR filters and procedural animation driven by these clocks. Additional texture inputs, keyframed effect parameters, custom audio processors, motion-title presets and segmentation are later milestones. Shader compilation and device GL limits can still cause export failure; the normal staging cleanup and destination protection apply. Emulator results verify behavior, not physical-device throughput or vendor GPU compatibility.
