@@ -11,7 +11,7 @@ At the maintainer's request, release verification uses the iOS Simulator and And
 
 | Release | Contents | Dependency and branch policy |
 | --- | --- | --- |
-| `0.0.2-beta.1` then `0.0.2` | Existing composition/export API, clip and track speed, inherited visual filters, ordered audio EQ, and reliability fixes | Start `codex/stabilize-0.0.2` from `main`; retain stable Media3 1.11.1 |
+| `0.0.2-beta.N` then `0.0.2` | Existing composition/export API, clip and track speed, inherited visual filters, ordered audio EQ, and reliability fixes | Start `codex/stabilize-0.0.2` from `main`; retain stable Media3 1.11.1 |
 | Next `0.1.0-alpha.N`, then `0.1.0-beta.N`, then `0.1.0` | Experimental composition and layer preview from PR #1 | Keep the preview branch separate; merge only after both platform gates and stable dependency criteria pass |
 | Later release, version to be assigned | Custom visual/audio effects, motion titles, animation extensions, masks and background removal | Design after 0.0.2; estimate and deliver in separate increments |
 
@@ -19,7 +19,7 @@ Existing `0.1.0-alpha.*` tags remain unchanged. They are not renamed or promoted
 
 ## Starting evidence
 
-November 10 follow-up: `0.0.2-beta.1` is published at `47ecbae`, but stable promotion is on hold for a newly reproduced early-cancellation defect. With Media3 1.11.1, closing a duration-configured video muxer before its first sample can throw `IllegalArgumentException: capacity < 0: (-8 < 0)` and terminate the application. The failure was observed during the extensibility branch's cancellation tests; beta.1 uses the same muxer setup. The guarded timeline muxer is backported as `c81d6ab`. Local stable-candidate checks pass: 44 macOS tests, 44 iOS Simulator tests, six editor model tests, and API 35 suites with 35 core tests and 44 app tests. Both example builds and all three coverage gates pass. Hosted candidate CI and new-beta publication remain pending. Finish the hosted platform gates, publish a new beta, and restart the five-working-day observation window. Do not promote beta.1 based on its earlier green CI.
+November 10 follow-up: [0.0.2-beta.2](https://github.com/shial4/SwiftVideo/releases/tag/0.0.2-beta.2) is published at `89c0709739ee1724d1186ea1ad06696770dd338a`, superseding beta.1. With Media3 1.11.1, beta.1 could terminate the Android application if cancellation closed a duration-configured video muxer before its first sample (`IllegalArgumentException: capacity < 0: (-8 < 0)`). The guarded timeline muxer is backported as `c81d6ab`. Local checks pass: 44 macOS tests, 44 iOS Simulator tests, six editor model tests, and API 35 suites with 35 core tests and 44 app tests. Both example builds and all three coverage gates pass. [Apple CI](https://github.com/shial4/SwiftVideo/actions/runs/42644747438) and [Android CI](https://github.com/shial4/SwiftVideo/actions/runs/42644747467) passed for the published commit. Independent SwiftPM and Kotlin/AAR consumers also passed against that revision. Beta.1's release notes now identify the crash and direct users to beta.2; its tag is unchanged. Stable promotion waits for the new observation window below.
 
 The relevant upstream path is [InAppMp4Muxer.close](https://github.com/androidx/media/blob/1.11.1/libraries/transformer/src/main/java/androidx/media3/transformer/InAppMp4Muxer.java), which writes an empty duration marker, followed by [Mp4Writer's moov update](https://github.com/androidx/media/blob/1.11.1/libraries/muxer/src/main/java/androidx/media3/muxer/Mp4Writer.java) before any sample has reserved header space. No matching upstream fix has been confirmed. SwiftVideo's workaround adds the duration marker only after a video keyframe has been written and still closes the underlying muxer on failure. It retains Media3's default attempt to place metadata before media for sequential playback.
 
@@ -36,7 +36,7 @@ Estimates assume one engineer, existing toolchains and simulator/emulator runtim
 | 1. Prepare stable candidate | Create the release branch from `main`; backport the Apple blocking-media fix and focused test/coverage improvements | Reviewed diff contains stable features and dependencies only | 0.5-1 day |
 | 2. Verify and fix | Run the complete Apple and Android suites; investigate any failure on this branch before attributing it to preview or upstream | Required tests and coverage pass; no unexplained failures | 2-4 days |
 | 3. Verify consumers and runtimes | Exercise the title/image and captioned picture-in-picture examples, speed/filter combinations, and documented integration paths | Candidate passes on iOS Simulator and Android API 34/35 emulators; documentation states the tested environments and limitations | 1-2 days |
-| 4. Publish and observe beta | Tag a passing candidate as `0.0.2-beta.1`; exercise it through actual package consumers and record findings | Five working days of beta use with no open release-blocking defect | 0.5-1 day, plus observation window |
+| 4. Publish and observe beta | Tag a passing candidate as `0.0.2-beta.N`; exercise it through actual package consumers and record findings | Five working days of beta use with no open release-blocking defect | 0.5-1 day, plus observation window |
 | 5. Release | Merge the passing candidate, verify the resulting `main` SHA, tag `0.0.2`, publish matching notes and update installation guidance | Published tag resolves to the tested commit; package consumer smoke checks pass | 0.5-1 day |
 
 Step 1 reuses these focused changes:
@@ -96,6 +96,8 @@ Upstream work to watch:
 No exact upstream ticket has been identified for the observed color conversion. Prepare a minimal reproduction with codec, device, input color metadata and raw output measurements before deciding where to report it. Do not wait for an unrelated issue to close as evidence of a fix.
 
 ## Monitoring and promotion
+
+The active stable-line beta is `0.0.2-beta.2`, published November 10, 2026 at 02:03 Australia/Brisbane (November 9 at 16:03 UTC). Its media-behavior fix restarts observation. Reserve five full working days after publication: November 11, 12, 13, 16 and 17. The earliest stable consideration is November 18, subject to actual beta-use evidence, passing package consumers and every release gate. Elapsed time alone is not evidence of beta use. Keep [PR #4](https://github.com/shial4/SwiftVideo/pull/4) draft during observation. The former beta.1 window is superseded.
 
 Use this plan's blocker list and existing CI artifacts as the release record. For each candidate, record: SwiftVideo SHA/tag, resolved Media3 version, device/OS, test failures, coverage results, artifact links and the release decision. Keep raw logs and media in CI artifacts, not in source control.
 
