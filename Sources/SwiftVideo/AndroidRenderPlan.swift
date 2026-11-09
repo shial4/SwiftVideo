@@ -28,6 +28,7 @@ struct AndroidRenderPlan: Encodable {
         let sourceDurationUs: Int64
         let speed: Double
         let audioFilters: [AudioEffect]
+        let customAudio: Bool
         let transform: VisualTransform
         let filters: [Filter]
         let muted: Bool
@@ -96,8 +97,9 @@ struct AndroidRenderPlan: Encodable {
                     return Filter(kind: "custom", shader: shader, clock: EffectClock(clip: clip))
                 }
             }
-            let audioFilters = clip.audio.filters.map { filter -> AudioEffect in
+            let audioFilters = clip.audio.filters.compactMap { filter -> AudioEffect? in
                 switch filter {
+                case .custom: nil
                 case .lowPass(let cutoff): AudioEffect(kind: "lowPass", frequencyHz: cutoff, gainDB: 0, bandwidthOctaves: 1)
                 case .highPass(let cutoff): AudioEffect(kind: "highPass", frequencyHz: cutoff, gainDB: 0, bandwidthOctaves: 1)
                 case .parametricEQ(let frequency, let gain, let bandwidth):
@@ -115,7 +117,7 @@ struct AndroidRenderPlan: Encodable {
                         startUs: try Self.microseconds(clip.start), durationUs: try Self.microseconds(clip.duration),
                         sourceStartUs: try Self.microseconds(clip.sourceStart),
                         sourceDurationUs: try Self.microseconds(clip.sourceDuration), speed: clip.playbackRate.multiplier,
-                        audioFilters: audioFilters, transform: clip.transform, filters: filters,
+                        audioFilters: audioFilters, customAudio: clip.audio.filters.contains(where: \.isCustom), transform: clip.transform, filters: filters,
                         muted: clip.audio.isMuted || !clip.source.hasAudio,
                         leftGain: sqrt(1 - clip.audio.pan), rightGain: sqrt(1 + clip.audio.pan), envelope: envelope)
         }

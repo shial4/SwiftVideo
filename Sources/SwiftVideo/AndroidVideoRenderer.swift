@@ -32,13 +32,20 @@ public actor AndroidVideoRenderer: VideoRendering {
         guard let json = String(data: encoded, encoding: .utf8) else { throw VideoError.invalidProject("Cannot serialize Android render plan.") }
         let clips = Dictionary(uniqueKeysWithValues: project.tracks.flatMap(\.clips).map { ($0.id.uuidString, $0) })
         let session = try Media3ExportSession()
+        let audioEffects = Dictionary(uniqueKeysWithValues: try project.renderClips()
+            .filter { $0.audio.filters.contains(where: \.isCustom) }
+            .map { ($0.id.uuidString, AndroidAudioEffects(clip: $0, registry: effects)) })
+        defer { for effect in audioEffects.values { effect.finish() } }
         progress(ExportProgress(phase: .preparing, fraction: 0))
-        try session.start(json: json, outputPath: destination.path) { id, microseconds in
+        try session.start(json: json, outputPath: destination.path, sample: { id, microseconds in
             guard let clip = clips[id], let time = try? VideoTime(value: Int64(microseconds.rounded()), timescale: 1_000_000),
                   (try? clip.timeRange.contains(time)) == true,
                   let transform = try? clip.visualTransform(at: time) else { return [0.5, 0.5, 1, 0, 0] }
             return [transform.x, transform.y, transform.scale, transform.rotation, transform.opacity]
-        }
+        }, audio: { id, sampleRate, channels, data, reset in
+            guard let effect = audioEffects[id] else { throw VideoError.renderingFailed("A custom audio effect was not prepared.") }
+            return try effect.process(data, sampleRate: sampleRate, channels: channels, reset: reset)
+        })
         do {
             while true {
                 try Task.checkCancellation()

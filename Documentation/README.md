@@ -14,6 +14,7 @@ Start with [installation and your first export](../README.md#install), then foll
 | [Public API reference](APIReference.md) | Public types, constructors, defaults, methods, validation rules, renderer contracts, and errors |
 | [Composition recipes](Recipes.md) | Complete functions for an image/title scene, commentary video with captions, crossfades, and a cancellable SwiftUI export model |
 | [Custom visual effects](CustomEffects.md) | Unreleased effect registration, typed parameters and Apple/Android GPU implementations |
+| [Custom audio effects](CustomAudioEffects.md) | Unreleased portable Swift PCM processors, sample effects and lifecycle contract |
 | [Example editor](../Example/README.md) | Build and run the shared SwiftUI editor on Apple and Android |
 | [Tests and coverage](Testing.md) | Test scope, measured coverage, CI gates, and commands to reproduce results |
 | [Release plan](ReleasePlan.md) | 0.0.2 stabilization, preview blockers, release gates, upstream monitoring, and later extensibility |

@@ -189,7 +189,7 @@ public actor AppleVideoRenderer: VideoRendering {
                 for clip in clips where audioTracks[clip.id] != nil {
                     if try clip.start < endTime && clip.timeRange.end > audioTime {
                         if audio[clip.id] == nil, let asset = assets[clip.id], let track = audioTracks[clip.id] {
-                            audio[clip.id] = try AppleClipAudioSource(asset: asset, track: track, clip: clip)
+                            audio[clip.id] = try AppleClipAudioSource(asset: asset, track: track, clip: clip, effects: effects)
                         }
                     } else { audio[clip.id] = nil }
                 }

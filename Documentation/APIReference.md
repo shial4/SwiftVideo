@@ -217,6 +217,7 @@ Ordered per-clip DSP before gain, pan, fades, and mixing:
 
 - `.lowPass(cutoffHz: Double)` and `.highPass(cutoffHz: Double)`.
 - `.parametricEQ(frequencyHz: Double, gainDB: Double, bandwidthOctaves: Double)`.
+- `.custom(EffectReference)` on the unreleased extensibility branch. See [custom audio effects](CustomAudioEffects.md) for portable Swift processors, reset/cleanup, timing, and examples.
 
 All parameters must be finite. Frequency must be at least 20 Hz and below the source
 and processing Nyquist frequencies; gain is -24...24 dB, bandwidth 0.05...5 octaves.
@@ -300,7 +301,7 @@ Implementations must finish a playable file or throw, poll task cancellation, an
 
 `RendererCapabilities(name:features:codecs:containers:)` stores a `String`, `Set<CompositionFeature>`, `Set<VideoCodec>`, and `Set<VideoContainer>`. All properties are read-only. `validate(_:settings:) throws` rejects unavailable codec/container combinations and features required by the project's clips. It does not probe device codecs, validate all project values, or load media.
 
-`CompositionFeature` cases are `.video`, `.images`, `.text`, `.filters`, `.animation`, `.audioMixing`, `.audioFades`, `.audioPan`, `.customFonts`, `.playbackSpeed`, and `.audioFilters`. The unreleased extensibility branch adds `.customVisualEffects` and an optional `effects: EffectRegistry = .empty` argument to `VideoExporter`, `AppleVideoRenderer` and `AndroidVideoRenderer` initializers. See the [registration and GPU contract](CustomEffects.md).
+`CompositionFeature` cases are `.video`, `.images`, `.text`, `.filters`, `.animation`, `.audioMixing`, `.audioFades`, `.audioPan`, `.customFonts`, `.playbackSpeed`, and `.audioFilters`. The unreleased extensibility branch adds `.customVisualEffects`, `.customAudioEffects`, and an optional `effects: EffectRegistry = .empty` argument to `VideoExporter`, `AppleVideoRenderer` and `AndroidVideoRenderer` initializers. See the [registration and GPU contract](CustomEffects.md) and [audio processing contract](CustomAudioEffects.md).
 
 | Built-in renderer | Availability and responsibilities |
 | --- | --- |

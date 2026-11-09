@@ -124,30 +124,35 @@ public struct VisualEffectDefinition: Sendable {
     }
 
     func resolve(_ reference: EffectReference) throws -> [String: EffectValue] {
-        try reference.validate()
-        guard reference.parameters.keys.allSatisfy({ parameters[$0] != nil }) else {
-            throw VideoError.invalidProject("Unknown parameter for effect '\(id.name)' version \(id.version).")
-        }
-        var resolved: [String: EffectValue] = [:]
-        for (name, schema) in parameters {
-            guard let value = reference.parameters[name] ?? schema.defaultValue else {
-                throw VideoError.invalidProject("Missing required effect parameter '\(name)'.")
-            }
-            try schema.validate(value, name: name)
-            resolved[name] = value
-        }
-        return resolved
+        try resolveEffectParameters(reference, schemas: parameters)
     }
+}
+
+func resolveEffectParameters(_ reference: EffectReference, schemas: [String: EffectParameter]) throws -> [String: EffectValue] {
+    try reference.validate()
+    guard reference.parameters.keys.allSatisfy({ schemas[$0] != nil }) else {
+        throw VideoError.invalidProject("Unknown parameter for effect '\(reference.id.name)' version \(reference.id.version).")
+    }
+    var resolved: [String: EffectValue] = [:]
+    for (name, schema) in schemas {
+        guard let value = reference.parameters[name] ?? schema.defaultValue else {
+            throw VideoError.invalidProject("Missing required effect parameter '\(name)'.")
+        }
+        try schema.validate(value, name: name)
+        resolved[name] = value
+    }
+    return resolved
 }
 
 /// Immutable and safe to share between exporters. Registration never changes global state.
 public struct EffectRegistry: Sendable {
     private let visual: [EffectIdentifier: VisualEffectDefinition]
-    public static let empty = EffectRegistry(registeredVisual: [:])
+    private let audio: [EffectIdentifier: AudioEffectDefinition]
+    public static let empty = EffectRegistry()
 
-    private init(registeredVisual: [EffectIdentifier: VisualEffectDefinition]) { visual = registeredVisual }
+    private init() { visual = [:]; audio = [:] }
 
-    public init(visual definitions: [VisualEffectDefinition]) throws {
+    public init(visual definitions: [VisualEffectDefinition] = [], audio audioDefinitions: [AudioEffectDefinition] = []) throws {
         var registered: [EffectIdentifier: VisualEffectDefinition] = [:]
         for definition in definitions {
             try definition.id.validate()
@@ -157,15 +162,25 @@ public struct EffectRegistry: Sendable {
             }
         }
         visual = registered
+        var registeredAudio: [EffectIdentifier: AudioEffectDefinition] = [:]
+        for definition in audioDefinitions {
+            try definition.id.validate()
+            for (name, schema) in definition.parameters { try schema.validateSchema(name: name) }
+            guard visual[definition.id] == nil, registeredAudio.updateValue(definition, forKey: definition.id) == nil else {
+                throw VideoError.invalidProject("Duplicate effect '\(definition.id.name)' version \(definition.id.version).")
+            }
+        }
+        audio = registeredAudio
     }
 
     public func supportedPlatforms(for id: EffectIdentifier) -> Set<EffectPlatform> {
-        visual[id]?.supportedPlatforms ?? []
+        visual[id]?.supportedPlatforms ?? audio[id]?.supportedPlatforms ?? []
     }
 
     public func validate(_ project: VideoProject, for platform: EffectPlatform) throws {
         for clip in try project.renderClips() {
             for case .custom(let reference) in clip.filters { _ = try resolve(reference, for: platform) }
+            for case .custom(let reference) in clip.audio.filters { _ = try resolveAudio(reference, for: platform) }
         }
     }
 
@@ -177,6 +192,18 @@ public struct EffectRegistry: Sendable {
         let parameters = try definition.resolve(reference)
         guard definition.supportedPlatforms.contains(platform) else {
             throw VideoError.unsupportedFeature("Effect '\(reference.id.name)' version \(reference.id.version) has no \(platform.rawValue) implementation.")
+        }
+        return (definition, parameters)
+    }
+
+    func resolveAudio(_ reference: EffectReference, for platform: EffectPlatform) throws -> (AudioEffectDefinition, [String: EffectValue]) {
+        try reference.validate()
+        guard let definition = audio[reference.id] else {
+            throw VideoError.unsupportedFeature("Audio effect '\(reference.id.name)' version \(reference.id.version) is not registered.")
+        }
+        let parameters = try resolveEffectParameters(reference, schemas: definition.parameters)
+        guard definition.supportedPlatforms.contains(platform) else {
+            throw VideoError.unsupportedFeature("Audio effect '\(reference.id.name)' version \(reference.id.version) has no \(platform.rawValue) implementation.")
         }
         return (definition, parameters)
     }
