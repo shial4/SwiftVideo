@@ -3,22 +3,24 @@
 
 [Documentation index](README.md) | [Public API reference](APIReference.md)
 
-The local verification snapshot for [0.0.2 stabilization](ReleasePlan.md) was measured on November 9, 2026. The 0.0.1 tag predates the playback speed and ordered filter APIs. Coverage reports contain executable-line counts, not estimates. Release verification uses iOS Simulator and Android emulators; physical-device access is not a prerequisite. Beta observation remains a separate release gate.
+The local verification snapshot for [0.0.2 stabilization](ReleasePlan.md) was measured on November 10, 2026, for cancellation-fix candidate `c81d6ab`. The 0.0.1 tag predates the playback speed and ordered filter APIs. Coverage reports contain executable-line counts, not estimates. Release verification uses iOS Simulator and Android emulators; physical-device access is not a prerequisite. Beta observation remains a separate release gate.
 
 | Target | Observed result | Coverage |
 | --- | --- | --- |
 | macOS library | 44 tests, 6 suites passed | Integration and core behavior |
-| iOS 27.0 Simulator | 44 tests, 6 suites passed | 1,467 / 1,538 lines, 95.38% |
-| Android API 34 and API 35 arm64 instrumentation | 43 tests, 6 suites passed on each | Real Media3 exports and native Swift tests |
+| iOS 27.0 Simulator | 44 tests, 6 suites passed | 1,471 / 1,538 lines, 95.64% |
+| Android API 35 arm64 instrumentation | 44 tests, 6 suites passed | Real Media3 exports and native Swift tests |
 | Android native Swift core | 35 tests, 4 suites passed | 921 / 960 lines, 95.94% |
-| Android Media3 bridge | API 34 instrumentation coverage | 404 / 442 generated lines, 91.40% |
+| Android Media3 bridge | API 35 instrumentation coverage | 434 / 475 generated lines, 91.37% |
 | Example editor model on macOS | 6 tests passed | Asset loading, edits, history, selection, failure handling |
 
 See the checked-in [iOS](Coverage/ios.json), [Android core](Coverage/android-core.json), and [Media3](Coverage/android-media3.json) reports. These are verification snapshots for the documented revision. GitHub Actions uploads reports for each run; README workflow badges link to the current result.
 
 Candidate `7947b27` also passed [hosted Apple CI](https://github.com/shial4/SwiftVideo/actions/runs/42527055392) and [hosted Android CI](https://github.com/shial4/SwiftVideo/actions/runs/42527055454), including all three coverage gates and the example builds. A standalone SwiftPM consumer exported a title with combined clip/track speed and filters. The documented Kotlin wrapper was packaged into AARs and invoked from a standalone native Kotlin consumer on API 34; export/decode and missing-input cleanup checks passed. An unsigned Release build for physical iPhones also compiled, but has not been run on hardware.
 
-The November 9 example builds pass for iOS Simulator and Android, with six editor model tests passing on macOS. The original 0.0.1 manual editor checks covered macOS, iOS Simulator, and Android Emulator. That release's Android example export was independently decoded as an 8-second, 1920x1080, 30 fps MP4 with audio; inspected frames confirmed the image/title scene and captioned picture-in-picture scene.
+The November 10 example builds pass for iOS Simulator and Android, with six editor model tests passing on macOS. The original 0.0.1 manual editor checks covered macOS, iOS Simulator, and Android Emulator. That release's Android example export was independently decoded as an 8-second, 1920x1080, 30 fps MP4 with audio; inspected frames confirmed the image/title scene and captioned picture-in-picture scene.
+
+The November 10 candidate fixes a Media3 crash when cancellation closes a registered video track before its first sample. The regression directly exercises the production muxer with one- and two-second timeline endpoints; the existing one-frame export tests confirm that the duration fix remains intact. Hosted CI and beta.2 publication are pending. Beta.1 must not be promoted; a new beta restarts the observation period.
 
 ## What the tests verify
 
@@ -30,6 +32,7 @@ The November 9 example builds pass for iOS Simulator and Android, with six edito
 - Export progress, cancellation, cleanup after failure, unsupported capabilities, and protection of existing destinations.
 - Independently decoded real exports: duration, dimensions, frame changes, filters, crop, stacking, image opacity, text/animation, audio energy, stereo pan, and fades.
 - One-frame Android MP4 exports retain their requested 25 ms or 33.33 ms duration and decode the expected image. The regression test reproduced zero-duration output before the muxer endpoint fix.
+- Empty Android video tracks close safely after early cancellation; normal exports retain their requested final duration.
 - Android fixture copies have independent file contents, so parallel tests cannot overwrite media another test is decoding.
 
 The media fixtures are deterministic red/blue videos, a green image, and synthesized audio. Pixel and PCM measurements use platform decoders independently of the compositor. Tests allow codec/color conversion tolerances; they do not compare byte-identical compressed files across platforms.

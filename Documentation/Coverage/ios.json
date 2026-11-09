@@ -1,5 +1,5 @@
 {
-  "covered" : 1467,
+  "covered" : 1471,
   "executable" : 1538,
   "files" : [
     {
@@ -8,7 +8,7 @@
       "file" : "Sources/SwiftVideo/AndroidRenderPlan.swift"
     },
     {
-      "covered" : 101,
+      "covered" : 105,
       "executable" : 109,
       "file" : "Sources/SwiftVideo/AppleAudioProcessing.swift"
     },
@@ -83,6 +83,6 @@
       "file" : "Sources/SwiftVideo/VisualStyle.swift"
     }
   ],
-  "linePercent" : 95.38361508452536,
+  "linePercent" : 95.64369310793238,
   "suite" : "ios"
 }

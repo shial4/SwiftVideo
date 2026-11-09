@@ -1,6 +1,6 @@
 {
-  "covered" : 404,
-  "executable" : 442,
+  "covered" : 434,
+  "executable" : 475,
   "files" : [
     {
       "covered" : 69,
@@ -16,8 +16,13 @@
       "covered" : 271,
       "executable" : 298,
       "file" : "Sources/SwiftVideoMedia3/Media3ExportSession.kt"
+    },
+    {
+      "covered" : 30,
+      "executable" : 33,
+      "file" : "Sources/SwiftVideoMedia3/Media3TimelineMuxer.kt"
     }
   ],
-  "linePercent" : 91.4027149321267,
+  "linePercent" : 91.36842105263158,
   "suite" : "android-media3"
 }
