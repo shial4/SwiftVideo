@@ -36,7 +36,7 @@ enum AppleFrameRenderer {
             case .saturation(let value): return image.applyingFilter("CIColorControls", parameters: [kCIInputSaturationKey: value])
             case .sepia(let value): return image.applyingFilter("CISepiaTone", parameters: [kCIInputIntensityKey: value])
             case .gaussianBlur(let value): return image.clampedToExtent().applyingFilter("CIGaussianBlur", parameters: [kCIInputRadiusKey: value]).cropped(to: image.extent)
-            case .custom: return try effects.apply(to: image, clipID: clipID, filterIndex: index, projectTime: projectTime)
+            case .custom, .mask, .chromaKey: return try effects.apply(to: image, clipID: clipID, filterIndex: index, projectTime: projectTime)
             }
         }
     }

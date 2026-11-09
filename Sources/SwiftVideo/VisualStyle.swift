@@ -64,6 +64,8 @@ public enum MediaFilter: Hashable, Codable, Sendable {
     case saturation(Double)
     case gaussianBlur(Double)
     case sepia(Double)
+    case mask(VideoMask)
+    case chromaKey(ChromaKey)
     case custom(EffectReference)
 }
 

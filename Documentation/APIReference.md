@@ -181,6 +181,8 @@ Filters run in array order. All arguments must be finite.
 | `.saturation(Double)` | Nonnegative; one is unchanged, zero is grayscale. |
 | `.gaussianBlur(Double)` | Nonnegative radius; zero is unchanged. Native filter pipelines may differ slightly. |
 | `.sepia(Double)` | `0...1` intensity. |
+| `.mask(VideoMask)` | Unreleased: rectangle or ellipse, normalized source bounds, inward feather `0...0.5`, optional inversion. See [masks](MasksAndChromaKey.md). |
+| `.chromaKey(ChromaKey)` | Unreleased: opaque sRGB key color, tolerance and softness in `0...1` with sum at most one. See [chroma key](MasksAndChromaKey.md#remove-a-green-background). |
 | `.custom(EffectReference)` | Unreleased: a registered exact effect version with validated parameters. See [custom visual effects](CustomEffects.md). |
 
 ### TextStyle and TextShadow
@@ -320,7 +322,7 @@ Implementations must finish a playable file or throw, poll task cancellation, an
 
 `RendererCapabilities(name:features:codecs:containers:)` stores a `String`, `Set<CompositionFeature>`, `Set<VideoCodec>`, and `Set<VideoContainer>`. All properties are read-only. `validate(_:settings:) throws` rejects unavailable codec/container combinations and features required by the project's clips. It does not probe device codecs, validate all project values, or load media.
 
-`CompositionFeature` cases are `.video`, `.images`, `.text`, `.filters`, `.animation`, `.audioMixing`, `.audioFades`, `.audioPan`, `.customFonts`, `.playbackSpeed`, and `.audioFilters`. The unreleased extensibility branch adds `.customVisualEffects`, `.customAudioEffects`, and an optional `effects: EffectRegistry = .empty` argument to `VideoExporter`, `AppleVideoRenderer` and `AndroidVideoRenderer` initializers. See the [registration and GPU contract](CustomEffects.md) and [audio processing contract](CustomAudioEffects.md).
+`CompositionFeature` cases are `.video`, `.images`, `.text`, `.filters`, `.animation`, `.audioMixing`, `.audioFades`, `.audioPan`, `.customFonts`, `.playbackSpeed`, and `.audioFilters`. The unreleased extensibility branch adds `.customVisualEffects`, `.customAudioEffects`, `.motionTitles`, `.masks`, `.chromaKey`, and an optional `effects: EffectRegistry = .empty` argument to `VideoExporter`, `AppleVideoRenderer` and `AndroidVideoRenderer` initializers. See the [registration and GPU contract](CustomEffects.md), [audio processing contract](CustomAudioEffects.md), [motion titles](MotionTitles.md), and [masks](MasksAndChromaKey.md).
 
 | Built-in renderer | Availability and responsibilities |
 | --- | --- |

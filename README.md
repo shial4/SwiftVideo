@@ -162,6 +162,7 @@ Choose a smaller resolution for previews and the required delivery resolution fo
 | [Custom visual effects](Documentation/CustomEffects.md) | Unreleased extensibility: versioned registration and GPU filters for Apple and Android |
 | [Custom audio effects](Documentation/CustomAudioEffects.md) | Unreleased portable Swift DSP, soft clipping and echo examples, reset and cleanup |
 | [Motion titles](Documentation/MotionTitles.md) | Unreleased word/character animation, presets, custom timing and GPU rendering |
+| [Masks and chroma key](Documentation/MasksAndChromaKey.md) | Unreleased GPU masks, feathered edges and color-key background removal |
 | [SwiftVideo Studio example](Example/README.md) | Shared editor with playback, undo/redo, scrubbing, and 720p/1080p export |
 
 Documentation is hosted in this GitHub repository. Select your dependency's release tag to read matching docs; `main` follows current development.

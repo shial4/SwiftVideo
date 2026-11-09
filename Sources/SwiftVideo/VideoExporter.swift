@@ -46,7 +46,7 @@ public struct ExportSettings: Hashable, Codable, Sendable {
 
 public enum CompositionFeature: String, Codable, Sendable, CaseIterable {
     case video, images, text, filters, animation, audioMixing, audioFades, audioPan, customFonts, playbackSpeed, audioFilters
-    case customVisualEffects, customAudioEffects, motionTitles
+    case customVisualEffects, customAudioEffects, motionTitles, masks, chromaKey
 }
 
 public struct RendererCapabilities: Sendable {
@@ -76,6 +76,13 @@ public struct RendererCapabilities: Sendable {
             if !clip.audio.filters.isEmpty { required.insert(.audioFilters) }
             if clip.audio.filters.contains(where: \.isCustom) { required.insert(.customAudioEffects) }
             if !clip.filters.isEmpty { required.insert(.filters) }
+            for filter in clip.filters {
+                switch filter {
+                case .mask: required.insert(.masks)
+                case .chromaKey: required.insert(.chromaKey)
+                default: break
+                }
+            }
             if clip.filters.contains(where: { if case .custom = $0 { return true }; return false }) {
                 required.insert(.customVisualEffects)
             }

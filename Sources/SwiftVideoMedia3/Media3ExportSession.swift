@@ -209,8 +209,6 @@ public final class Media3ExportSession {
             if let raster = motionRaster { visualEffects.add(MotionTitleEffect(raster: raster, sample: titleMotion)) }
             let transform = clip.getJSONObject("transform")
             let crop = transform.getJSONObject("crop")
-            visualEffects.add(Crop(Float(crop.getDouble("x") * 2 - 1), Float((crop.getDouble("x") + crop.getDouble("width")) * 2 - 1),
-                                  Float(1 - (crop.getDouble("y") + crop.getDouble("height")) * 2), Float(1 - crop.getDouble("y") * 2)))
             let filters = clip.getJSONArray("filters")
             for filterIndex in 0..<filters.length() {
                 let filter = filters.getJSONObject(filterIndex)
@@ -220,6 +218,9 @@ public final class Media3ExportSession {
                     visualEffects.add(CustomShaderEffect(shader: filter.getJSONObject("shader"), clock: filter.getJSONObject("clock")))
                 } else { visualEffects.add(ColorMatrixEffect(kind: filter.getString("kind"), value: filter.getDouble("value"))) }
             }
+            // Filters use source coordinates on both platforms, before crop and placement.
+            visualEffects.add(Crop(Float(crop.getDouble("x") * 2 - 1), Float((crop.getDouble("x") + crop.getDouble("width")) * 2 - 1),
+                                  Float(1 - (crop.getDouble("y") + crop.getDouble("height")) * 2), Float(1 - crop.getDouble("y") * 2)))
             let layout: Int
             switch transform.getString("contentMode") {
             case "fill": layout = Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP

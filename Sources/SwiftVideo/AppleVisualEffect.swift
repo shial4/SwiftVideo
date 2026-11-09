@@ -36,12 +36,19 @@ final class AppleVisualEffects {
         do {
             for clip in clips {
                 for (index, filter) in clip.filters.enumerated() {
-                    guard case .custom(let reference) = filter else { continue }
-                    let (definition, parameters) = try registry.resolve(reference, for: .apple)
-                    guard let factory = definition.appleFactory else {
-                        throw VideoError.unsupportedFeature("The custom effect has no Apple implementation.")
+                    let processor: any AppleVisualEffectProcessor
+                    switch filter {
+                    case .mask(let mask): processor = AppleShapeMask(mask)
+                    case .chromaKey(let key): processor = AppleChromaKey(key)
+                    case .custom(let reference):
+                        let (definition, parameters) = try registry.resolve(reference, for: .apple)
+                        guard let factory = definition.appleFactory else {
+                            throw VideoError.unsupportedFeature("The custom effect has no Apple implementation.")
+                        }
+                        processor = try factory(parameters)
+                    default: continue
                     }
-                    processors[clip.id, default: [:]][index] = try PreparedEffect(processor: factory(parameters), clock: EffectClock(clip: clip))
+                    processors[clip.id, default: [:]][index] = PreparedEffect(processor: processor, clock: EffectClock(clip: clip))
                 }
             }
         } catch {

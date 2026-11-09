@@ -92,6 +92,27 @@ public final class Media3TestSupport {
         Array(try audioStats(path: path, duration: 2).prefix(3))
     }
 
+    /// RGB samples at top-left pixel coordinate pairs, decoded independently of the renderer.
+    public static func framePixels(path: String, timeUs: Int64, points: [Int]) throws -> [Double] {
+        #if SKIP
+        let retriever = MediaMetadataRetriever()
+        defer { retriever.release() }
+        retriever.setDataSource(path)
+        guard let bitmap = retriever.getFrameAtTime(timeUs, MediaMetadataRetriever.OPTION_CLOSEST) else {
+            throw IllegalStateException("Cannot decode exported frame.")
+        }
+        defer { bitmap.recycle() }
+        var result: [Double] = []
+        for index in stride(from: 0, to: points.count, by: 2) {
+            let pixel = bitmap.getPixel(points[index], points[index + 1])
+            result.append(Double(Color.red(pixel))); result.append(Double(Color.green(pixel))); result.append(Double(Color.blue(pixel)))
+        }
+        return result
+        #else
+        throw unavailable()
+        #endif
+    }
+
     /// Foreground count, centroid, brightest RGB and ink width/height, for white titles over blue.
     public static func titleStats(path: String, timeUs: Int64) throws -> [Double] {
         #if SKIP

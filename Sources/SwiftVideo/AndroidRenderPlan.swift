@@ -89,6 +89,8 @@ struct AndroidRenderPlan: Encodable {
                 case .saturation(let value): return Filter(kind: "saturation", value: value)
                 case .sepia(let value): return Filter(kind: "sepia", value: value)
                 case .gaussianBlur(let value): return Filter(kind: "blur", value: value)
+                case .mask(let mask): return Filter(kind: "custom", shader: mask.androidEffect, clock: EffectClock(clip: clip))
+                case .chromaKey(let key): return Filter(kind: "custom", shader: key.androidEffect, clock: EffectClock(clip: clip))
                 case .custom(let reference):
                     let (definition, parameters) = try effects.resolve(reference, for: .android)
                     guard let factory = definition.androidFactory else {
