@@ -3,6 +3,7 @@
 
 #if !SKIP_BRIDGE
 import Foundation
+import SwiftVideoMedia3
 #if SKIP
 import android.media.MediaMetadataRetriever
 import android.media.MediaExtractor
@@ -15,6 +16,14 @@ import java.io.FileOutputStream
 
 /// Integration fixtures and independent Android output inspection, linked only by tests.
 public final class Media3TestSupport {
+    public static func nativeOpacityEffect(_ opacity: Double) throws -> Media3VisualEffect {
+        #if SKIP
+        return Media3VisualEffect(androidx.media3.effect.AlphaScale(Float(opacity)))
+        #else
+        throw unavailable()
+        #endif
+    }
+
     /// Exercise the actual internal factory without adding test APIs to the library bridge.
     public static func closeEmptyTimelineMuxer(path: String, durationUs: Int64) throws {
         #if SKIP

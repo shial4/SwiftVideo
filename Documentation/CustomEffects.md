@@ -1,7 +1,7 @@
 <!-- Copyright 2026 Software Deck Pty Ltd; SPDX-License-Identifier: Apache-2.0 -->
 # Custom visual effects
 
-This API is under development on `codex/effect-extensibility`. It is not included in 0.0.1 or 0.0.2-beta.1. The first implementation supports app-defined GPU filters for video, images and rasterized text, on individual clips or every visual clip in a track.
+This API is under development on `codex/effect-extensibility`. It is not included in 0.0.1 or the 0.0.2 stabilization line. It supports app-defined GPU filters for video, images and rasterized text, on individual clips or every visual clip in a track.
 
 ## Register an effect
 
@@ -94,6 +94,45 @@ Keep older effect versions registered when restoring projects that use them. Inc
 On Apple, the factory runs once per clip/filter/export. Return a fresh processor each time. Its synchronous methods run on the renderer's serial executor. Build a lazy Core Image graph, optionally using your own compiled Core Image Metal kernels. Preserve the input extent and premultiplied alpha. The renderer evaluates the graph through its shared Metal-backed `CIContext`; do not create another context or read pixels back to the CPU. Override `finish()` to release your resources. It is called once for every successfully prepared processor, including later preparation failures, render failures and cancellation.
 
 On Android, the factory returns an OpenGL ES 2.0 fragment shader and float uniforms. Media3 compiles it once on the GL context's thread and releases its program and output textures when the export ends. Use `uTexSampler` for the input 2D texture and `vTexCoord` for normalized texture coordinates. Optional `uTexelSize` is a `vec2` containing reciprocal input width and height. User uniforms support float, vec2, vec3 and vec4 values and must match active uniforms in the shader. Renderer-owned uniform names cannot be overridden. Preserve the input size and write straight-alpha RGBA: reducing opacity changes alpha without multiplying RGB. Media3's compositor multiplies the source RGB by alpha when blending. No pixel transfer through the Swift/Kotlin bridge is added.
+
+## Native Android adapters
+
+An optional Android adapter can provide a Media3 `GlEffect` when a fragment shader alone is insufficient, for example when integrating a model runtime. Add the `SwiftVideoMedia3` package product to the adapter target. Keep that implementation in a Skip transpiled module with bridging enabled and declare its Media3 dependencies at the same version as SwiftVideo. The composition model and registration remain native Swift.
+
+The adapter returns a typed `Media3VisualEffect` handle. This example belongs in that transpiled module:
+
+```swift
+#if !SKIP_BRIDGE
+import Foundation
+import SwiftVideoMedia3
+
+public final class NativeEffects {
+    public static func opacity(_ value: Double) throws -> Media3VisualEffect {
+        #if SKIP
+        return Media3VisualEffect(androidx.media3.effect.AlphaScale(Float(value)))
+        #else
+        throw NSError(domain: "NativeEffects", code: 1)
+        #endif
+    }
+}
+#endif
+```
+
+Register it in the native Swift Android implementation after importing the adapter's module:
+
+```swift
+#if os(Android)
+let opacity = VisualEffectDefinition(EffectIdentifier("app.native-opacity"))
+    .android { _ in
+        AndroidVisualEffect(nativeFactory: { try NativeEffects.opacity(0.5) })
+    }
+let effects = try EffectRegistry(visual: [opacity])
+#endif
+```
+
+The native factory runs once per clip/filter/export on Media3's application looper. Return a fresh effect and defer GPU allocation to `GlEffect.toGlShaderProgram`; Media3 owns drawing and release on its GL thread. Preserve dimensions and straight alpha, and release every owned resource in the shader program's lifecycle. The adapter receives Media3 presentation timestamps directly; automatic shader clock uniforms apply only to the standard shader path.
+
+Native factories and handles never enter project or render-plan JSON. Encoding a native `AndroidVisualEffect` directly throws; serialize its `EffectReference` through the project instead. A factory error fails the export through the existing staging cleanup. The bridge adds no frame-pixel transfers, but an adapter's own inference or readback costs remain its responsibility. Adding this hook does not add an ML runtime to normal exports.
 
 ## Animate an effect
 

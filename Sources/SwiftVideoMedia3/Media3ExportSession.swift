@@ -49,6 +49,7 @@ public final class Media3ExportSession {
 
     public func start(json: String, outputPath: String, sample: @escaping @Sendable (String, Double) -> [Double],
                       audio: @escaping @Sendable (String, Int, Int, Data, Bool) throws -> Data,
+                      visual: @escaping @Sendable (String, Int) throws -> Media3VisualEffect,
                       titleMotion: @escaping @Sendable (String, Double) throws -> Data) throws {
         #if SKIP
         guard status.compareAndSet(0, 1) else { throw IllegalStateException("An export session can only start once.") }
@@ -59,7 +60,7 @@ public final class Media3ExportSession {
                 let folder = File(context.getCacheDir(), "swiftvideo-" + UUID().uuidString)
                 guard folder.mkdirs() else { throw IllegalStateException("Cannot create export scratch directory.") }
                 self.directory = folder
-                let composition = try self.makeComposition(plan, folder: folder, sample: sample, audio: audio, titleMotion: titleMotion)
+                let composition = try self.makeComposition(plan, folder: folder, sample: sample, audio: audio, visual: visual, titleMotion: titleMotion)
                 let encoder = DefaultEncoderFactory.Builder(context)
                     .setEnableFallback(false)
                     .setRequestedVideoEncoderSettings(VideoEncoderSettings.Builder().setBitrate(plan.getInt("videoBitRate")).build())
@@ -159,6 +160,7 @@ public final class Media3ExportSession {
 
     private func makeComposition(_ plan: JSONObject, folder: File, sample: @escaping (String, Double) -> [Double],
                                  audio: @escaping (String, Int, Int, Data, Bool) throws -> Data,
+                                 visual: @escaping (String, Int) throws -> Media3VisualEffect,
                                  titleMotion: @escaping (String, Double) throws -> Data) throws -> Composition {
         let sequences = java.util.ArrayList<EditedMediaItemSequence>()
         let visualIDs = java.util.ArrayList<String>()
@@ -216,6 +218,8 @@ public final class Media3ExportSession {
                     if filter.getDouble("value") > 0 { visualEffects.add(GaussianBlur(Float(filter.getDouble("value")))) }
                 } else if filter.getString("kind") == "custom" {
                     visualEffects.add(CustomShaderEffect(shader: filter.getJSONObject("shader"), clock: filter.getJSONObject("clock")))
+                } else if filter.getString("kind") == "native" {
+                    visualEffects.add(try visual(clip.getString("id"), filterIndex).effect)
                 } else { visualEffects.add(ColorMatrixEffect(kind: filter.getString("kind"), value: filter.getDouble("value"))) }
             }
             // Filters use source coordinates on both platforms, before crop and placement.

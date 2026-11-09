@@ -14,6 +14,7 @@ let package = Package(
     platforms: [.iOS(.v17), .macOS(.v14)],
     products: [
         .library(name: "SwiftVideo", type: needsAndroidMetadata ? .dynamic : nil, targets: ["SwiftVideo"]),
+        .library(name: "SwiftVideoMedia3", targets: ["SwiftVideoMedia3"]),
         .executable(name: "SwiftVideoExample", targets: ["SwiftVideoExample"]),
     ],
     dependencies: [
@@ -29,10 +30,12 @@ let package = Package(
             .target(name: "SwiftVideoMedia3", condition: androidDependency)
         ], resources: [.process("Resources")], plugins: [.plugin(name: "skipstone", package: "skip")]),
         .target(name: "SwiftVideoMedia3", dependencies: [
-            .product(name: "SkipFoundation", package: "skip-foundation", condition: androidDependency),
-            .product(name: "SkipBridge", package: "skip-bridge", condition: androidDependency)
+            // The standalone adapter product also generates bridge metadata on Apple hosts.
+            .product(name: "SkipFoundation", package: "skip-foundation"),
+            .product(name: "SkipBridge", package: "skip-bridge")
         ], plugins: [.plugin(name: "skipstone", package: "skip")]),
         .target(name: "SwiftVideoTestSupport", dependencies: [
+            "SwiftVideoMedia3",
             .product(name: "SkipFoundation", package: "skip-foundation", condition: androidDependency),
             .product(name: "SkipBridge", package: "skip-bridge", condition: androidDependency)
         ], path: "Tests/SwiftVideoTestSupport", plugins: [.plugin(name: "skipstone", package: "skip")]),

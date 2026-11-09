@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import Foundation
+#if os(Android)
+import SwiftVideoMedia3
+#endif
 
 /// A private wire format for the Skip service boundary, separate from the public project format.
 /// All validation and timeline rules remain in the native Swift module.
@@ -44,6 +47,10 @@ struct AndroidRenderPlan: Encodable {
         let value: Double
         let shader: AndroidVisualEffect?
         let clock: EffectClock?
+        #if os(Android)
+        var nativeFactory: (@Sendable () throws -> Media3VisualEffect)?
+        #endif
+        private enum CodingKeys: String, CodingKey { case kind, value, shader, clock }
         init(kind: String, value: Double = 0, shader: AndroidVisualEffect? = nil, clock: EffectClock? = nil) {
             self.kind = kind; self.value = value; self.shader = shader; self.clock = clock
         }
@@ -98,6 +105,13 @@ struct AndroidRenderPlan: Encodable {
                     }
                     let shader = try factory(parameters)
                     try shader.validate()
+                    #if os(Android)
+                    if let nativeFactory = shader.nativeFactory {
+                        var filter = Filter(kind: "native")
+                        filter.nativeFactory = nativeFactory
+                        return filter
+                    }
+                    #endif
                     return Filter(kind: "custom", shader: shader, clock: EffectClock(clip: clip))
                 }
             }

@@ -28,6 +28,11 @@ public actor AndroidVideoRenderer: VideoRendering {
             throw VideoError.unsupportedFeature("This renderer supports output up to 8192 pixels per dimension and 240 fps.")
         }
         let plan = try AndroidRenderPlan(project: project, settings: settings, effects: effects)
+        let nativeEffects = Dictionary(uniqueKeysWithValues: plan.clips.map { clip in
+            (clip.id, Dictionary(uniqueKeysWithValues: clip.filters.enumerated().compactMap { index, filter in
+                filter.nativeFactory.map { (index, $0) }
+            }))
+        })
         let encoded = try JSONEncoder().encode(plan)
         guard let json = String(data: encoded, encoding: .utf8) else { throw VideoError.invalidProject("Cannot serialize Android render plan.") }
         let clips = Dictionary(uniqueKeysWithValues: try project.renderClips().map { ($0.id.uuidString, $0) })
@@ -49,6 +54,11 @@ public actor AndroidVideoRenderer: VideoRendering {
         }, audio: { id, sampleRate, channels, data, reset in
             guard let effect = audioEffects[id] else { throw VideoError.renderingFailed("A custom audio effect was not prepared.") }
             return try effect.process(data, sampleRate: sampleRate, channels: channels, reset: reset)
+        }, visual: { id, index in
+            guard let factory = nativeEffects[id]?[index] else {
+                throw VideoError.renderingFailed("A native visual effect was not prepared.")
+            }
+            return try factory()
         }, titleMotion: { id, microseconds in
             guard let (clip, motion, count) = titleClips[id] else { throw VideoError.renderingFailed("A motion title was not prepared.") }
             let time = try VideoTime(value: Int64(microseconds.rounded()), timescale: 1_000_000).subtracting(clip.start).adding(clip.effectsOffset)
