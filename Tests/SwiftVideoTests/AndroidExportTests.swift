@@ -227,6 +227,89 @@ extension RenderBehaviorTests {
         #expect(frame[5] > 180)
     }
 
+    @Test(arguments: [125, 250, 375], [false, true])
+    func trimmedPCMKeepsItsStartAndFadeClock(startMilliseconds: Int, floating: Bool) async throws {
+        let music = floating ? try floatPCMFixture() : URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "music.wav"))
+        let image = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "green.png"))
+        defer { for url in [music, image] { try? FileManager.default.removeItem(at: url) } }
+        let audio = try MediaClip.audio(music, duration: VideoTime(value: 1, timescale: 1))
+            .sourceStarting(at: VideoTime(value: Int64(startMilliseconds), timescale: 1000))
+            .audio(AudioSettings(volume: 0.5, fadeOut: VideoTime(value: 1, timescale: 4))).speed(.half)
+        let project = VideoProject(canvas: VideoSize(width: 320, height: 180), tracks: [MediaTrack(clips: [
+            audio, MediaClip.image(image, duration: try VideoTime(value: 5, timescale: 2))
+        ])])
+        // The original Media3 failure depended on initial seek/load scheduling.
+        for _ in 0..<2 {
+            let output = music.deletingLastPathComponent().appendingPathComponent("pcm-trim-\(UUID()).mp4")
+            defer { try? FileManager.default.removeItem(at: output) }
+            try await VideoExporter().export(project, to: output)
+            let stats = try Media3TestSupport.audioStats(path: output.path, duration: 2)
+            #expect(stats[1] > 0.1)
+            #expect(stats[0] > stats[1] * 0.5, "A trimmed clip must start without an added PCM packet gap: \(stats)")
+            #expect(stats[2] < stats[1] * 0.16, "The fade must end on the retimed clip's timeline: \(stats)")
+            #expect(abs(stats[3] - 440) < 15)
+        }
+    }
+
+    @Test func cancellingPCMPreparationCleansUpAndAllowsAnotherExport() async throws {
+        let music = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "music.wav"))
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("pcm-cancellation-\(UUID())")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { for url in [music, folder] { try? FileManager.default.removeItem(at: url) } }
+        let clip = try MediaClip.audio(music, duration: VideoTime(value: 1, timescale: 1))
+            .sourceStarting(at: VideoTime(value: 1, timescale: 4))
+        let project = VideoProject(canvas: VideoSize(width: 320, height: 180), tracks: [MediaTrack(clips: [clip])])
+        let exporter = VideoExporter()
+        let output = folder.appendingPathComponent("output.mp4")
+        let (events, continuation) = AsyncStream<ExportProgress>.makeStream()
+        let task = Task { try await exporter.export(project, to: output) { continuation.yield($0) } }
+        var iterator = events.makeAsyncIterator()
+        while let event = await iterator.next() { if event.phase == .preparing { break } }
+        await exporter.cancel()
+        await #expect(throws: VideoError.cancelled) { try await task.value }
+        continuation.finish()
+        #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path).isEmpty)
+        try await exporter.export(project, to: output)
+        #expect(try Data(contentsOf: output).count > 0)
+    }
+
+    @Test func failedPCMPreparationRemovesPartialFilesAndRecovers() async throws {
+        let music = try floatPCMFixture()
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("pcm-failure-\(UUID())")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { for url in [music, folder] { try? FileManager.default.removeItem(at: url) } }
+        let clip = MediaClip.audio(music, duration: try VideoTime(value: 1, timescale: 1))
+        let unavailable = try clip.sourceStarting(at: VideoTime(value: 3, timescale: 2))
+        let exporter = VideoExporter()
+        let output = folder.appendingPathComponent("output.mp4")
+        await #expect(throws: VideoError.self) {
+            try await exporter.export(VideoProject(canvas: VideoSize(width: 320, height: 180),
+                tracks: [MediaTrack(clips: [unavailable])]), to: output)
+        }
+        #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path).isEmpty)
+        let available = try clip.sourceStarting(at: VideoTime(value: 1, timescale: 4))
+        try await exporter.export(VideoProject(canvas: VideoSize(width: 320, height: 180),
+            tracks: [MediaTrack(clips: [available])]), to: output)
+        #expect(try Data(contentsOf: output).count > 0)
+    }
+
+    private func floatPCMFixture() throws -> URL {
+        let rate = 44_100, frames = rate * 2
+        var data = Data()
+        func word(_ value: UInt32, bytes: Int = 4) {
+            for index in 0..<bytes { data.append(UInt8(truncatingIfNeeded: value >> (index * 8))) }
+        }
+        data.append(contentsOf: "RIFF".utf8); word(UInt32(frames * 4 + 36))
+        data.append(contentsOf: "WAVEfmt ".utf8); word(16)
+        word(3, bytes: 2); word(1, bytes: 2); word(UInt32(rate)); word(UInt32(rate * 4))
+        word(4, bytes: 2); word(32, bytes: 2)
+        data.append(contentsOf: "data".utf8); word(UInt32(frames * 4))
+        for frame in 0..<frames { word(Float(0.6 * sin(2 * .pi * 440 * Double(frame) / Double(rate))).bitPattern) }
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("float-pcm-\(UUID()).wav")
+        try data.write(to: url)
+        return url
+    }
+
     @Test func media3ClipAndTrackEQProcessOrderedBands() async throws {
         let music = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "music.wav"))
         defer { try? FileManager.default.removeItem(at: music) }

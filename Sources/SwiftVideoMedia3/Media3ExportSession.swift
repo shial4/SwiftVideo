@@ -10,6 +10,7 @@ import android.os.Looper
 import androidx.media3.common.__
 import androidx.media3.transformer.__
 import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import org.json.JSONObject
@@ -25,6 +26,8 @@ public final class Media3ExportSession {
     private let errorText = AtomicReference<String>("")
     private var transformer: Transformer?
     private var directory: File?
+    private var preparing = false
+    private let cancellationRequested = AtomicBoolean(false)
     #endif
 
     public init() throws {
@@ -47,25 +50,24 @@ public final class Media3ExportSession {
                 let folder = File(context.getCacheDir(), "swiftvideo-" + UUID().uuidString)
                 guard folder.mkdirs() else { throw IllegalStateException("Cannot create export scratch directory.") }
                 self.directory = folder
-                let composition = try Media3CompositionBuilder().build(plan, folder: folder, sample: sample)
-                let encoder = DefaultEncoderFactory.Builder(context)
-                    .setEnableFallback(false)
-                    .setRequestedVideoEncoderSettings(VideoEncoderSettings.Builder().setBitrate(plan.getInt("videoBitRate")).build())
-                    .setRequestedAudioEncoderSettings(AudioEncoderSettings.Builder().setBitrate(plan.getInt("audioBitRate")).build())
-                    .build()
-                let transformer = Transformer.Builder(context)
-                    .setLooper(Looper.getMainLooper())
-                    .setVideoMimeType(plan.getString("codec") == "hevc" ? MimeTypes.VIDEO_H265 : MimeTypes.VIDEO_H264)
-                    .setAudioMimeType(MimeTypes.AUDIO_AAC)
-                    .setEncoderFactory(encoder)
-                    // A single frame has no previous sample from which the muxer
-                    // can infer its duration. The composition owns the endpoint.
-                    .setMuxerFactory(TimelineMuxerFactory(durationUs: plan.getLong("durationUs")))
-                    .addListener(ExportListener(completed: { self.finish(error: nil) }, failed: { message in self.finish(error: message) }))
-                    .build()
-                self.transformer = transformer
-                transformer.start(composition, outputPath)
-                self.poll()
+                self.preparing = true
+                java.lang.Thread {
+                    var prepared: JSONObject?
+                    var failure: String?
+                    do {
+                        prepared = try Media3PCMTrimmer().prepare(plan, folder: folder,
+                            cancelled: { self.cancellationRequested.get() })
+                    } catch { failure = String(describing: error) }
+                    self.handler.post {
+                        self.preparing = false
+                        if self.cancellationRequested.get() { self.finishCancellation() }
+                        else if let failure { self.finish(error: failure) }
+                        else if let prepared {
+                            do { try self.beginExport(prepared, folder: folder, outputPath: outputPath, sample: sample) }
+                            catch { self.finish(error: String(describing: error)) }
+                        }
+                    }
+                }.start()
             } catch { self.finish(error: String(describing: error)) }
         }
         #else
@@ -99,13 +101,9 @@ public final class Media3ExportSession {
 
     public func cancel() throws {
         #if SKIP
+        cancellationRequested.set(true)
         handler.post {
-            if self.status.get() == 1 {
-                self.transformer?.cancel()
-                self.transformer = nil
-                self.cleanup()
-                self.status.set(-2)
-            }
+            if self.status.get() == 1 && !self.preparing { self.finishCancellation() }
         }
         #else
         throw unavailable()
@@ -119,6 +117,37 @@ public final class Media3ExportSession {
     #endif
 
     #if SKIP
+    private func beginExport(_ plan: JSONObject, folder: File, outputPath: String,
+                             sample: @escaping (String, Double) -> [Double]) throws {
+        let context = ProcessInfo.processInfo.androidContext
+        let composition = try Media3CompositionBuilder().build(plan, folder: folder, sample: sample)
+        let encoder = DefaultEncoderFactory.Builder(context)
+            .setEnableFallback(false)
+            .setRequestedVideoEncoderSettings(VideoEncoderSettings.Builder().setBitrate(plan.getInt("videoBitRate")).build())
+            .setRequestedAudioEncoderSettings(AudioEncoderSettings.Builder().setBitrate(plan.getInt("audioBitRate")).build())
+            .build()
+        let transformer = Transformer.Builder(context)
+            .setLooper(Looper.getMainLooper())
+            .setVideoMimeType(plan.getString("codec") == "hevc" ? MimeTypes.VIDEO_H265 : MimeTypes.VIDEO_H264)
+            .setAudioMimeType(MimeTypes.AUDIO_AAC)
+            .setEncoderFactory(encoder)
+            // A single frame has no previous sample from which the muxer
+            // can infer its duration. The composition owns the endpoint.
+            .setMuxerFactory(TimelineMuxerFactory(durationUs: plan.getLong("durationUs")))
+            .addListener(ExportListener(completed: { self.finish(error: nil) }, failed: { message in self.finish(error: message) }))
+            .build()
+        self.transformer = transformer
+        transformer.start(composition, outputPath)
+        self.poll()
+    }
+
+    private func finishCancellation() {
+        transformer?.cancel()
+        transformer = nil
+        cleanup()
+        status.set(-2)
+    }
+
     private func poll() {
         guard status.get() == 1, let transformer else { return }
         let holder = ProgressHolder()

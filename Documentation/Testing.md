@@ -5,6 +5,12 @@
 
 ## Stable adoption gate
 
+November 10 follow-up: the shared offline-audio initialization and unwritten-muxer cancellation fixes are backported in `07924bf`. A further bounded PCM-preparation fix normalizes fractional source trims before Android export. The new regression reproduced silent starts and delayed fades on the stable beta.3 implementation, and an independent Media3 1.11.1 control reproduced variable input offsets. The fix copies only the selected PCM range off the application looper and preserves cancellation cleanup.
+
+With that fix, the API 35 arm64 preview run executed 75 test functions in eight suites in 185.492 seconds. All audio checks passed, including the existing 20 trim/seek cases, retimed preview/export comparisons, 12 new PCM16/float exports and cancellation/failure recovery. The full run still failed with six issues: four measured color differences and two missing green-overlay frames in raw CompositionPlayer seek/reset controls. Existing thresholds are unchanged; this is not a passing Android release gate. The supported recreation path passed in this run, but dependency and remaining preview gates still apply.
+
+Before the PCM-only Android change, the shared backports passed 56 macOS and 56 iOS test functions; iOS coverage was 1,574/1,649 (95.45%). Final-head hosted checks remain required. Earlier alpha tags are unchanged.
+
 PR #1 includes `main` through `d2977a2`; its documentation conflicts are resolved.
 Local verification on November 6, 2026 passes all 56 macOS library tests, 56 iOS
 library tests on iOS 27, and six editor model tests. The iOS LLVM report measures
