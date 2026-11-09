@@ -74,6 +74,8 @@ Local November 10 checks pass 103 macOS test functions, 102 iOS Simulator test f
 
 These local measurements cover the optional-module implementation, not the stable beta. The separate macOS segmentation measurement is 160/169 executable lines (94.67%), including real Vision inference. Android native segmentation coverage excludes the JVM process; its uncovered native factory calls are exercised in the app suite. Hosted CI must pass independently before this feature is eligible to merge.
 
+Independent consumers resolved exact revision `20331d4a8b739bdc12991ac915b5dac103988913`. The native Apple SwiftPM consumer exported one and ten sequential clips with both raw and compiled Core ML models, checking decoded foreground/background pixels and duration. A standalone Kotlin/AAR consumer passed a 2.204-second runtime test for three sequential clips, pixel checks in each clip, missing-model cleanup and recovery. These consumers use their own package and application targets. The [segmentation guide](PersonSegmentation.md#performance-and-verification) records the bounded Apple time/memory diagnostic; it is not a phone-performance claim.
+
 Apple tests use the app-supplied DeepLabV3 Core ML model on iOS Simulator and also exercise the system Vision model on macOS. Android emulator tests explicitly use CPU inference because the emulator GL translator rejects the MediaPipe GPU delegate's shader-storage-buffer query. Downsampling and compositing still run through the production GPU path. Physical-device GPU inference and sustained phone performance remain unverified. See [person segmentation](PersonSegmentation.md) for the exact model, memory-transfer and quality limits.
 
 ## Reproduce Apple tests

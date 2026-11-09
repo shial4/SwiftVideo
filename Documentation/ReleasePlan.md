@@ -13,7 +13,7 @@ At the maintainer's request, release verification uses the iOS Simulator and And
 | --- | --- | --- |
 | `0.0.2-beta.N` then `0.0.2` | Existing composition/export API, clip and track speed, inherited visual filters, ordered audio EQ, and reliability fixes | Start `codex/stabilize-0.0.2` from `main`; retain stable Media3 1.11.1 |
 | Next `0.1.0-alpha.N`, then `0.1.0-beta.N`, then `0.1.0` | Experimental composition and layer preview from PR #1 | Keep the preview branch separate; merge only after both platform gates and stable dependency criteria pass |
-| Later release, version to be assigned | Custom visual/audio effects, motion titles, animation extensions, masks and background removal | Design after 0.0.2; estimate and deliver in separate increments |
+| Later release, version to be assigned | Custom visual/audio effects, motion titles, animation extensions, masks and background removal | Develop separately on `codex/effect-extensibility`; release after 0.0.2 |
 
 Existing `0.1.0-alpha.*` tags remain unchanged. They are not renamed or promoted to `0.0.2`: these are different release lines. `0.0.1` remains the stable installation recommendation until 0.0.2 is published. Preview users must explicitly select the preview prerelease.
 
@@ -142,12 +142,12 @@ The original estimate was **6-8 engineer-weeks for useful extensibility**, or **
 
 | Work | Implemented on the feature branch | Remaining verification |
 | --- | --- | --- |
-| Registration and contracts | Versioned identifiers, Codable parameters, validation, ordering, platform checks and lifecycle | Release review and consumer integration |
+| Registration and contracts | Versioned identifiers, Codable parameters, validation, ordering, platform checks and lifecycle | Release review and broader application integration |
 | Custom GPU visual effects | Apple Core Image/Metal processors, Android GLSL and typed native Media3 adapters | Physical GPU compatibility and sustained performance |
 | Custom audio effects | Shared Swift PCM processors, reset/seek lifecycle and gain/echo examples | Broader application integration |
 | Motion titles and animations | Word/character presets, custom timing, curves, repetition and custom fonts | Broader script/font coverage and performance |
 | Masks and chroma key | GPU rectangle/ellipse masks and chroma-key removal | Broader footage and device coverage; image-mask textures remain outside this increment |
 | AI background removal | Optional Vision/Core ML and MediaPipe person segmentation for images and video | Physical Android GPU inference, model quality and sustained performance |
-| Tests and documentation | Real simulator/emulator exports, failure/recovery tests, separate coverage gates and usage guides | Latest hosted CI, independent optional-product consumer checks and performance measurements |
+| Tests and documentation | Real simulator/emulator exports, failure/recovery tests, separate coverage gates, independent SwiftPM/Kotlin consumers, usage guides and an Apple time/memory diagnostic | Latest hosted CI, broader application usage and sustained performance measurements |
 
 See [tests and coverage](Testing.md#optional-segmentation-module) for measured results and [person segmentation](PersonSegmentation.md) for model and compute limits. Implemented does not mean released or fully verified: these features are absent from `main` and the 0.0.2 betas. Physical-device checks remain follow-up work when hardware becomes available, consistent with the agreed simulator/emulator release scope.
