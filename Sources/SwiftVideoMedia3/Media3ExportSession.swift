@@ -72,7 +72,7 @@ public final class Media3ExportSession {
                     .setEncoderFactory(encoder)
                     // A single frame has no previous sample from which the muxer
                     // can infer its duration. The composition owns the endpoint.
-                    .setMuxerFactory(InAppMp4Muxer.Factory().setVideoDurationUs(plan.getLong("durationUs")))
+                    .setMuxerFactory(TimelineMuxerFactory(durationUs: plan.getLong("durationUs")))
                     .addListener(ExportListener(completed: { self.finish(error: nil) }, failed: { message in self.finish(error: message) }))
                     .build()
                 self.transformer = transformer
