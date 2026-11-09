@@ -1,7 +1,9 @@
 <!-- Copyright 2026 Software Deck Pty Ltd; SPDX-License-Identifier: Apache-2.0 -->
-# Third-party dependencies for 0.0.1
+# Resolved third-party dependencies
 
 SwiftVideo's Apache 2.0 license applies to first-party work. The dependencies below retain their own licenses and copyrights. License texts are copied verbatim. Source links identify the exact resolved revisions, including corresponding source for MPL-covered components. No dependency sources are modified.
+
+This inventory matches the root and example `Package.resolved` files in this revision of SwiftVideo.
 
 | Swift package | Resolved version | License | Corresponding source |
 | --- | --- | --- | --- |
