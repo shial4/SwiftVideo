@@ -199,6 +199,21 @@ Font size must be finite and positive. Font size and shadow dimensions use proje
 
 `Easing` applies to the segment leaving a keyframe. Its `value(at: Double) -> Double` clamps progress to `0...1` and evaluates `.linear`, `.easeIn` (quadratic), `.easeOut` (quadratic), `.easeInOut` (smoothstep), or `.step` (hold until the segment ends).
 
+The unreleased extensibility branch adds optional `curve: CubicBezierTiming?` to `Keyframe` and `repetition: AnimationRepetition?` to `KeyframeAnimation` and `MediaClip.animate`. Existing documents decode with both values nil and keep their original behavior.
+
+`CubicBezierTiming(x1:y1:x2:y2:)` replaces that keyframe's `easing`. It solves the curve's time coordinate before evaluating the output value. All four controls must be finite and within `0...1`, keeping opacity and positive scale within their keyframe bounds. This is a bounded subset of [cubic Bezier timing](https://www.w3.org/TR/css-easing-1/#cubic-bezier-easing-functions); overshoot controls are not supported.
+
+Repetition is `.count(Int, autoreverses: Bool = false)` or `.forever(autoreverses: Bool = false)`. Counts must be positive and repeating animations require at least two keyframes. A cycle spans the first to last keyframe, followed by a backward pass when autoreversing. The first keyframe's time is an initial delay, not a delay between cycles. Finite repeats hold the final value after the last cycle, or the first value after an autoreversing cycle. Trim/split preserve phase; speed changes retime the keyframes and preserve the curve/repetition settings. Rendering still ends with the clip.
+
+```swift
+let title = MediaClip.text("LIVE", duration: duration)
+    .animate(.opacity, keyframes: [
+        Keyframe(time: .zero, value: 0.3,
+                 curve: CubicBezierTiming(x1: 0.22, y1: 1, x2: 0.36, y2: 1)),
+        Keyframe(time: try VideoTime(value: 1, timescale: 2), value: 1)
+    ], repetition: .forever(autoreverses: true))
+```
+
 ## Audio
 
 `AudioSettings(volume: Double = 1, isMuted: Bool = false, pan: Double = 0, fadeIn: VideoTime = .zero, fadeOut: VideoTime = .zero, filters: [AudioFilter] = [])` exposes all six properties.

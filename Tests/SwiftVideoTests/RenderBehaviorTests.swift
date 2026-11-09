@@ -13,6 +13,34 @@ import CoreGraphics
 #endif
 
 @Suite(.serialized) struct RenderBehaviorTests {
+    @Test func repeatingBezierOpacityReachesBothRenderers() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("timing-curve-\(UUID())")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        #if os(Android)
+        let image = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "green.png"))
+        defer { try? FileManager.default.removeItem(at: image) }
+        #else
+        let image = try #require(Bundle.module.url(forResource: "green", withExtension: "png"))
+        #endif
+        let clip = try MediaClip.image(image, duration: VideoTime(value: 6, timescale: 5)).animate(.opacity, keyframes: [
+            Keyframe(time: .zero, value: 0, curve: CubicBezierTiming(x1: 0, y1: 1, x2: 0, y2: 1)),
+            Keyframe(time: VideoTime(value: 4, timescale: 5), value: 1)
+        ], repetition: .forever())
+        let project = VideoProject(canvas: VideoSize(width: 320, height: 180), background: VideoColor(red: 0, green: 0, blue: 1),
+            tracks: [MediaTrack(clips: [clip])])
+        let destination = folder.appendingPathComponent("repeat.mp4")
+        try await VideoExporter().export(project, to: destination)
+        let early = try await centerPixel(destination, at: 0.1), boundary = try await centerPixel(destination, at: 0.8)
+        let repeated = try await centerPixel(destination, at: 0.9)
+        for pixel in [early, repeated] {
+            // Encoded RGB depends on each backend's compositing color space. The
+            // Bezier sample is green-dominant; linear 12.5% opacity is blue-dominant.
+            #expect(pixel[1] > 180 && pixel[1] - pixel[2] > 100, "Bezier output should be green-dominant: \(pixel)")
+        }
+        #expect(boundary[2] > 190 && boundary[1] < 30, "Repeat boundary should reveal the background: \(boundary)")
+    }
+
     @Test(arguments: [false, true]) func customEffectClockSurvivesRetimingTrimmingAndSplitting(video: Bool) async throws {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("custom-clock-\(UUID())")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)

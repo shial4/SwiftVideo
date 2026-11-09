@@ -70,8 +70,13 @@ private func validateClip(_ clip: MediaClip) throws {
     for animation in clip.animations {
         try require(properties.insert(animation.property).inserted, "Only one animation per property is allowed on a clip.")
         try require(!animation.keyframes.isEmpty, "Animations require at least one keyframe.")
+        if let repetition = animation.repetition {
+            try repetition.validate()
+            try require(animation.keyframes.count >= 2, "Repeating animations require at least two keyframes.")
+        }
         var previous: VideoTime?
         for keyframe in animation.keyframes {
+            try keyframe.curve?.validate()
             try require(keyframe.time >= .zero && keyframe.time <= clip.effectsDuration && keyframe.value.isFinite,
                         "Keyframes require a finite value and a time inside the original effect duration.")
             if let previous { try require(keyframe.time > previous, "Keyframe times must be strictly increasing.") }

@@ -24,8 +24,8 @@ extension MediaClip {
         }
         let animations = try animations.map { animation in
             KeyframeAnimation(property: animation.property, keyframes: try animation.keyframes.map {
-                Keyframe(time: try scale($0.time), value: $0.value, easing: $0.easing)
-            })
+                Keyframe(time: try scale($0.time), value: $0.value, easing: $0.easing, curve: $0.curve)
+            }, repetition: animation.repetition)
         }
         let audio = try AudioSettings(volume: audio.volume, isMuted: audio.isMuted, pan: audio.pan,
                                       fadeIn: scale(audio.fadeIn), fadeOut: scale(audio.fadeOut), filters: audio.filters)
