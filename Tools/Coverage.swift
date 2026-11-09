@@ -42,13 +42,15 @@ struct CoverageInput: Decodable {
     let data: [LLVMReport]?
 }
 final class JacocoReader: NSObject, XMLParserDelegate {
+    let module: String
+    init(module: String) { self.module = module }
     var source: String?
     var files: [FileCoverage] = []
     func parser(_ parser: XMLParser, didStartElement name: String, namespaceURI: String?, qualifiedName: String?, attributes: [String: String]) {
         if name == "sourcefile" { source = attributes["name"] }
         if name == "counter", let source, attributes["type"] == "LINE",
            let covered = Int(attributes["covered"] ?? ""), let missed = Int(attributes["missed"] ?? "") {
-            files.append(FileCoverage(file: "Sources/SwiftVideoMedia3/" + source, covered: covered, executable: covered + missed))
+            files.append(FileCoverage(file: "Sources/\(module)/" + source, covered: covered, executable: covered + missed))
         }
     }
     func parser(_ parser: XMLParser, didEndElement name: String, namespaceURI: String?, qualifiedName: String?) {
@@ -56,34 +58,40 @@ final class JacocoReader: NSObject, XMLParserDelegate {
     }
 }
 guard CommandLine.arguments.count == 5, let minimum = Double(CommandLine.arguments[4]) else {
-    print("Usage: swift Tools/Coverage.swift ios|android-core|android-media3 input output.json minimum-percent")
+    print("Usage: swift Tools/Coverage.swift ios|android-core|android-media3|ios-segmentation|android-segmentation-core|android-segmentation-media3 input output.json minimum-percent")
     exit(2)
 }
 let suite = CommandLine.arguments[1]
+let segmentation = suite.contains("segmentation")
+let isJacoco = suite == "android-media3" || suite == "android-segmentation-media3"
+let isApple = suite == "ios" || suite == "ios-segmentation"
+let isNative = suite == "android-core" || suite == "android-segmentation-core"
+guard isJacoco || isApple || isNative else { fatalError("Unknown suite: \(suite)") }
 let data = try Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[2]))
 var files: [FileCoverage] = []
 func firstParty(_ path: String) -> String? {
-    guard let range = path.range(of: "/Sources/SwiftVideo/") else { return nil }
+    let module = segmentation ? "SwiftVideoSegmentation" : "SwiftVideo"
+    guard let range = path.range(of: "/Sources/\(module)/") else { return nil }
     let relative = String(path[path.index(after: range.lowerBound)...])
     if suite == "android-core" && relative.hasSuffix("/AndroidVideoRenderer.swift") { return nil }
     return relative
 }
-if suite == "android-media3" {
-    let reader = JacocoReader()
+if isJacoco {
+    let reader = JacocoReader(module: segmentation ? "SwiftVideoSegmentationMedia3" : "SwiftVideoMedia3")
     let parser = XMLParser(data: data)
     parser.delegate = reader
     guard parser.parse() else { throw parser.parserError! }
     files = reader.files
 } else {
     let input = try JSONDecoder().decode(CoverageInput.self, from: data)
-    if suite == "ios", let targets = input.targets {
+    if isApple, let targets = input.targets {
         for target in targets {
             for file in target.files {
                 guard let name = firstParty(file.path) else { continue }
                 files.append(FileCoverage(file: name, covered: file.coveredLines, executable: file.executableLines))
             }
         }
-    } else if suite == "android-core" || suite == "ios" {
+    } else if isNative || isApple {
         for report in input.data ?? [] {
             for file in report.files {
                 guard let name = firstParty(file.filename) else { continue }

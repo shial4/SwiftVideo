@@ -82,4 +82,4 @@ Apple uses the existing Metal-backed Core Image context. Shape masks cache their
 
 The renderers declare `.masks` and `.chromaKey` capabilities. Unsupported renderers fail capability validation before rendering. The current output contract is SDR. Platform color conversion can change colors close to a key threshold, so tune the key using representative footage on both platforms. MP4/H.264 or HEVC output is composited over the project background; these filters do not add an alpha-channel export format.
 
-Static image masks, animated mask parameters, arbitrary paths and AI segmentation are separate capabilities and are not included in these shape-mask APIs. Whole-layer animation still moves, rotates, scales and fades the masked result.
+Static image masks, animated mask parameters and arbitrary paths are not included in these shape-mask APIs. AI-based [person background removal](PersonSegmentation.md) is available as a separate optional product on this branch. Whole-layer animation still moves, rotates, scales and fades the masked result.

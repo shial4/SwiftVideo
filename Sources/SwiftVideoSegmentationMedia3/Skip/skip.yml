@@ -1,0 +1,13 @@
+# Copyright 2026 Software Deck Pty Ltd
+# SPDX-License-Identifier: Apache-2.0
+
+skip:
+  mode: 'transpiled'
+  bridging: true
+
+build:
+  contents:
+    - block: 'dependencies'
+      contents:
+        - 'implementation("androidx.media3:media3-effect:1.11.1")'
+        - 'implementation("com.google.mediapipe:tasks-vision:1.2.2")'

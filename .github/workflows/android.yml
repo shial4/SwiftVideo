@@ -63,6 +63,7 @@ jobs:
             .build-android-tests/core
             .build-android-tests/tests.apk
             .build-android-tests/media3
+            .build-android-tests/segmentation-media3
           include-hidden-files: true
           retention-days: 3
       - name: Build the example editor
@@ -111,12 +112,20 @@ jobs:
           "$ndk_bin/llvm-cov" export .build-android-tests/core/libSwiftVideo.so \
             -instr-profile=.build-coverage/android/coverage.profdata > .build-coverage/android/core-raw.json
           swift Tools/Coverage.swift android-core .build-coverage/android/core-raw.json .build-coverage/android/core.json 90
+          "$ndk_bin/llvm-cov" export .build-android-tests/core/libSwiftVideoSegmentation.so \
+            -instr-profile=.build-coverage/android/coverage.profdata > .build-coverage/android/segmentation-core-raw.json
+          swift Tools/Coverage.swift android-segmentation-core .build-coverage/android/segmentation-core-raw.json .build-coverage/android/segmentation-core.json 90
           curl -fL https://repo.maven.apache.org/maven2/org/jacoco/org.jacoco.cli/0.8.13/org.jacoco.cli-0.8.13-nodeps.jar -o "$RUNNER_TEMP/jacoco.jar"
           java -jar "$RUNNER_TEMP/jacoco.jar" report .build-coverage/android/media3.ec \
             --classfiles .build-android-tests/media3/classes \
             --sourcefiles .build-android-tests/media3/kotlin \
             --xml .build-coverage/android/media3.xml --html .build-coverage/android/media3-html
           swift Tools/Coverage.swift android-media3 .build-coverage/android/media3.xml .build-coverage/android/media3.json 75
+          java -jar "$RUNNER_TEMP/jacoco.jar" report .build-coverage/android/media3.ec \
+            --classfiles .build-android-tests/segmentation-media3/classes \
+            --sourcefiles .build-android-tests/segmentation-media3/kotlin \
+            --xml .build-coverage/android/segmentation-media3.xml --html .build-coverage/android/segmentation-media3-html
+          swift Tools/Coverage.swift android-segmentation-media3 .build-coverage/android/segmentation-media3.xml .build-coverage/android/segmentation-media3.json 75
       - uses: actions/upload-artifact@v7
         if: always()
         with:

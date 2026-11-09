@@ -17,6 +17,7 @@ Start with [installation and your first export](../README.md#install), then foll
 | [Custom audio effects](CustomAudioEffects.md) | Unreleased portable Swift PCM processors, sample effects and lifecycle contract |
 | [Motion titles](MotionTitles.md) | Unreleased word/character presets, custom animation, typography and GPU rendering |
 | [Masks and chroma key](MasksAndChromaKey.md) | Unreleased shaped overlays, feathered edges and GPU color-key background removal |
+| [Person background removal](PersonSegmentation.md) | Unreleased optional Core ML/Vision and MediaPipe segmentation, models and compute limits |
 | [Example editor](../Example/README.md) | Build and run the shared SwiftUI editor on Apple and Android |
 | [Tests and coverage](Testing.md) | Test scope, measured coverage, CI gates, and commands to reproduce results |
 | [Release plan](ReleasePlan.md) | 0.0.2 stabilization, preview blockers, release gates, upstream monitoring, and later extensibility |

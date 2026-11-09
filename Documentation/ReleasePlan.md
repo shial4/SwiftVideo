@@ -130,7 +130,7 @@ These [official release dates](https://developer.android.com/jetpack/androidx/re
 
 ## Extensibility after stabilization
 
-Revisit this work after 0.0.2 ships; it is not part of its release gate.
+This work remains separate from 0.0.2 and is not part of its release gate. Development continues on `codex/effect-extensibility` while the stable beta is observed; it must not be merged into the stabilization branch.
 
 1. Define a small effect contract: identity and version, validated Codable parameters, supported platforms, ordering, resource lifetime, cancellation and explicit unsupported-effect errors. Preserve the existing built-in effects and project compatibility.
 2. Add a custom visual-effect adapter on each platform. Keep frame processing on Core Image/Metal and Media3/OpenGL; avoid per-frame GPU-to-CPU copies. Prove it with one custom effect on both platforms before expanding the API.
@@ -138,4 +138,16 @@ Revisit this work after 0.0.2 ships; it is not part of its release gate.
 4. Add a bounded audio-processing extension with defined sample format, state/reset rules and scheduling. Audio DSP may remain on CPU where that is the appropriate backend; do not promise GPU execution for arbitrary audio effects.
 5. Add mask/chroma-key support, then evaluate ML segmentation as an optional capability with explicit quality, model, device and performance constraints.
 
-The earlier rough estimate remains **6-8 engineer-weeks for useful extensibility**, or **10-16 weeks total for the broader feature set including segmentation with existing models**. Re-estimate after the two-platform custom-effect prototype. Keep integration samples and meaningful parity/performance checks in each increment rather than postponing them to the end.
+The original estimate was **6-8 engineer-weeks for useful extensibility**, or **10-16 weeks total for the broader feature set including segmentation with existing models**. The November 10 development status is:
+
+| Work | Implemented on the feature branch | Remaining verification |
+| --- | --- | --- |
+| Registration and contracts | Versioned identifiers, Codable parameters, validation, ordering, platform checks and lifecycle | Release review and consumer integration |
+| Custom GPU visual effects | Apple Core Image/Metal processors, Android GLSL and typed native Media3 adapters | Physical GPU compatibility and sustained performance |
+| Custom audio effects | Shared Swift PCM processors, reset/seek lifecycle and gain/echo examples | Broader application integration |
+| Motion titles and animations | Word/character presets, custom timing, curves, repetition and custom fonts | Broader script/font coverage and performance |
+| Masks and chroma key | GPU rectangle/ellipse masks and chroma-key removal | Broader footage and device coverage; image-mask textures remain outside this increment |
+| AI background removal | Optional Vision/Core ML and MediaPipe person segmentation for images and video | Physical Android GPU inference, model quality and sustained performance |
+| Tests and documentation | Real simulator/emulator exports, failure/recovery tests, separate coverage gates and usage guides | Latest hosted CI, independent optional-product consumer checks and performance measurements |
+
+See [tests and coverage](Testing.md#optional-segmentation-module) for measured results and [person segmentation](PersonSegmentation.md) for model and compute limits. Implemented does not mean released or fully verified: these features are absent from `main` and the 0.0.2 betas. Physical-device checks remain follow-up work when hardware becomes available, consistent with the agreed simulator/emulator release scope.

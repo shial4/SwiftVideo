@@ -17,7 +17,7 @@ extension RenderBehaviorTests {
         try await withMaskedExport(video: video, filters: [.mask(VideoMask(shape: .rectangle,
             bounds: VideoCrop(x: 0.25, y: 0.1, width: 0.5, height: 0.5)))],
             transform: VisualTransform(crop: VideoCrop(x: 0.25, width: 0.5), contentMode: .stretch)) { url in
-            let pixels = try await maskPixels(url, points: [32, 45, 160, 45, 288, 45, 160, 144])
+            let pixels = try await framePixels(url, points: [32, 45, 160, 45, 288, 45, 160, 144])
             for offset in [0, 3, 6] { #expect(pixels[offset + (video ? 2 : 1)] > 200, "Full source mask width survives crop: \(pixels)") }
             #expect(pixels[9] > 200 && pixels[10] < 30 && pixels[11] < 30, "Top-left mask coordinates: \(pixels)")
         }
@@ -25,7 +25,7 @@ extension RenderBehaviorTests {
 
     @Test(arguments: [false, true]) func ellipseMaskAndItsInverseKeepOppositePixels(inverted: Bool) async throws {
         try await withMaskedExport(filters: [.mask(VideoMask(bounds: VideoCrop(x: 0.1, y: 0.1, width: 0.8, height: 0.8), inverted: inverted))]) { url in
-            let pixels = try await maskPixels(url, points: [160, 90, 40, 25, 8, 90])
+            let pixels = try await framePixels(url, points: [160, 90, 40, 25, 8, 90])
             #expect(pixels[inverted ? 0 : 1] > 200, "Ellipse center: \(pixels)")
             #expect(pixels[inverted ? 4 : 3] > 200, "Ellipse corner: \(pixels)")
             #expect(pixels[inverted ? 7 : 6] > 200, "Outside bounds: \(pixels)")
@@ -36,7 +36,7 @@ extension RenderBehaviorTests {
         // Sample the outer boundary, inward fade and opaque center separately.
         let mask = VideoMask(shape: .rectangle, bounds: VideoCrop(x: 0.2, y: 0.1, width: 0.6, height: 0.8), feather: 0.4)
         try await withMaskedExport(trackFilters: [.mask(mask)]) { url in
-            let pixels = try await maskPixels(url, points: [64, 90, 92, 90, 160, 90])
+            let pixels = try await framePixels(url, points: [64, 90, 92, 90, 160, 90])
             #expect(pixels[0] > 200 && pixels[1] < 45)
             #expect(pixels[3] > 80 && pixels[3] < 220 && pixels[4] > 80 && pixels[4] < 220, "Feather blend: \(pixels)")
             #expect(pixels[7] > 200 && pixels[6] < 30)
@@ -46,7 +46,7 @@ extension RenderBehaviorTests {
     @Test(arguments: [false, true]) func chromaKeyRemovesTheKeyColorFromImagesAndVideo(video: Bool) async throws {
         let color = video ? VideoColor(red: 0, green: 0, blue: 1) : VideoColor(red: 0, green: 1, blue: 0)
         try await withMaskedExport(video: video, filters: [.chromaKey(ChromaKey(color: color))]) { url in
-            let pixels = try await maskPixels(url, points: [160, 90])
+            let pixels = try await framePixels(url, points: [160, 90])
             #expect(pixels[0] > 220 && pixels[1] < 30 && pixels[2] < 30, "Keying should reveal the red background: \(pixels)")
         }
     }
@@ -56,7 +56,7 @@ extension RenderBehaviorTests {
         // Linear sRGB 0.5 is 0.214041. Distance from full green is 0.453774.
         let key = ChromaKey(color: color, tolerance: 0.353774, softness: 0.2)
         try await withMaskedExport(filters: [.chromaKey(key)]) { url in
-            let pixels = try await maskPixels(url, points: [160, 90])
+            let pixels = try await framePixels(url, points: [160, 90])
             #expect(pixels[0] > 80 && pixels[0] < 220 && pixels[1] > 80 && pixels[1] < 220, "Soft key: \(pixels)")
             #expect(abs(pixels[0] - pixels[1]) < 35 && pixels[2] < 30, "Half coverage must retain both colors: \(pixels)")
         }
@@ -66,7 +66,7 @@ extension RenderBehaviorTests {
         let custom = MediaFilter.custom(EffectReference(CustomEffectFixture.id, parameters: ["opacity": .number(0.5)]))
         try await withMaskedExport(filters: [custom], trackFilters: [.chromaKey(ChromaKey())],
             background: VideoColor(red: 0, green: 0, blue: 1), effects: CustomEffectFixture.registry()) { url in
-            let pixels = try await maskPixels(url, points: [160, 90])
+            let pixels = try await framePixels(url, points: [160, 90])
             #expect(pixels[0] > 80 && pixels[0] < 220 && pixels[2] > 80 && pixels[2] < 220, "Retained input alpha: \(pixels)")
             #expect(abs(pixels[0] - pixels[2]) < 30 && pixels[1] < 30)
         }
@@ -94,7 +94,7 @@ extension RenderBehaviorTests {
         try await inspect(output)
     }
 
-    private func maskPixels(_ url: URL, points: [Int]) async throws -> [Double] {
+    func framePixels(_ url: URL, points: [Int]) async throws -> [Double] {
         #if os(Android)
         return try Media3TestSupport.framePixels(path: url.path, timeUs: 100_000, points: points)
         #else
