@@ -1,7 +1,7 @@
 <!-- Copyright 2026 Software Deck Pty Ltd; SPDX-License-Identifier: Apache-2.0 -->
 # SwiftVideo documentation
 
-SwiftVideo is a Swift video composition library for iOS 17+, macOS 14+, and Android API 28+ through Skip Fuse. This documentation follows the public `SwiftVideo` product on `main`, including APIs planned for 0.0.2. The latest stable release is 0.0.1; select that tag for matching release documentation.
+SwiftVideo is a Swift video composition library for iOS 17+, macOS 14+, and Android API 28+ through Skip Fuse. This documentation follows unreleased `develop`, including custom effects, segmentation, experimental Android preview and layer rendering. The frozen 0.0.2 candidate is tagged `0.0.2-beta.4`. The latest stable release is 0.0.1; select that tag for matching release documentation.
 
 Start with [installation and your first export](../README.md#install), then follow the [usage guide](Guide.md). The pages below render directly on GitHub and are included in the package checkout.
 
@@ -54,4 +54,4 @@ Builders create values without loading media. Export performs media I/O and rend
 
 The `main` branch documents current development. For a released dependency, use the same tag in GitHub's branch selector so the documentation and source agree. The [release page](https://github.com/shial4/SwiftVideo/releases) lists published versions.
 
-The library uses Metal-backed Core Image on Apple and Media3's OpenGL pipeline on Android. Codec availability remains device-dependent. Output is SDR, and the library does not include a live timeline player. Review the platform limits before selecting product requirements.
+The library uses Metal-backed Core Image on Apple and Media3's OpenGL pipeline on Android. Codec availability remains device-dependent. Output is SDR. The alpha's [direct Android preview](Integration.md#experimental-android-preview) requires an application surface adapter and retains [known limitations](Testing.md#010-alpha2-verification). Review the platform limits before selecting product requirements.

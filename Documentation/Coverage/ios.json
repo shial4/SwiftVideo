@@ -1,21 +1,41 @@
 {
-  "covered" : 1469,
-  "executable" : 1540,
+  "covered" : 2383,
+  "executable" : 2464,
   "files" : [
     {
-      "covered" : 157,
-      "executable" : 157,
+      "covered" : 44,
+      "executable" : 44,
+      "file" : "Sources/SwiftVideo/AndroidMaskEffects.swift"
+    },
+    {
+      "covered" : 214,
+      "executable" : 216,
       "file" : "Sources/SwiftVideo/AndroidRenderPlan.swift"
     },
     {
-      "covered" : 103,
-      "executable" : 111,
+      "covered" : 16,
+      "executable" : 21,
+      "file" : "Sources/SwiftVideo/AndroidVisualEffect.swift"
+    },
+    {
+      "covered" : 54,
+      "executable" : 54,
+      "file" : "Sources/SwiftVideo/AnimationTiming.swift"
+    },
+    {
+      "covered" : 118,
+      "executable" : 127,
       "file" : "Sources/SwiftVideo/AppleAudioProcessing.swift"
     },
     {
-      "covered" : 99,
-      "executable" : 110,
+      "covered" : 113,
+      "executable" : 124,
       "file" : "Sources/SwiftVideo/AppleFrameRenderer.swift"
+    },
+    {
+      "covered" : 78,
+      "executable" : 79,
+      "file" : "Sources/SwiftVideo/AppleMaskEffects.swift"
     },
     {
       "covered" : 77,
@@ -23,23 +43,48 @@
       "file" : "Sources/SwiftVideo/AppleMediaSources.swift"
     },
     {
-      "covered" : 250,
-      "executable" : 273,
+      "covered" : 106,
+      "executable" : 107,
+      "file" : "Sources/SwiftVideo/AppleMotionTitle.swift"
+    },
+    {
+      "covered" : 264,
+      "executable" : 281,
       "file" : "Sources/SwiftVideo/AppleVideoRenderer.swift"
     },
     {
-      "covered" : 15,
-      "executable" : 15,
+      "covered" : 44,
+      "executable" : 45,
+      "file" : "Sources/SwiftVideo/AppleVisualEffect.swift"
+    },
+    {
+      "covered" : 85,
+      "executable" : 86,
+      "file" : "Sources/SwiftVideo/AudioEffect.swift"
+    },
+    {
+      "covered" : 17,
+      "executable" : 17,
       "file" : "Sources/SwiftVideo/AudioFilter.swift"
     },
     {
-      "covered" : 49,
-      "executable" : 51,
+      "covered" : 50,
+      "executable" : 52,
       "file" : "Sources/SwiftVideo/CompositionBuilder.swift"
     },
     {
-      "covered" : 87,
-      "executable" : 87,
+      "covered" : 11,
+      "executable" : 11,
+      "file" : "Sources/SwiftVideo/EffectContext.swift"
+    },
+    {
+      "covered" : 152,
+      "executable" : 152,
+      "file" : "Sources/SwiftVideo/EffectRegistry.swift"
+    },
+    {
+      "covered" : 77,
+      "executable" : 77,
       "file" : "Sources/SwiftVideo/PlaybackEditing.swift"
     },
     {
@@ -48,9 +93,14 @@
       "file" : "Sources/SwiftVideo/PlaybackRate.swift"
     },
     {
-      "covered" : 119,
-      "executable" : 120,
+      "covered" : 149,
+      "executable" : 150,
       "file" : "Sources/SwiftVideo/ProjectValidation.swift"
+    },
+    {
+      "covered" : 85,
+      "executable" : 85,
+      "file" : "Sources/SwiftVideo/TextMotion.swift"
     },
     {
       "covered" : 100,
@@ -63,13 +113,23 @@
       "file" : "Sources/SwiftVideo/VideoError.swift"
     },
     {
-      "covered" : 113,
-      "executable" : 117,
+      "covered" : 127,
+      "executable" : 131,
       "file" : "Sources/SwiftVideo/VideoExporter.swift"
     },
     {
-      "covered" : 137,
-      "executable" : 137,
+      "covered" : 79,
+      "executable" : 83,
+      "file" : "Sources/SwiftVideo/VideoLayerRenderer.swift"
+    },
+    {
+      "covered" : 27,
+      "executable" : 27,
+      "file" : "Sources/SwiftVideo/VideoMask.swift"
+    },
+    {
+      "covered" : 130,
+      "executable" : 130,
       "file" : "Sources/SwiftVideo/VideoProject.swift"
     },
     {
@@ -78,11 +138,11 @@
       "file" : "Sources/SwiftVideo/VideoTime.swift"
     },
     {
-      "covered" : 44,
-      "executable" : 45,
+      "covered" : 47,
+      "executable" : 48,
       "file" : "Sources/SwiftVideo/VisualStyle.swift"
     }
   ],
-  "linePercent" : 95.3896103896104,
+  "linePercent" : 96.71266233766234,
   "suite" : "ios"
 }

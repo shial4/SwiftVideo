@@ -167,6 +167,40 @@ import CoreGraphics
         #expect(rgb[1] > 190 && rgb[0] < 35 && rgb[2] < 35, "Decoded RGB after recovery: \(rgb)")
     }
 
+    @Test(arguments: ["red.mp4", "blue.mp4", "bt709.mp4"])
+    func unfilteredVideoPreservesDecodedColor(fixture: String) async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("color-test-\(UUID())")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        #if os(Android)
+        let source = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: fixture))
+        defer { try? FileManager.default.removeItem(at: source) }
+        #else
+        let name = (fixture as NSString).deletingPathExtension
+        let source = try #require(Bundle.module.url(forResource: name, withExtension: "mp4"))
+        #endif
+        let destination = folder.appendingPathComponent("export.mp4")
+        for start in fixture == "bt709.mp4" ? [0, 3] : [0] {
+            let before = try await frameSample(source, seconds: Double(start) + 0.5, leftQuarter: true)
+            let size = before.size
+            let project = VideoProject(canvas: size, tracks: [MediaTrack(clips: [
+                MediaClip(source: .video(source), duration: try VideoTime(value: 1, timescale: 1),
+                          sourceStart: try VideoTime(value: Int64(start), timescale: 1))
+            ])])
+            try await VideoExporter().export(project, to: destination,
+                settings: ExportSettings(resolution: size, videoBitRate: 4_000_000))
+            let after = try await frameSample(destination, leftQuarter: true)
+            #expect(after.size == before.size)
+            // Compare decoded pixels through the same device decoder. Flat fixture
+            // interiors should tolerate codec rounding, not a changed color matrix.
+            for channel in 0..<3 {
+                #expect(abs(after.rgb[channel] - before.rgb[channel]) <= 8,
+                        "\(fixture) at \(start)s channel \(channel): source \(before.rgb[channel]), export \(after.rgb[channel])")
+            }
+            try FileManager.default.removeItem(at: destination)
+        }
+    }
+
     @Test func filtersAffectDecodedPixels() async throws {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("filter-test-\(UUID())")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -230,9 +264,15 @@ import CoreGraphics
     }
 
     private func centerPixel(_ url: URL, at seconds: Double = 0.5) async throws -> [Double] {
+        try await frameSample(url, seconds: seconds).rgb
+    }
+
+    private func frameSample(_ url: URL, seconds: Double = 0.5, leftQuarter: Bool = false) async throws
+        -> (size: VideoSize, rgb: [Double]) {
         #if os(Android)
-        let stats = try Media3TestSupport.frameStats(path: url.path, timeUs: Int64((seconds * 1_000_000).rounded()))
-        return Array(stats[3...5])
+        let stats = try Media3TestSupport.frameStats(path: url.path, timeUs: Int64(seconds * 1_000_000))
+        let size = VideoSize(width: Int(stats[0]), height: Int(stats[1]))
+        return (size, Array(leftQuarter ? stats[10...12] : stats[3...5]))
         #else
         let generator = AVAssetImageGenerator(asset: AVURLAsset(url: url))
         generator.requestedTimeToleranceBefore = .zero
@@ -245,8 +285,8 @@ import CoreGraphics
                 bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
             context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
         }
-        let index = (image.height / 2 * image.width + image.width / 2) * 4
-        return bytes[index..<(index + 3)].map(Double.init)
+        let index = (image.height / 2 * image.width + image.width / (leftQuarter ? 4 : 2)) * 4
+        return (VideoSize(width: image.width, height: image.height), bytes[index..<(index + 3)].map(Double.init))
         #endif
     }
 }

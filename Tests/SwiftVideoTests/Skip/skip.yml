@@ -24,3 +24,13 @@ build:
 
 skip:
   mode: 'native'
+
+settings:
+  contents:
+    - block: 'dependencyResolutionManagement'
+      contents:
+        - block: 'versionCatalogs'
+          contents:
+            - block: 'create("libs")'
+              contents:
+                - 'version("android-sdk-compile", "37")'

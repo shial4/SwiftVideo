@@ -10,6 +10,8 @@ import android.media.MediaExtractor
 import android.media.MediaCodec
 import android.media.MediaFormat
 import android.graphics.Color
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import java.io.File
 import java.io.FileOutputStream
 #endif
@@ -47,6 +49,47 @@ public final class Media3TestSupport {
         #endif
     }
 
+    /// Width, height, transparent/opaque pixels, top/bottom ink, and center RGBA.
+    public static func layerImageStats(path: String) throws -> [Int] {
+        #if SKIP
+        guard let image = BitmapFactory.decodeFile(path) else { throw IllegalStateException("Cannot decode layer PNG") }
+        defer { image.recycle() }
+        var clear = 0, opaque = 0, top = 0, bottom = 0
+        for y in 0..<image.getHeight() {
+            for x in 0..<image.getWidth() {
+                let color = image.getPixel(x, y)
+                if Color.alpha(color) == 0 { clear += 1 }
+                if Color.alpha(color) == 255 { opaque += 1 }
+                if Color.alpha(color) > 127 {
+                    if y < image.getHeight() / 2 { top += 1 } else { bottom += 1 }
+                }
+            }
+        }
+        let center = image.getPixel(image.getWidth() / 2, image.getHeight() / 2)
+        return [image.getWidth(), image.getHeight(), clear, opaque, top, bottom,
+                Color.red(center), Color.green(center), Color.blue(center), Color.alpha(center)]
+        #else
+        throw unavailable()
+        #endif
+    }
+
+    public static func solidImage(red: Int, green: Int, blue: Int) throws -> String {
+        #if SKIP
+        let bitmap = Bitmap.createBitmap(320, 180, Bitmap.Config.ARGB_8888)
+        defer { bitmap.recycle() }
+        bitmap.eraseColor(Color.rgb(red, green, blue))
+        let file = File.createTempFile("swiftvideo-solid-", ".png", ProcessInfo.processInfo.androidContext.getCacheDir())
+        do {
+            let output = FileOutputStream(file)
+            defer { output.close() }
+            guard bitmap.compress(Bitmap.CompressFormat.PNG, 100, output) else { throw IllegalStateException("Cannot save solid image") }
+            return file.getAbsolutePath()
+        } catch { file.delete(); throw error }
+        #else
+        throw unavailable()
+        #endif
+    }
+
     public static func copyFixture(name: String) throws -> String {
         #if SKIP
         let context = ProcessInfo.processInfo.androidContext
@@ -68,18 +111,58 @@ public final class Media3TestSupport {
         #endif
     }
 
+    /// Android extractor color standard, range, and transfer; absent values are -1.
+    public static func videoColorInfo(path: String) throws -> [Int] {
+        #if SKIP
+        let extractor = MediaExtractor()
+        defer { extractor.release() }
+        extractor.setDataSource(path)
+        for index in 0..<extractor.getTrackCount() {
+            let format = extractor.getTrackFormat(index)
+            if (format.getString(MediaFormat.KEY_MIME) ?? "").hasPrefix("video/") {
+                return [MediaFormat.KEY_COLOR_STANDARD, MediaFormat.KEY_COLOR_RANGE, MediaFormat.KEY_COLOR_TRANSFER].map {
+                    format.containsKey($0) ? format.getInteger($0) : -1
+                }
+            }
+        }
+        throw IllegalStateException("No video track for color inspection.")
+        #else
+        throw unavailable()
+        #endif
+    }
+
+    public static func copyFrame(path: String, timeUs: Int64) throws -> String {
+        #if SKIP
+        let bitmap = try Media3FrameDecoder.decode(path: path, timeUs: timeUs)
+        defer { bitmap.recycle() }
+        let file = File.createTempFile("swiftvideo-frame-", ".png", ProcessInfo.processInfo.androidContext.getCacheDir())
+        do {
+            let output = FileOutputStream(file)
+            defer { output.close() }
+            guard bitmap.compress(Bitmap.CompressFormat.PNG, 100, output) else {
+                throw IllegalStateException("Cannot save source frame.")
+            }
+            return file.getAbsolutePath()
+        } catch {
+            file.delete()
+            throw error
+        }
+        #else
+        throw unavailable()
+        #endif
+    }
+
     public static func frameStats(path: String, timeUs: Int64) throws -> [Double] {
         #if SKIP
         let retriever = MediaMetadataRetriever()
         defer { retriever.release() }
         retriever.setDataSource(path)
-        guard let bitmap = retriever.getFrameAtTime(timeUs, MediaMetadataRetriever.OPTION_CLOSEST) else {
-            throw IllegalStateException("Cannot decode exported frame.")
-        }
+        let bitmap = try Media3FrameDecoder.decode(path: path, timeUs: timeUs)
         defer { bitmap.recycle() }
         let width = bitmap.getWidth()
         let height = bitmap.getHeight()
         let center = bitmap.getPixel(width / 2, Int(Double(height) * 0.5556))
+        let left = bitmap.getPixel(width / 4, height / 2)
         let overlay = bitmap.getPixel(Int(Double(width) * 0.85), Int(Double(height) * 0.8))
         var sum = 0.0
         var count = 0
@@ -91,7 +174,8 @@ public final class Media3TestSupport {
         }
         let duration = Double(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION) ?? "0") ?? 0.0
         return [Double(width), Double(height), duration, Double(Color.red(center)), Double(Color.green(center)), Double(Color.blue(center)),
-                Double(Color.red(overlay)), Double(Color.green(overlay)), Double(Color.blue(overlay)), count == 0 ? -1.0 : sum / Double(count)]
+                Double(Color.red(overlay)), Double(Color.green(overlay)), Double(Color.blue(overlay)), count == 0 ? -1.0 : sum / Double(count),
+                Double(Color.red(left)), Double(Color.green(left)), Double(Color.blue(left))]
         #else
         throw unavailable()
         #endif

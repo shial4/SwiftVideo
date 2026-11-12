@@ -7,17 +7,20 @@ import SwiftVideoMedia3
 
 /// Media3 owns native Android codecs. The bridge is authored entirely in Swift.
 public actor AndroidVideoRenderer: VideoRendering {
-    public nonisolated let capabilities = RendererCapabilities(name: "Media3 Transformer",
+    private static let supportedCapabilities = RendererCapabilities(name: "Media3 Transformer",
         features: Set(CompositionFeature.allCases), codecs: [.h264, .hevc], containers: [.mp4])
+    public nonisolated var capabilities: RendererCapabilities { Self.supportedCapabilities }
 
     private let effects: EffectRegistry
     public init(effects: EffectRegistry = .empty) { self.effects = effects }
 
-    public func render(_ project: VideoProject, to destination: URL, settings: ExportSettings,
-                       progress: @escaping @Sendable (ExportProgress) -> Void) async throws {
-        try project.validate()
+    /// Shared validation and native Codable boundary for export and preview.
+    private static func renderPlan(_ project: VideoProject, settings: ExportSettings,
+                                   effects: EffectRegistry) throws -> AndroidRenderPlan {
+        try project.validateForRendering()
+        guard try project.duration > .zero else { throw VideoError.invalidProject("Cannot render an empty timeline.") }
         try settings.validate(for: project)
-        try capabilities.validate(project, settings: settings)
+        try supportedCapabilities.validate(project, settings: settings)
         try effects.validate(project, for: .android)
         let rate = settings.frameRate ?? project.frameRate
         guard rate.denominator == 1 else {
@@ -27,7 +30,19 @@ public actor AndroidVideoRenderer: VideoRendering {
         guard size.width <= 8192, size.height <= 8192, rate.framesPerSecond <= 240 else {
             throw VideoError.unsupportedFeature("This renderer supports output up to 8192 pixels per dimension and 240 fps.")
         }
-        let plan = try AndroidRenderPlan(project: project, settings: settings, effects: effects)
+        return try AndroidRenderPlan(project: project, settings: settings, effects: effects)
+    }
+
+    static func serializedPlan(_ project: VideoProject, settings: ExportSettings) throws -> String {
+        let plan = try renderPlan(project, settings: settings, effects: .empty)
+        let encoded = try JSONEncoder().encode(plan)
+        guard let json = String(data: encoded, encoding: .utf8) else { throw VideoError.invalidProject("Cannot serialize Android render plan.") }
+        return json
+    }
+
+    public func render(_ project: VideoProject, to destination: URL, settings: ExportSettings,
+                       progress: @escaping @Sendable (ExportProgress) -> Void) async throws {
+        let plan = try Self.renderPlan(project, settings: settings, effects: effects)
         let nativeEffects = Dictionary(uniqueKeysWithValues: plan.clips.map { clip in
             (clip.id, Dictionary(uniqueKeysWithValues: clip.filters.enumerated().compactMap { index, filter in
                 filter.nativeFactory.map { (index, $0) }
@@ -46,12 +61,7 @@ public actor AndroidVideoRenderer: VideoRendering {
         })
         defer { for effect in audioEffects.values { effect.finish() } }
         progress(ExportProgress(phase: .preparing, fraction: 0))
-        try session.start(json: json, outputPath: destination.path, sample: { id, microseconds in
-            guard let clip = clips[id], let time = try? VideoTime(value: Int64(microseconds.rounded()), timescale: 1_000_000),
-                  (try? clip.timeRange.contains(time)) == true,
-                  let transform = try? clip.visualTransform(at: time) else { return [0.5, 0.5, 1, 0, 0] }
-            return [transform.x, transform.y, transform.scale, transform.rotation, transform.opacity]
-        }, audio: { id, sampleRate, channels, data, reset in
+        try session.start(json: json, outputPath: destination.path, sample: AndroidRenderPlan.visualSampler(for: project), audio: { id, sampleRate, channels, data, reset in
             guard let effect = audioEffects[id] else { throw VideoError.renderingFailed("A custom audio effect was not prepared.") }
             return try effect.process(data, sampleRate: sampleRate, channels: channels, reset: reset)
         }, visual: { id, index in

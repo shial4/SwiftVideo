@@ -3,6 +3,27 @@
 
 [Documentation index](README.md) | [Public API reference](APIReference.md)
 
+## Combined development verification
+
+The merged `develop` implementation was tested locally on November 10, 2026, and its results reviewed on November 13. It combines stabilization head `b0179f4`, extensibility head `1e4a6aa`, and preview head `fb8b612`. No release tag was created or moved. This is consolidation evidence, not a stable release pass.
+
+| Target | Observed result | Measured coverage |
+| --- | --- | --- |
+| macOS library | 117 tests in 18 suites passed | Real exports and core behavior |
+| iOS 27 Simulator | 116 tests in 18 suites passed | 2,383 / 2,464 lines, 96.71% |
+| Android native core | 69 tests in 10 suites passed | 1,593 / 1,680 lines, 94.82% |
+| Android API 35 arm64 app | 132 tests in 16 suites completed; six known diagnostic assertions on recheck | Media3: 1,825 / 2,046 generated lines, 89.20% |
+| Optional segmentation | Image/video and failure/recovery checks passed | iOS 137/168 (81.55%); native Android 37/41 (90.24%); Media3 161/179 (89.94%) |
+| Example editor | Six model tests and both platform app builds passed | No UI coverage claim |
+
+All six existing coverage thresholds pass when processing these local profiles. Android instrumentation remains a failed suite: four BT.709 color assertions and two raw-player seek/reset assertions match the preview baseline. The first combined run recorded those six issues plus one audio-preview startup timeout (`red-with-offset-music.mp4`, zero source trim) while example builds were running. The unchanged APK recheck, without competing builds, completed in 235.190 seconds with all audio checks passing and the original six issues. The first timeout remains recorded as an intermittent verification risk; the recheck does not establish its cause or erase it.
+
+Merge regressions verify that layer masks use source coordinates before crop and that unsupported custom effects/motion titles fail before writing a preview. Export retains the custom visual/audio and motion-title callbacks through the shared Android composition builder. Layer previews support built-in masks and chroma key; custom registry and motion-title preview integration remains unsupported.
+
+The checked-in [iOS](Coverage/ios.json), [Android core](Coverage/android-core.json), and [Media3](Coverage/android-media3.json) files are this combined local snapshot. Exact-commit hosted CI must be assessed on the development PR; historical passing CI below does not verify this merge. Existing installed toolchains were used, with no local toolchain installation or package-version upgrade.
+
+## Frozen beta.4 evidence
+
 The [0.0.2-beta.4](https://github.com/shial4/SwiftVideo/releases/tag/0.0.2-beta.4) snapshot was verified on November 10, 2026, at `311107384330d3c1670546b6eeef806447fdb0d9` with Media3 1.11.1. Exact-commit [Apple CI](https://github.com/shial4/SwiftVideo/actions/runs/42682862180) and [Android CI](https://github.com/shial4/SwiftVideo/actions/runs/42682863148) pass, including example builds and all coverage gates. The 0.0.1 tag predates playback speed and ordered filters. Beta observation remains a separate release gate; see the [release plan](ReleasePlan.md).
 
 | Target | Observed result | Coverage |
@@ -14,21 +35,21 @@ The [0.0.2-beta.4](https://github.com/shial4/SwiftVideo/releases/tag/0.0.2-beta.
 | Android Media3 bridge | Hosted instrumentation coverage | 578 / 635 generated lines, 91.02% |
 | Example editor model on macOS | 6 tests passed | Asset loading, edits, history, selection, failure handling |
 
-The checked-in [iOS](Coverage/ios.json), [Android core](Coverage/android-core.json), and [Media3](Coverage/android-media3.json) reports come from those CI runs. They contain measured executable-line counts. Workflow badges link to live CI; coverage badges describe this revision's snapshot, not every branch or tag.
+The beta.4 coverage reports remain available at its immutable tag. Coverage files on `develop` describe the combined implementation recorded above; they must not be treated as beta.4 evidence. Workflow badges link to live CI.
 
 Independent SwiftPM and native Kotlin/AAR consumers passed before publication and after resolving exact `0.0.2-beta.4` to the SHA above. The macOS consumer exported a title with combined clip/track speed and filters. A separate iOS 27.0 Simulator package consumer exported the eight-second canonical example and decoded frames at 0, 1, 3, 5 and 7 seconds. The API 35 arm64 Kotlin consumer passed three tests covering export and missing-input cleanup, fractional PCM source ranges, and the same canonical example. Post-tag iOS smoke took 2.425 seconds and the three Kotlin tests took 15.770 seconds; these are emulator/simulator observations, not phone benchmarks.
 
 The original 0.0.1 manual editor checks covered macOS, iOS Simulator, and Android Emulator. That historical Android export was independently decoded as an eight-second 1920x1080 MP4. Current routine tests use 320x180; release smoke checks use 1280x720. An earlier unsigned Release build for physical iPhones compiled, but has not been run on hardware.
 
+## Preview baseline before consolidation
+
+At `fb8b612`, [Apple CI](https://github.com/shial4/SwiftVideo/actions/runs/42685774218) passed 56 macOS and 56 iOS tests and six editor tests. [Android CI](https://github.com/shial4/SwiftVideo/actions/runs/42685774348) passed compilation, the example build and 40 native core tests. Instrumentation completed 75 tests with six assertions: four BT.709 color checks and two missing-overlay checks in raw CompositionPlayer seek/reset controls. The supported recreation path and all audio checks passed. This is not a passing Android release gate; CI coverage processing was skipped after instrumentation failed. The same six assertions occurred locally on API 35.
+
+The development branch retains Media3 1.12.0-alpha02 because 1.11.1 lacks the required preview builder and a published native helper artifact. Stable adoption requires compatible stable dependencies and passing platform gates. Existing diagnostic thresholds remain unchanged; see the [release plan](ReleasePlan.md#known-limitations-and-preview-blockers).
+
 ## What the tests verify
 
-Beta.4 fixes fractional PCM trim timing. The new regression recorded six assertions against beta.3's unchanged Android implementation for silent starts and delayed fades. An independent Media3 1.11.1 control registered identical half-speed WAV inputs at either 0 or 100 ms; pre-trimming to a zero-origin WAV removed the variation in four controls. Production preparation runs off the application looper, copies selected PCM with bounded buffers, reuses identical ranges within an export, and waits for cancellation cleanup before completion. The passing suite includes 12 PCM16/float exports at three fractional starts, cancellation and partial-file failure/recovery. Local API 35 completed 47 functions in 17.803 seconds; hosted API 34 completed them in 70.520 seconds. Independent Kotlin exports were also decoded by AVFoundation to verify immediate audio and the fade endpoint.
-
-Earlier fixes remain covered. Beta.2 guarded the Media3 timeline marker when cancellation closes a registered video track before its first sample; one-frame exports retain their requested duration. Beta.3 enabled offline mode before building the Apple audio graph. The [original Apple CI failure](https://github.com/shial4/SwiftVideo/actions/runs/42649175256) was an audio-service RPC timeout in RemoteIO initialization, which aborted the test process when `mainMixerNode` was accessed before offline mode. Rate/pitch, EQ and concurrent exports pass with the corrected order. Beta.4 contains both fixes; beta.1, beta.2 and beta.3 are superseded and ineligible for promotion.
-
-- Rational frame/time arithmetic, clip/track speed multiplication, retimed gaps, overflow, input validation, and backward-compatible JSON decoding.
-- Pitch preservation from 0.25x through 4x, selected source ranges, leading/trailing audio, and low-pass/high-pass/parametric EQ attenuation.
-- Clip-before-track filter inheritance, failed track replacement rollback, and editor speed/filter undo and redo.
+- Rational frame/time arithmetic, overflow, input validation, and JSON round trips.
 - Builder loops, branches, reusable arrays, thrown errors, stable IDs, immutable modifiers, and bounded text allocation.
 - Atomic edits, missing targets, failed-batch rollback, split/trim source ranges, animation continuity, and audio envelopes.
 - Export progress, cancellation, cleanup after failure, unsupported capabilities, and protection of existing destinations.
@@ -39,11 +60,11 @@ Earlier fixes remain covered. Beta.2 guarded the Media3 timeline marker when can
 
 The media fixtures are deterministic red/blue videos, a green image, and synthesized audio. Pixel and PCM measurements use platform decoders independently of the compositor. Tests allow codec/color conversion tolerances; they do not compare byte-identical compressed files across platforms.
 
-Android Media3 exports share the serialized `RenderBehaviorTests` suite so concurrent tests do not compete for the hosted emulator's graphics and codec resources. Core and fixture tests remain parallel.
+Android Media3 rendering and source-frame decoding share the serialized `RenderBehaviorTests` suite so concurrent tests do not compete for the hosted emulator's graphics and codec resources. Core and fixture file-copy tests remain parallel.
 
 Routine composition tests on both platforms render at 320x180. They verify decoded pixels, overlay placement, relative text motion, timing, and audio fades with much less rendering work than a full HD export. The beta.4 release smoke checks exported the eight-second title/image and captioned picture-in-picture example at 1280x720 and 30 fps with H.264 video and AAC audio on iOS 27.0 Simulator and the Android API 35 arm64 emulator. These checks used clip 2x and track 0.5x audio rates together with a 1000 Hz low-pass filter. iOS used an independent SwiftPM consumer; Android used the same canonical scene through the public Swift API and a native Kotlin consumer. Candidate outputs were independently decoded with AVFoundation for dimensions, duration, frames and non-silent audio. Earlier stable-line checks also covered the API 34 arm64 emulator.
 
-CI compiles Android binaries on macOS and runs them on an Ubuntu KVM emulator with two virtual CPU cores and 4 GB of RAM. Emulator 36.6.11 is pinned to match the version used for local verification. CI uses the same composition tests and Media3 timeout as local tests. The device-test command has a five-minute deadline so an unresponsive emulator cannot hold the job indefinitely.
+CI compiles Android binaries on macOS and runs them on an Ubuntu KVM emulator with two virtual CPU cores and 4 GB of RAM. Emulator 36.6.11 is pinned to match the version used for local verification. CI uses the same composition tests and Media3 timeout as local tests. The complete device-test command has a fifteen-minute deadline, with thirty seconds to collect diagnostics before forced termination. Individual test assertions and timeouts are unchanged.
 
 Platform-specific renderer failure, text-orientation and PCM preparation tests account for differences in test counts. The orientation test independently checks an asymmetric glyph in decoded output; it reproduced the iOS inversion before the fix and passes on both Apple targets. The Android instrumentation runner appears as one JUnit wrapper; `swt-events.jsonl` records the individual Swift Testing results.
 
@@ -55,11 +76,11 @@ The iOS report includes executable first-party `Sources/SwiftVideo` code for tha
 
 Android core coverage runs an instrumented native Swift test process without a JVM. `SWIFTVIDEO_CORE_COVERAGE` excludes real Android media tests from this process. The Android renderer facade is excluded from this specific percentage because it needs an initialized Android app/JVM; it is exercised by the separate instrumentation suite. The native core percentage must not be described as coverage of the entire Android backend.
 
-JaCoCo measures the generated Kotlin bytecode for the Swift-authored `SwiftVideoMedia3` implementation files. It is a separate measurement, not Swift source-line coverage. Dependencies, generated bridge support, fixtures, tools, and the example UI are excluded from the library percentages. The three percentages are not averaged.
+JaCoCo measures the generated Kotlin bytecode for the Swift-authored `SwiftVideoMedia3` implementation. It is a separate measurement, not Swift source-line coverage. Dependencies, generated bridge support, fixtures, tools, and the example UI are excluded from the library percentages. The three percentages are not averaged.
 
 ## Optional segmentation module
 
-The unreleased `codex/effect-extensibility` branch adds separate coverage gates for `SwiftVideoSegmentation`: 75% Apple source lines, 90% Android native source lines, and 75% `SwiftVideoSegmentationMedia3` generated bytecode lines. These are independent of the three existing core-library gates and are never averaged with them. The iOS scope includes the Vision adapter even though that system model cannot run in the simulator; macOS tests exercise it with real inference.
+The unreleased `develop` branch includes separate coverage gates for `SwiftVideoSegmentation`: 75% Apple source lines, 90% Android native source lines, and 75% `SwiftVideoSegmentationMedia3` generated bytecode lines. These are independent of the three existing core-library gates and are never averaged with them. The iOS scope includes the Vision adapter even though that system model cannot run in the simulator; macOS tests exercise it with real inference.
 
 At implementation commit `01f70f16b693152b92c9f1724a114941dde4e1f5`, [Apple CI](https://github.com/shial4/SwiftVideo/actions/runs/42684980302) and [Android CI](https://github.com/shial4/SwiftVideo/actions/runs/42684980550) pass, including example builds and every coverage gate. Apple runs 103 macOS and 102 iOS test functions; Android native core runs 64. Local API 35 instrumentation passes 102 functions in 14 suites after the shared PCM fix. Real image and video tests retain the person, remove the background, and recover after missing/corrupt model errors. The normal SwiftVideo Android runtime dependency graph contains no segmentation module or MediaPipe runtime.
 
@@ -72,7 +93,7 @@ At implementation commit `01f70f16b693152b92c9f1724a114941dde4e1f5`, [Apple CI](
 | Android Media3 bridge | 911 / 1,014 | 89.84% | 75% |
 | Android segmentation bridge | 161 / 179 | 89.94% | 75% |
 
-These CI measurements cover the extensibility implementation, not the stable beta. The checked-in core coverage JSON files above retain the explicitly identified beta.4 snapshot; feature reports are attached to the linked CI runs. The separate macOS segmentation measurement is 160/169 executable lines (94.67%), including real Vision inference. Android native segmentation coverage excludes the JVM process; its uncovered native factory calls are exercised in the app suite. The stable-first release order still applies despite passing feature CI. This documentation-only merge records the results without changing the tested implementation.
+These CI measurements cover the extensibility implementation, not the stable beta. The earlier feature reports are attached to the linked CI runs; checked-in JSON files now describe the combined local snapshot above. The separate macOS segmentation measurement is 160/169 executable lines (94.67%), including real Vision inference. Android native segmentation coverage excludes the JVM process; its uncovered native factory calls are exercised in the app suite. The stable-first release order still applies despite passing feature CI. These historical consumer results predate consolidation and do not verify the combined branch.
 
 Independent consumers resolved exact revision `931ea199b7bf0831149f281c628e722301d8e5a6`, whose library implementation matches the passing CI commit above. The native macOS SwiftPM consumer exported ten sequential clips with a compiled Core ML model and one clip with the raw model, checking decoded foreground/background pixels in every clip and total duration. A separate iOS 27.0 Simulator SwiftPM consumer passed a three-clip export with the same per-clip pixel/duration checks in 2.922 seconds. The rebuilt native Kotlin/AAR consumer passed its three-clip check on API 35 arm64 with no skips or failures (1.856 seconds reported by the test runner). All three consumers also verified missing-model cleanup and a successful export afterward through the same service. They use independent package/application targets; these are short integration checks, not phone throughput benchmarks.
 
@@ -98,7 +119,9 @@ Local verification used Xcode 27.2, the iOS 27.0 Simulator, and macOS 26.6.2. CI
 
 The complete commands live in [android.yml](../.github/workflows/android.yml). Use an existing Skip installation with a matching Swift Android toolchain/SDK. The local verification configuration is Swift 6.3.2, NDK r27d, Gradle 9.8.2, and an API 34 arm64 emulator. Hosted CI cross-compiles x86_64 Android binaries on `macos-26-intel`, then transfers them to `ubuntu-24.04` for execution. Xcode's compiler builds host metadata, including the Apple AVKit preview; Swift 6.3.2 builds Android binaries. The emulator runner needs only ADB and the packaged binaries; it does not install Swift. On Apple Silicon development machines, use `--arch aarch64` for native builds, `ANDROID_ARCH=aarch64` when packaging, and an arm64 emulator.
 
-The workflow performs these steps in order:
+The workflow has three jobs: `build` packages the test binaries, `tests` runs after `build`, and `example` builds the editor independently. The example no longer delays the emulator tests. Both macOS jobs use the same [setup action](../.github/actions/setup-android/action.yml), which caches the pinned toolchains and SwiftPM downloads. Gradle manages its dependency and task caches; cache writes are also enabled for same-repository PRs and the development branch. Generated Skip bridges and native incremental build directories are rebuilt from source. Toolchain caches have exact version/setup keys; SwiftPM caches are separated by build job and dependency manifests.
+
+The test jobs perform these steps in order:
 
 1. Generate Skip metadata with `SKIP_DYNAMIC_LIBRARIES=1 xcrun swift build --build-system native --scratch-path .build-media3 --target SwiftVideoTests`.
 2. Build the native `SwiftVideo` library and Swift Testing bundle into the generated module's JNI directories.
@@ -126,6 +149,7 @@ A separate diagnostic on candidate `7947b27` confirms a synthetic BT.709 color s
 The independent decode confirms a difference in the exported file, not only in one inspection API. A first-frame comparison of the bundled coastal example also showed RGB differences in both iOS Simulator and Android emulator exports; that comparison includes scaling and encoding differences and is not a perceptual-visibility score. The coastal source is generated artwork animated into video, as recorded in the [asset provenance](../Example/ASSETS.md).
 
 On November 9, 2026, the maintainer accepted these measured SDR color differences as a documented limitation for 0.0.2. They do not block this release. The measurements do not establish visibility across ordinary footage or scope on physical devices. General export tests passing does not prove color fidelity. See the [bounded release exception](ReleasePlan.md#known-limitations-and-preview-blockers); existing pixel assertions and coverage thresholds are unchanged.
+The alpha's local example build required `-Pkotlin.incremental=false` on the Gradle command after changing SDK versions: incremental compilation had retained stale SkipLib and SkipFoundation metadata. This is a process-scoped rebuild option, not a project setting or dependency source change. The example declares SDK 37 in its own Skip configuration, as described in [preview integration](Integration.md#experimental-android-preview).
 
 ## Limits of verification
 

@@ -129,7 +129,7 @@ public actor VideoExporter {
     public func export(_ project: VideoProject, to destination: URL, settings: ExportSettings = ExportSettings(),
                        progress: @escaping @Sendable (ExportProgress) -> Void = { _ in }) async throws -> URL {
         guard active == nil else { throw VideoError.exportInProgress }
-        try project.validate()
+        try project.validateForRendering()
         try settings.validate(for: project)
         try renderer.capabilities.validate(project, settings: settings)
         guard try project.duration > .zero else { throw VideoError.invalidProject("Cannot export an empty timeline.") }

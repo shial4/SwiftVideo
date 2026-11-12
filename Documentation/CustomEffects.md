@@ -1,7 +1,7 @@
 <!-- Copyright 2026 Software Deck Pty Ltd; SPDX-License-Identifier: Apache-2.0 -->
 # Custom visual effects
 
-This API is under development on `codex/effect-extensibility`. It is not included in 0.0.1 or the 0.0.2 stabilization line. It supports app-defined GPU filters for video, images and rasterized text, on individual clips or every visual clip in a track.
+This API is under development on `develop`. It is not included in 0.0.1 or the 0.0.2 stabilization line. It supports app-defined GPU filters for video, images and rasterized text, on individual clips or every visual clip in a track.
 
 ## Register an effect
 

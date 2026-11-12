@@ -8,6 +8,40 @@ import Testing
 @Suite struct BoundaryTests {
     private func time(_ value: Int64) throws -> VideoTime { try VideoTime(value: value, timescale: 1) }
 
+    @Test func layerPreviewRejectsInvalidRequestsWithoutWritingOutput() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("layer-boundaries-\(UUID())")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let destination = directory.appendingPathComponent("preview.png")
+        let clip = MediaClip.text("Title", duration: try time(2))
+        let project = VideoProject(tracks: [MediaTrack(clips: [clip])])
+        let renderer = VideoLayerRenderer()
+        let missing = UUID()
+        await #expect(throws: VideoError.missingClip(missing)) {
+            try await renderer.render(clipID: missing, in: project, at: .zero, to: destination)
+        }
+        await #expect(throws: VideoError.self) {
+            try await renderer.render(clipID: clip.id, in: project, at: clip.duration, to: destination)
+        }
+        for size in [VideoSize(width: 0, height: 1), VideoSize(width: 1, height: 8193)] {
+            await #expect(throws: VideoError.self) {
+                try await renderer.render(clipID: clip.id, in: project, at: .zero, canvasSize: size, to: destination)
+            }
+        }
+        for invalid in [directory.appendingPathComponent("preview.mp4"), URL(string: "https://example.invalid/preview.png")!] {
+            await #expect(throws: VideoError.self) {
+                try await renderer.render(clipID: clip.id, in: project, at: .zero, to: invalid)
+            }
+        }
+        #expect(try FileManager.default.contentsOfDirectory(atPath: directory.path).isEmpty)
+        let original = Data("Keep this file".utf8)
+        try original.write(to: destination)
+        await #expect(throws: VideoError.destinationExists) {
+            try await renderer.render(clipID: clip.id, in: project, at: .zero, to: destination)
+        }
+        #expect(try Data(contentsOf: destination) == original)
+    }
+
     @Test func rationalTimeRejectsInvalidAndOverflowingInput() throws {
         #expect(throws: VideoError.self) { try VideoTime(value: .min, timescale: 1) }
         #expect(throws: VideoError.self) { try VideoTime(value: 1, timescale: -1) }
@@ -100,7 +134,6 @@ import Testing
             MediaClip(source: .image(URL(string: "ftp://example.com/a.png")!), duration: duration),
             MediaClip(source: .text("", TextStyle()), duration: duration),
             MediaClip(source: .text("A", TextStyle(fontSize: .nan)), duration: duration),
-            MediaClip(source: .text("A", TextStyle(fontURL: URL(string: "https://example.com/font.ttf"))), duration: duration),
             MediaClip(source: .text("A", TextStyle(shadow: TextShadow(radius: -1))), duration: duration),
             MediaClip(source: text, duration: duration, transform: VisualTransform(x: .infinity)),
             MediaClip(source: text, duration: duration, transform: VisualTransform(scale: 0)),
@@ -116,10 +149,46 @@ import Testing
         #expect(throws: VideoError.self) { try VideoProject(background: VideoColor(red: .nan, green: 0, blue: 0)).validate() }
     }
 
+    @Test(arguments: ["http://example.com/font.ttf", "ftp://example.com/font.ttf", "https:/font.ttf", "font.ttf", "content://fonts/brand.ttf"])
+    func invalidFontLocationsAreRejected(_ location: String) throws {
+        let font = try #require(URL(string: location))
+        let clip = MediaClip(source: .text("Brand", TextStyle(fontURL: font)), duration: try time(2))
+        #expect(throws: VideoError.self) { try VideoProject(tracks: [MediaTrack(clips: [clip])]).validate() }
+    }
+
+    @Test func hostedFontDocumentRoundTripsAndRemainsEditable() async throws {
+        let font = try #require(URL(string: "https://example.com/brand.ttf?revision=2"))
+        let style = TextStyle(fontURL: font, fontSize: 72, alignment: .leading)
+        let clip = MediaClip(source: .text("Brand", style), duration: try time(2))
+        let original = VideoProject(tracks: [MediaTrack(clips: [clip])])
+        let decoded = try JSONDecoder().decode(VideoProject.self, from: JSONEncoder().encode(original))
+        #expect(decoded == original)
+        let editor = try VideoEditor(project: decoded)
+        let edited = try await editor.apply([.replaceClip(clip.source(.text("Updated brand", style)))])
+        #expect(edited.tracks[0].clips[0].id == clip.id)
+        #expect(edited.tracks[0].clips[0].source == .text("Updated brand", style))
+    }
+
     @Test(arguments: [MediaFilter.brightness(2), .contrast(-1), .saturation(.nan), .gaussianBlur(-1), .sepia(2)])
     func invalidFilterParametersAreRejected(_ filter: MediaFilter) throws {
         let clip = MediaClip(source: .text("A", TextStyle()), duration: try time(1), filters: [filter])
         #expect(throws: VideoError.self) { try VideoProject(tracks: [MediaTrack(clips: [clip])]).validate() }
+    }
+
+    @Test func androidSamplerKeepsTrimmedAnimationClockAndRejectsInvalidTimes() async throws {
+        let clip = MediaClip(source: .text("A", TextStyle()), start: try time(1), duration: try time(4),
+            animations: [KeyframeAnimation(property: .opacity, keyframes: [
+                Keyframe(time: .zero, value: 0), Keyframe(time: try time(4), value: 1)
+            ])])
+        let editor = try VideoEditor(project: VideoProject(tracks: [MediaTrack(clips: [clip])]))
+        let trimmed = try await editor.apply([.trim(clip.id, keeping: VideoTimeRange(start: time(1), duration: time(1)))])
+        let sample = AndroidRenderPlan.visualSampler(for: trimmed)
+        #expect(sample(clip.id.uuidString, 2_000_000)[4] == 0.25)
+        #expect(sample(clip.id.uuidString, 2_500_000)[4] == 0.375)
+        for invalid in [-1, .nan, .infinity, Double(Int64.max), 1_999_999, 3_000_000] {
+            #expect(sample(clip.id.uuidString, invalid)[4] == 0)
+        }
+        #expect(sample("missing", 2_000_000)[4] == 0)
     }
 
     @Test func androidPlanPreservesOrderTrimmedEnvelopesAndScaledText() async throws {

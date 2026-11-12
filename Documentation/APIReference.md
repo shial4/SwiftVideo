@@ -5,6 +5,51 @@
 
 Import `SwiftVideo` to use the public API below. `Foundation` supplies `URL`, `UUID`, and JSON encoding in the examples. Constructors build values unless marked `throws`; use `VideoProject.validate()` to validate a complete project. Validation does not open media files or guarantee device codec support.
 
+## Experimental Android preview
+
+Available in `0.1.0-alpha.1` on Android only. Sources: [AndroidVideoPreview.swift](../Sources/SwiftVideo/AndroidVideoPreview.swift) and [Media3PreviewSession.swift](../Sources/SwiftVideoMedia3/Media3PreviewSession.swift).
+
+`AndroidVideoPreview(project: VideoProject, settings: ExportSettings) throws` owns a preview of one immutable project snapshot. It rejects invalid or empty projects and unsupported Android export settings before starting. Asynchronous preparation failures are reported by `session.failureMessage()`. The owner releases its session in `deinit`.
+
+| Session member | Contract |
+| --- | --- |
+| `currentStatus() -> Int` | `0` idle, `1` preparing, `2` composition prepared, `3` released, `-1` failed. Prepared does not imply that a frame has reached a surface. |
+| `failureMessage() -> String` | Preparation or player failure detail. |
+| `play()`, `pause()` | Schedule transport changes on the Android main looper; playback intent survives preparation and surface replacement. Playing after the end restarts the timeline. |
+| `seek(milliseconds: Int64)` | Clamp to the displayable timeline range, retain the requested position during preparation, and coalesce changes over 16 ms. Paused seeks rebuild the player. |
+| `positionMilliseconds() -> Int64` | Most recently observed or requested position, not a frame-delivery acknowledgement. |
+| `isPlaying() -> Bool` | Playback intent, including buffering and surface replacement. Pausing, completion, release, and failure stop it. |
+| `release()` | Idempotently cancel work and schedule player/cache cleanup. Observe released status if waiting for cancellation cleanup. |
+| `temporaryDirectoryPath() -> String` | Session scratch path for diagnostics; applications must not mutate its contents. |
+
+The transpiled Android boundary also exposes `attachSurfaceView(_:)`, `detachSurfaceView(_:)`, and `attachSurface(_:width:height:)`. These Android-typed methods are not bridged to native Swift. Applications provide the platform view adapter; no SwiftUI view is included. See [integration and limits](Integration.md#experimental-android-preview).
+
+## Paused layer images
+
+Source: [VideoLayerRenderer.swift](../Sources/SwiftVideo/VideoLayerRenderer.swift).
+
+`VideoLayerRenderer` is an actor that renders one active text, image, or video
+clip to a transparent PNG on Apple and Android:
+
+```swift
+try await VideoLayerRenderer().render(
+    clipID: clip.id, in: project, at: time,
+    canvasSize: VideoSize(width: 480, height: 270), to: destination)
+```
+
+The image includes source timing, clip and track playback rates, ordered clip
+and track filters, crop, content mode, and text styling. It does not include
+position, scale, rotation, or opacity. Apply the clip's `visualTransform(at:)`
+to the image in the editor so gestures can move existing pixels immediately.
+The image dimensions are the preview canvas dimensions multiplied by the
+clip's normalized width and height, rounded to whole pixels.
+
+The time must fall inside the clip's active interval. The destination must be
+a new local `.png` file; the caller owns it after the call succeeds. Canvas and
+layer dimensions cannot exceed 8192 pixels. Cancellation and failures remove
+temporary output. No video encoder is used. Apple rendering requires Metal;
+Android uses the existing Media3 effects pipeline.
+
 ## Time and frame rates
 
 Source: [VideoTime.swift](../Sources/SwiftVideo/VideoTime.swift).
@@ -192,6 +237,12 @@ Filters run in array order. All arguments must be finite.
 `TextShadow` exposes `color: VideoColor = .black`, `radius: Double = 2`, `x: Double = 1`, and `y: Double = 1`. Shadow values must be finite and radius nonnegative.
 
 Font size must be finite and positive. Font size and shadow dimensions use project canvas pixels and scale with export resolution. Text wraps inside the clip's layer bounds and is rasterized once per clip before GPU transforms. Keep those bounds large enough for the intended text; each resulting bitmap dimension must be positive and at most 8192 pixels. Use a readable local `fontURL` for portable typography; platform font names and glyph availability differ. The caller must include the font's required license.
+
+Hosted documents may use an HTTPS `fontURL`. Codable round-trips, project
+validation, and editing preserve that reference. The consuming app must download
+the font and replace its URL with the owned local file before preview or export.
+The exporter and both native renderers reject unresolved hosted fonts before
+rendering; they do not fetch fonts or silently substitute a platform font.
 
 ## Animation
 

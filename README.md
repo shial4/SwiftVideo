@@ -18,6 +18,8 @@ A declarative video composition library for **iOS, macOS, and Android**. Turn fo
 
 Built with SwiftVideo: [run the example editor on iOS or Android](Example/README.md), or [view the exported composition](Documentation/Images/composition.gif).
 
+> This is the unreleased `develop` branch. Stable users should use a release tag. `0.0.2-beta.4` remains the frozen stabilization candidate; development combines preview and extensibility in one PR. See the [release plan](Documentation/ReleasePlan.md).
+
 ## Why SwiftVideo?
 
 - **A timeline that reads like your UI.** Compose tracks and clips with builders, modifiers, conditionals, and loops. Keep immutable project values in SwiftUI state or your own model.
@@ -86,6 +88,18 @@ Then `import SwiftVideo`. For an existing package, merge these dependency entrie
 
 The latest stable release is `0.0.1`. Clip and track speed, inherited filters, and audio EQ are on `main` for the planned `0.0.2` release. To try those APIs before release, replace the dependency requirement with `branch: "main"`. See the [release plan](Documentation/ReleasePlan.md) for stabilization gates and the separate experimental preview release.
 
+### Android preview alpha
+
+`0.1.0-alpha.5` adds clip and track playback speed, ordered visual and audio filters, and example editor controls. It includes experimental direct composition playback on Android with Media3 `1.12.0-alpha02` and HTTPS custom-font references for hosted documents. Opt in with an exact version:
+
+```swift
+.package(url: "https://github.com/shial4/SwiftVideo.git", exact: "0.1.0-alpha.5")
+```
+
+The alpha requires Android compile/target SDK 37; minimum Android API 28 and Apple deployment targets are unchanged. It fixes playback after timeline gaps, preserves single-frame MP4 duration, and adds seek-aware audio preparation. The third alpha waits for rendered frames at playback boundaries, stops the old frame processor before a surface is destroyed, and retains the exact paused playhead across surface replacement. It exposes a low-level Android preview session; applications must provide the surface adapter. The example editor still previews exported movies.
+
+Android export-color and paused-seek checks remain failing, and a retimed-audio comparison failed intermittently. This prerelease does not establish a passing Android release gate. Its preview audio cache stores the source ranges used by the composition within a bounded disk budget; it still decodes compressed prefixes and stores gaps between distant ranges. Download hosted fonts and replace their URLs with local copies before preview or export. See [preview integration](Documentation/Integration.md#experimental-android-preview) and [alpha verification](Documentation/Testing.md#latest-complete-coverage-snapshot-010-alpha5) before adopting it.
+
 | Your project | Requirements | Integration |
 | --- | --- | --- |
 | Native iOS / iPadOS | iOS 17+, Swift 6.3+ | SwiftPM or Xcode; SwiftUI and UIKit supported |
@@ -136,7 +150,7 @@ The [Kotlin integration walkthrough](Documentation/Integration.md#native-android
 | Soundtracks | Pitch-preserving speed, video audio and music mixing, gain, mute, stereo pan, fades, ordered EQ |
 | Export | H.264 / HEVC, configurable resolution/frame rate/bitrate, progress and cancellation |
 
-Apple supports MP4/MOV and rational frame rates; Android supports MP4 and integer frame rates. Output is SDR, codec support depends on the device, and platform fonts/colors can differ. The library exports compositions; it does not include a live timeline player. [Full platform limits](Documentation/Guide.md#platform-architecture-and-limits).
+Apple supports MP4/MOV and rational frame rates; Android supports MP4 and integer frame rates. Output is SDR, codec support depends on the device, and platform fonts/colors can differ. The stable release exports compositions; the alpha additionally exposes experimental direct Android preview. [Full platform limits](Documentation/Guide.md#platform-architecture-and-limits).
 
 ### Built for SwiftUI workflows
 
