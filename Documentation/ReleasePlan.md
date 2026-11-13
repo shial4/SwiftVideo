@@ -45,6 +45,8 @@ The empty-track failure originates in [InAppMp4Muxer.close](https://github.com/a
 
 Before consolidation, [PR #1](https://github.com/shial4/SwiftVideo/pull/1) at `fb8b612` passes [Apple CI](https://github.com/shial4/SwiftVideo/actions/runs/42685774218). Its [Android CI](https://github.com/shial4/SwiftVideo/actions/runs/42685774348) passes compilation, the example build and 40 native core tests, but instrumentation completes 75 tests with six assertions: four color checks and two missing-overlay checks in raw seek/reset controls with the frame processor disabled. Audio checks and the supported recreation path pass in this run. The Android CI coverage gate is skipped after the failure; local Media3 coverage is 89.51%. Preview is not eligible to merge.
 
+[PR #6](https://github.com/shial4/SwiftVideo/pull/6) at `0626b8f` has no merge conflicts. Its November 12 hosted Apple run and both Android build jobs passed. Android app tests recorded seven assertions: the six above plus the historically intermittent raw frame-processor seek failure. Supported preview paths and audio checks passed, but the failed instrumentation step skipped the Android coverage gate. See the [CI review](Testing.md#pr-6-hosted-ci-review). Keep the PR draft until the runtime/coverage and stable dependency gates pass; a historical raw control failure must not be relabeled as a passing test.
+
 ## Implementation sequence
 
 Estimates assume one engineer, existing toolchains and simulator/emulator runtimes, and no newly discovered major regression. Codex owns implementation, diagnostics and release preparation; the maintainer owns product acceptance. Existing authorization to merge after the release gates pass remains in effect.
@@ -108,10 +110,12 @@ Keep the [diagnostic measurements](Testing.md#known-color-limitation) visible an
 Upstream work to watch:
 
 - [Media3 #2439](https://github.com/androidx/media/issues/2439): open multi-sequence seeking issue. Maintainers describe active frame-processor work; no committed date for our exact failures.
-- [Media3 #3470](https://github.com/androidx/media/pull/3470): GL-thread latch fix merged October 30, after alpha02. Confirm inclusion in a published artifact and rerun our reproduction; this addresses a crash, not proof that missing-frame assertions are fixed.
+- [Media3 #3470](https://github.com/androidx/media/pull/3470): GL-thread latch fix merged October 30 and included in [1.12.0-beta01](https://developer.android.com/jetpack/androidx/releases/media3#1.12.0-beta01), published November 11. This addresses a crash, not proof that missing-frame assertions are fixed. The latest stable version remains 1.11.1; beta01 does not satisfy the stable dependency gate.
 - [Media3 #3482](https://github.com/androidx/media/issues/3482) and [#3483](https://github.com/androidx/media/pull/3483): paused no-op seek can flush audio; the proposed fix remains open. It is related to audio behavior, but not a confirmed explanation for our PCM/RMS failures.
 
 No exact upstream ticket has been identified for the observed color conversion. Prepare a minimal reproduction with codec, device, input color metadata and raw output measurements before deciding where to report it. Do not wait for an unrelated issue to close as evidence of a fix.
+
+The November 13 [beta01 candidate check](Testing.md#pr-6-hosted-ci-review) compiled and completed the full Android app suite, retaining four color and two raw seek/reset assertions. Its one passing frame-processor seek control does not resolve the historical intermittent failure. Keep alpha02 on `develop` for now; beta01 did not clear either the runtime or stable dependency gate. All original assertions remain enabled.
 
 ## Monitoring and promotion
 

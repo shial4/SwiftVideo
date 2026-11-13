@@ -20,7 +20,18 @@ All six existing coverage thresholds pass when processing these local profiles. 
 
 Merge regressions verify that layer masks use source coordinates before crop and that unsupported custom effects/motion titles fail before writing a preview. Export retains the custom visual/audio and motion-title callbacks through the shared Android composition builder. Layer previews support built-in masks and chroma key; custom registry and motion-title preview integration remains unsupported.
 
-The checked-in [iOS](Coverage/ios.json), [Android core](Coverage/android-core.json), and [Media3](Coverage/android-media3.json) files are this combined local snapshot. Exact-commit hosted CI must be assessed on the development PR; historical passing CI below does not verify this merge. Existing installed toolchains were used, with no local toolchain installation or package-version upgrade.
+The checked-in [iOS](Coverage/ios.json), [Android core](Coverage/android-core.json), and [Media3](Coverage/android-media3.json) files are this combined local snapshot. Existing installed toolchains were used, with no local toolchain installation or package-version upgrade for consolidation.
+
+### PR #6 hosted CI review
+
+Reviewed November 13, 2026, at `0626b8f3d071c4c794a51b4a2d6ad322033e739f`. [Apple CI](https://github.com/shial4/SwiftVideo/actions/runs/43303004344) passed. [Android CI](https://github.com/shial4/SwiftVideo/actions/runs/43303004590) passed the test-binary build, example build and 69 native core tests. App instrumentation completed 132 tests in 16 suites with seven assertions; its failure prevented the hosted Android coverage gate from running.
+
+- Four BT.709 color assertions: source/export red-channel differences of 23 and 18, reproduced by both the independent Media3 control and SwiftVideo export.
+- Three raw-player paused-seek assertions: missing green overlays for legacy seek/reset and frame-processor seek. Both recreation controls and the supported SwiftVideo preview paths passed. Audio checks passed; the local startup timeout did not recur.
+
+The frame-processor seek assertion is additional to the latest six-assertion baseline, but it is not newly introduced by consolidation. The [earlier alpha verification](https://github.com/shial4/SwiftVideo/blob/39c1b84/Documentation/Testing.md#latest-complete-coverage-snapshot-010-alpha5) recorded the same intermittent raw control failure. Its test and probe sources are unchanged from that revision. No new production-path regression was identified in this hosted run. This does not establish that the raw failure is fixed or permit a passing Android gate.
+
+On November 13, all development Media3 artifacts were temporarily aligned to [1.12.0-beta01](https://developer.android.com/jetpack/androidx/releases/media3#1.12.0-beta01) for a local candidate check, using the unchanged native test libraries and test assertions. Skip metadata and Android APK compilation passed. API 35 arm64 instrumentation completed 132 tests in 16 suites with six assertions: the same four color checks and two legacy seek/reset checks. Supported preview, audio, effect and segmentation checks passed. The frame-processor seek control passed in this run, but it had also passed intermittently on alpha02; this is not proof of a fix. The candidate did not clear the runtime gate and remains prerelease, so dependency declarations were restored to alpha02. Complete local events and logs are retained under `.build-coverage/pr6-beta/`; no candidate was tagged or published and no coverage pass is inferred from this failed run.
 
 ## Frozen beta.4 evidence
 
