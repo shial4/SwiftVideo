@@ -22,15 +22,12 @@ extension MediaClip {
             try time.scaled(numerator: Int64(old.numerator) * Int64(new.denominator),
                             denominator: Int64(old.denominator) * Int64(new.numerator))
         }
-        let animations = try animations.map { animation in
-            KeyframeAnimation(property: animation.property, keyframes: try animation.keyframes.map {
-                Keyframe(time: try scale($0.time), value: $0.value, easing: $0.easing)
-            })
-        }
+        let animations = try animations.map { try $0.retimed(scale) }
         let audio = try AudioSettings(volume: audio.volume, isMuted: audio.isMuted, pan: audio.pan,
                                       fadeIn: scale(audio.fadeIn), fadeOut: scale(audio.fadeOut), filters: audio.filters)
         return try replacing(duration: scale(duration), effectsOffset: scale(effectsOffset),
-                             animations: animations, audio: audio, effectsDuration: scale(effectsDuration))
+                             animations: animations, audio: audio, effectsDuration: scale(effectsDuration),
+                             textMotion: .some(textMotion?.retimed(scale)))
     }
 
     /// Uses a resolved (clip times track) rate when called by a renderer.

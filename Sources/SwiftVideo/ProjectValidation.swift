@@ -24,6 +24,18 @@ extension VideoProject {
         }
         _ = try duration
     }
+
+    /// Hosted documents may name fonts to download; native renderers consume owned local files.
+    func validateForRendering() throws {
+        try validate()
+        for track in tracks {
+            for clip in track.clips {
+                if case .text(_, let style) = clip.source, let font = style.fontURL {
+                    try require(font.isFileURL, "Custom fonts require a local file URL before rendering.")
+                }
+            }
+        }
+    }
 }
 
 private func require(_ condition: Bool, _ message: String) throws {
@@ -50,7 +62,10 @@ private func validateClip(_ clip: MediaClip) throws {
         try require(!text.isEmpty, "Text overlays cannot be empty.")
         try require(style.fontSize.isFinite && style.fontSize > 0, "Font size must be finite and positive.")
         try validateColor(style.color)
-        if let font = style.fontURL { try require(font.isFileURL, "Custom fonts require a local file URL.") }
+        if let font = style.fontURL {
+            try require(font.isFileURL || (font.scheme?.lowercased() == "https" && font.host?.isEmpty == false),
+                        "Custom fonts require a local file or HTTPS URL.")
+        }
         if let shadow = style.shadow {
             try validateColor(shadow.color)
             try require([shadow.radius, shadow.x, shadow.y].allSatisfy(\.isFinite) && shadow.radius >= 0,
@@ -66,19 +81,10 @@ private func validateClip(_ clip: MediaClip) throws {
     try require([c.x, c.y, c.width, c.height].allSatisfy(\.isFinite) && c.x >= 0 && c.y >= 0 && c.width > 0
                 && c.height > 0 && c.x + c.width <= 1 && c.y + c.height <= 1, "Crop must fit within the source image.")
     try validateFilters(clip.filters)
-    var properties: Set<AnimationProperty> = []
-    for animation in clip.animations {
-        try require(properties.insert(animation.property).inserted, "Only one animation per property is allowed on a clip.")
-        try require(!animation.keyframes.isEmpty, "Animations require at least one keyframe.")
-        var previous: VideoTime?
-        for keyframe in animation.keyframes {
-            try require(keyframe.time >= .zero && keyframe.time <= clip.effectsDuration && keyframe.value.isFinite,
-                        "Keyframes require a finite value and a time inside the original effect duration.")
-            if let previous { try require(keyframe.time > previous, "Keyframe times must be strictly increasing.") }
-            if animation.property == .opacity { try require((0...1).contains(keyframe.value), "Animated opacity must be between zero and one.") }
-            if animation.property == .scale { try require(keyframe.value > 0, "Animated scale must be positive.") }
-            previous = keyframe.time
-        }
+    try validateAnimations(clip.animations, duration: clip.effectsDuration)
+    if let motion = clip.textMotion {
+        guard case .text(let text, _) = clip.source else { throw VideoError.invalidProject("Text motion requires a text clip.") }
+        try motion.validate(text: text, duration: clip.effectsDuration)
     }
     let a = clip.audio
     try require(clip.source.hasAudio || a.filters.isEmpty, "Audio filters require a video or audio clip.")
@@ -95,6 +101,31 @@ private func validateFilters(_ filters: [MediaFilter]) throws {
         case .contrast(let value), .saturation(let value): try require(value.isFinite && value >= 0, "Contrast and saturation must be nonnegative.")
         case .gaussianBlur(let value): try require(value.isFinite && value >= 0, "Blur radius must be nonnegative.")
         case .sepia(let value): try require(value.isFinite && (0...1).contains(value), "Sepia intensity must be between zero and one.")
+        case .mask(let mask): try mask.validate()
+        case .chromaKey(let key): try key.validate()
+        case .custom(let reference): try reference.validate()
+        }
+    }
+}
+
+func validateAnimations(_ animations: [KeyframeAnimation], duration: VideoTime) throws {
+    var properties: Set<AnimationProperty> = []
+    for animation in animations {
+        try require(properties.insert(animation.property).inserted, "Only one animation per property is allowed on a clip.")
+        try require(!animation.keyframes.isEmpty, "Animations require at least one keyframe.")
+        if let repetition = animation.repetition {
+            try repetition.validate()
+            try require(animation.keyframes.count >= 2, "Repeating animations require at least two keyframes.")
+        }
+        var previous: VideoTime?
+        for keyframe in animation.keyframes {
+            try keyframe.curve?.validate()
+            try require(keyframe.time >= .zero && keyframe.time <= duration && keyframe.value.isFinite,
+                        "Keyframes require a finite value and a time inside the original effect duration.")
+            if let previous { try require(keyframe.time > previous, "Keyframe times must be strictly increasing.") }
+            if animation.property == .opacity { try require((0...1).contains(keyframe.value), "Animated opacity must be between zero and one.") }
+            if animation.property == .scale { try require(keyframe.value > 0, "Animated scale must be positive.") }
+            previous = keyframe.time
         }
     }
 }

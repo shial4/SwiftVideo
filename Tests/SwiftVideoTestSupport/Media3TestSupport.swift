@@ -3,18 +3,93 @@
 
 #if !SKIP_BRIDGE
 import Foundation
+import SwiftVideoMedia3
 #if SKIP
 import android.media.MediaMetadataRetriever
 import android.media.MediaExtractor
 import android.media.MediaCodec
 import android.media.MediaFormat
 import android.graphics.Color
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import java.io.File
 import java.io.FileOutputStream
 #endif
 
 /// Integration fixtures and independent Android output inspection, linked only by tests.
 public final class Media3TestSupport {
+    public static func nativeOpacityEffect(_ opacity: Double) throws -> Media3VisualEffect {
+        #if SKIP
+        return Media3VisualEffect(androidx.media3.effect.AlphaScale(Float(opacity)))
+        #else
+        throw unavailable()
+        #endif
+    }
+
+    /// Exercise the actual internal factory without adding test APIs to the library bridge.
+    public static func closeEmptyTimelineMuxer(path: String, durationUs: Int64) throws {
+        #if SKIP
+        let type = java.lang.Class.forName("swift.video.media3.TimelineMuxerFactory")
+        let constructor = type.getDeclaredConstructor(java.lang.Long.TYPE)
+        constructor.setAccessible(true)
+        let factory = constructor.newInstance(durationUs)
+        let factoryType = java.lang.Class.forName("androidx.media3.muxer.Muxer$Factory")
+        let muxer = factoryType.getMethod("create", java.lang.Class.forName("java.lang.String")).invoke(factory, path)
+        let builderType = java.lang.Class.forName("androidx.media3.common.Format$Builder")
+        let builder = builderType.getDeclaredConstructor().newInstance()
+        builderType.getMethod("setSampleMimeType", java.lang.Class.forName("java.lang.String")).invoke(builder, "video/avc")
+        builderType.getMethod("setWidth", java.lang.Integer.TYPE).invoke(builder, 320)
+        builderType.getMethod("setHeight", java.lang.Integer.TYPE).invoke(builder, 180)
+        let format = builderType.getMethod("build").invoke(builder)
+        let muxerType = java.lang.Class.forName("androidx.media3.muxer.Muxer")
+        muxerType.getMethod("addTrack", java.lang.Class.forName("androidx.media3.common.Format")).invoke(muxer, format)
+        muxerType.getMethod("close").invoke(muxer)
+        #else
+        throw unavailable()
+        #endif
+    }
+
+    /// Width, height, transparent/opaque pixels, top/bottom ink, and center RGBA.
+    public static func layerImageStats(path: String) throws -> [Int] {
+        #if SKIP
+        guard let image = BitmapFactory.decodeFile(path) else { throw IllegalStateException("Cannot decode layer PNG") }
+        defer { image.recycle() }
+        var clear = 0, opaque = 0, top = 0, bottom = 0
+        for y in 0..<image.getHeight() {
+            for x in 0..<image.getWidth() {
+                let color = image.getPixel(x, y)
+                if Color.alpha(color) == 0 { clear += 1 }
+                if Color.alpha(color) == 255 { opaque += 1 }
+                if Color.alpha(color) > 127 {
+                    if y < image.getHeight() / 2 { top += 1 } else { bottom += 1 }
+                }
+            }
+        }
+        let center = image.getPixel(image.getWidth() / 2, image.getHeight() / 2)
+        return [image.getWidth(), image.getHeight(), clear, opaque, top, bottom,
+                Color.red(center), Color.green(center), Color.blue(center), Color.alpha(center)]
+        #else
+        throw unavailable()
+        #endif
+    }
+
+    public static func solidImage(red: Int, green: Int, blue: Int) throws -> String {
+        #if SKIP
+        let bitmap = Bitmap.createBitmap(320, 180, Bitmap.Config.ARGB_8888)
+        defer { bitmap.recycle() }
+        bitmap.eraseColor(Color.rgb(red, green, blue))
+        let file = File.createTempFile("swiftvideo-solid-", ".png", ProcessInfo.processInfo.androidContext.getCacheDir())
+        do {
+            let output = FileOutputStream(file)
+            defer { output.close() }
+            guard bitmap.compress(Bitmap.CompressFormat.PNG, 100, output) else { throw IllegalStateException("Cannot save solid image") }
+            return file.getAbsolutePath()
+        } catch { file.delete(); throw error }
+        #else
+        throw unavailable()
+        #endif
+    }
+
     public static func copyFixture(name: String) throws -> String {
         #if SKIP
         let context = ProcessInfo.processInfo.androidContext
@@ -36,18 +111,58 @@ public final class Media3TestSupport {
         #endif
     }
 
+    /// Android extractor color standard, range, and transfer; absent values are -1.
+    public static func videoColorInfo(path: String) throws -> [Int] {
+        #if SKIP
+        let extractor = MediaExtractor()
+        defer { extractor.release() }
+        extractor.setDataSource(path)
+        for index in 0..<extractor.getTrackCount() {
+            let format = extractor.getTrackFormat(index)
+            if (format.getString(MediaFormat.KEY_MIME) ?? "").hasPrefix("video/") {
+                return [MediaFormat.KEY_COLOR_STANDARD, MediaFormat.KEY_COLOR_RANGE, MediaFormat.KEY_COLOR_TRANSFER].map {
+                    format.containsKey($0) ? format.getInteger($0) : -1
+                }
+            }
+        }
+        throw IllegalStateException("No video track for color inspection.")
+        #else
+        throw unavailable()
+        #endif
+    }
+
+    public static func copyFrame(path: String, timeUs: Int64) throws -> String {
+        #if SKIP
+        let bitmap = try Media3FrameDecoder.decode(path: path, timeUs: timeUs)
+        defer { bitmap.recycle() }
+        let file = File.createTempFile("swiftvideo-frame-", ".png", ProcessInfo.processInfo.androidContext.getCacheDir())
+        do {
+            let output = FileOutputStream(file)
+            defer { output.close() }
+            guard bitmap.compress(Bitmap.CompressFormat.PNG, 100, output) else {
+                throw IllegalStateException("Cannot save source frame.")
+            }
+            return file.getAbsolutePath()
+        } catch {
+            file.delete()
+            throw error
+        }
+        #else
+        throw unavailable()
+        #endif
+    }
+
     public static func frameStats(path: String, timeUs: Int64) throws -> [Double] {
         #if SKIP
         let retriever = MediaMetadataRetriever()
         defer { retriever.release() }
         retriever.setDataSource(path)
-        guard let bitmap = retriever.getFrameAtTime(timeUs, MediaMetadataRetriever.OPTION_CLOSEST) else {
-            throw IllegalStateException("Cannot decode exported frame.")
-        }
+        let bitmap = try Media3FrameDecoder.decode(path: path, timeUs: timeUs)
         defer { bitmap.recycle() }
         let width = bitmap.getWidth()
         let height = bitmap.getHeight()
         let center = bitmap.getPixel(width / 2, Int(Double(height) * 0.5556))
+        let left = bitmap.getPixel(width / 4, height / 2)
         let overlay = bitmap.getPixel(Int(Double(width) * 0.85), Int(Double(height) * 0.8))
         var sum = 0.0
         var count = 0
@@ -59,7 +174,8 @@ public final class Media3TestSupport {
         }
         let duration = Double(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION) ?? "0") ?? 0.0
         return [Double(width), Double(height), duration, Double(Color.red(center)), Double(Color.green(center)), Double(Color.blue(center)),
-                Double(Color.red(overlay)), Double(Color.green(overlay)), Double(Color.blue(overlay)), count == 0 ? -1.0 : sum / Double(count)]
+                Double(Color.red(overlay)), Double(Color.green(overlay)), Double(Color.blue(overlay)), count == 0 ? -1.0 : sum / Double(count),
+                Double(Color.red(left)), Double(Color.green(left)), Double(Color.blue(left))]
         #else
         throw unavailable()
         #endif
@@ -67,6 +183,57 @@ public final class Media3TestSupport {
 
     public static func audioRMS(path: String) throws -> [Double] {
         Array(try audioStats(path: path, duration: 2).prefix(3))
+    }
+
+    /// RGB samples at top-left pixel coordinate pairs, decoded independently of the renderer.
+    public static func framePixels(path: String, timeUs: Int64, points: [Int]) throws -> [Double] {
+        #if SKIP
+        let retriever = MediaMetadataRetriever()
+        defer { retriever.release() }
+        retriever.setDataSource(path)
+        guard let bitmap = retriever.getFrameAtTime(timeUs, MediaMetadataRetriever.OPTION_CLOSEST) else {
+            throw IllegalStateException("Cannot decode exported frame.")
+        }
+        defer { bitmap.recycle() }
+        var result: [Double] = []
+        for index in stride(from: 0, to: points.count, by: 2) {
+            let pixel = bitmap.getPixel(points[index], points[index + 1])
+            result.append(Double(Color.red(pixel))); result.append(Double(Color.green(pixel))); result.append(Double(Color.blue(pixel)))
+        }
+        return result
+        #else
+        throw unavailable()
+        #endif
+    }
+
+    /// Foreground count, centroid, brightest RGB and ink width/height, for white titles over blue.
+    public static func titleStats(path: String, timeUs: Int64) throws -> [Double] {
+        #if SKIP
+        let retriever = MediaMetadataRetriever()
+        defer { retriever.release() }
+        retriever.setDataSource(path)
+        guard let bitmap = retriever.getFrameAtTime(timeUs, MediaMetadataRetriever.OPTION_CLOSEST) else {
+            throw IllegalStateException("Cannot decode exported title frame.")
+        }
+        defer { bitmap.recycle() }
+        var count = 0.0, xSum = 0.0, ySum = 0.0
+        var red = 0, green = 0, blue = 0
+        var minX = bitmap.getWidth(), maxX = -1, minY = bitmap.getHeight(), maxY = -1
+        for y in 0..<bitmap.getHeight() {
+            for x in 0..<bitmap.getWidth() {
+                let pixel = bitmap.getPixel(x, y), r = Color.red(pixel), g = Color.green(pixel)
+                if r > 70 && g > 70 {
+                    count += 1; xSum += Double(x); ySum += Double(y)
+                    minX = min(minX, x); maxX = max(maxX, x); minY = min(minY, y); maxY = max(maxY, y)
+                }
+                if r > red { red = r; green = g; blue = Color.blue(pixel) }
+            }
+        }
+        return [count, count > 0 ? xSum / count : -1.0, count > 0 ? ySum / count : -1.0, Double(red), Double(green), Double(blue),
+                Double(max(0, maxX - minX + 1)), Double(max(0, maxY - minY + 1))]
+        #else
+        throw unavailable()
+        #endif
     }
 
     /// RMS at the beginning, middle and end, followed by central tone frequency and RMS.

@@ -17,6 +17,7 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 45
     env:
+      NSUnbufferedIO: YES
       DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
     steps:
       - uses: actions/checkout@v7
@@ -25,9 +26,22 @@ jobs:
       - name: Check licensing headers
         run: swift Tools/CheckHeaders.swift
       - name: Test the library and editor model
+        timeout-minutes: 12
         run: |
-          swift test --disable-xctest --enable-code-coverage
-          swift test --package-path Example --disable-xctest
+          mkdir -p .build-coverage
+          # Capture a stalled runner before the step deadline, while retaining
+          # the actual test command's exit status.
+          (
+            sleep 180
+            ps -axo pid,ppid,etime,command > .build-coverage/host-processes.txt
+            for pid in $(pgrep -f 'swiftpm-testing|PackageTests.xctest'); do
+              sample "$pid" 5 -file ".build-coverage/host-$pid.sample.txt" || true
+            done
+          ) &
+          diagnostic_pid=$!
+          trap 'kill "$diagnostic_pid" 2>/dev/null || true' EXIT
+          swift test --build-system native --disable-xctest --enable-code-coverage
+          swift test --build-system native --package-path Example --disable-xctest
       - name: Test iOS with coverage
         run: |
           mkdir -p .build-coverage
@@ -35,14 +49,8 @@ jobs:
             -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' \
             -derivedDataPath .build-ios -resultBundlePath .build-coverage/iOS.xcresult \
             -skipPackagePluginValidation -enableCodeCoverage YES \
-            -only-testing:SwiftVideoTests/TimelineTests \
-            -only-testing:SwiftVideoTests/BoundaryTests \
-            -only-testing:SwiftVideoTests/CompositionBuilderTests \
-            -only-testing:SwiftVideoTests/ExporterTests \
-            -only-testing:SwiftVideoTests/AppleExportTests \
-            -only-testing:SwiftVideoTests/RenderBehaviorTests test
-          xcrun xccov view --report --json .build-coverage/iOS.xcresult > .build-coverage/ios-raw.json
-          swift Tools/Coverage.swift ios .build-coverage/ios-raw.json .build-coverage/ios.json 90
+            test
+          bash Tools/CollectIOSCoverage.sh .build-coverage/iOS.xcresult .build-ios .build-coverage
       - name: Build the iOS editor
         run: |
           xcodebuild -project Example/Darwin/SwiftVideoEditor.xcodeproj \

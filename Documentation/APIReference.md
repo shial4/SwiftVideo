@@ -5,6 +5,51 @@
 
 Import `SwiftVideo` to use the public API below. `Foundation` supplies `URL`, `UUID`, and JSON encoding in the examples. Constructors build values unless marked `throws`; use `VideoProject.validate()` to validate a complete project. Validation does not open media files or guarantee device codec support.
 
+## Experimental Android preview
+
+Available in `0.1.0-alpha.1` on Android only. Sources: [AndroidVideoPreview.swift](../Sources/SwiftVideo/AndroidVideoPreview.swift) and [Media3PreviewSession.swift](../Sources/SwiftVideoMedia3/Media3PreviewSession.swift).
+
+`AndroidVideoPreview(project: VideoProject, settings: ExportSettings) throws` owns a preview of one immutable project snapshot. It rejects invalid or empty projects and unsupported Android export settings before starting. Asynchronous preparation failures are reported by `session.failureMessage()`. The owner releases its session in `deinit`.
+
+| Session member | Contract |
+| --- | --- |
+| `currentStatus() -> Int` | `0` idle, `1` preparing, `2` composition prepared, `3` released, `-1` failed. Prepared does not imply that a frame has reached a surface. |
+| `failureMessage() -> String` | Preparation or player failure detail. |
+| `play()`, `pause()` | Schedule transport changes on the Android main looper; playback intent survives preparation and surface replacement. Playing after the end restarts the timeline. |
+| `seek(milliseconds: Int64)` | Clamp to the displayable timeline range, retain the requested position during preparation, and coalesce changes over 16 ms. Paused seeks rebuild the player. |
+| `positionMilliseconds() -> Int64` | Most recently observed or requested position, not a frame-delivery acknowledgement. |
+| `isPlaying() -> Bool` | Playback intent, including buffering and surface replacement. Pausing, completion, release, and failure stop it. |
+| `release()` | Idempotently cancel work and schedule player/cache cleanup. Observe released status if waiting for cancellation cleanup. |
+| `temporaryDirectoryPath() -> String` | Session scratch path for diagnostics; applications must not mutate its contents. |
+
+The transpiled Android boundary also exposes `attachSurfaceView(_:)`, `detachSurfaceView(_:)`, and `attachSurface(_:width:height:)`. These Android-typed methods are not bridged to native Swift. Applications provide the platform view adapter; no SwiftUI view is included. See [integration and limits](Integration.md#experimental-android-preview).
+
+## Paused layer images
+
+Source: [VideoLayerRenderer.swift](../Sources/SwiftVideo/VideoLayerRenderer.swift).
+
+`VideoLayerRenderer` is an actor that renders one active text, image, or video
+clip to a transparent PNG on Apple and Android:
+
+```swift
+try await VideoLayerRenderer().render(
+    clipID: clip.id, in: project, at: time,
+    canvasSize: VideoSize(width: 480, height: 270), to: destination)
+```
+
+The image includes source timing, clip and track playback rates, ordered clip
+and track filters, crop, content mode, and text styling. It does not include
+position, scale, rotation, or opacity. Apply the clip's `visualTransform(at:)`
+to the image in the editor so gestures can move existing pixels immediately.
+The image dimensions are the preview canvas dimensions multiplied by the
+clip's normalized width and height, rounded to whole pixels.
+
+The time must fall inside the clip's active interval. The destination must be
+a new local `.png` file; the caller owns it after the call succeeds. Canvas and
+layer dimensions cannot exceed 8192 pixels. Cancellation and failures remove
+temporary output. No video encoder is used. Apple rendering requires Metal;
+Android uses the existing Media3 effects pipeline.
+
 ## Time and frame rates
 
 Source: [VideoTime.swift](../Sources/SwiftVideo/VideoTime.swift).
@@ -94,7 +139,8 @@ MediaClip(id: UUID = UUID(), source: MediaSource,
           filters: [MediaFilter] = [], animations: [KeyframeAnimation] = [],
           audio: AudioSettings = AudioSettings(),
           effectsOffset: VideoTime = .zero, effectsDuration: VideoTime? = nil,
-          playbackRate: PlaybackRate = .normal)
+          playbackRate: PlaybackRate = .normal,
+          textMotion: TextMotion? = nil)
 ```
 
 All parameters are exposed as read-only properties. `effectsDuration` defaults to the initial `duration`.
@@ -143,6 +189,7 @@ All factories start at project/source time zero with the standard `MediaClip` de
 | `audio(_:)` | Replaces audio settings. |
 | `animate(_:keyframes:)` | Replaces the animation for the specified property. |
 | `animations(_:)` | Replaces all animations. |
+| `textMotion(_ motion: TextMotion?)` | Unreleased: animates words or characters inside a text clip; nil restores a static title. See [motion titles](MotionTitles.md). |
 
 Modifiers preserve the ID. Speed retimes the effect clock; other modifiers preserve it, and do not mutate their receiver or validate the project. Pass stable IDs when deriving a project repeatedly from SwiftUI state. Use editing operations for split/trim; there is no duration modifier that silently resets the original effect clock.
 
@@ -179,6 +226,9 @@ Filters run in array order. All arguments must be finite.
 | `.saturation(Double)` | Nonnegative; one is unchanged, zero is grayscale. |
 | `.gaussianBlur(Double)` | Nonnegative radius; zero is unchanged. Native filter pipelines may differ slightly. |
 | `.sepia(Double)` | `0...1` intensity. |
+| `.mask(VideoMask)` | Unreleased: rectangle or ellipse, normalized source bounds, inward feather `0...0.5`, optional inversion. See [masks](MasksAndChromaKey.md). |
+| `.chromaKey(ChromaKey)` | Unreleased: opaque sRGB key color, tolerance and softness in `0...1` with sum at most one. See [chroma key](MasksAndChromaKey.md#remove-a-green-background). |
+| `.custom(EffectReference)` | Unreleased: a registered exact effect version with validated parameters. See [custom visual effects](CustomEffects.md). |
 
 ### TextStyle and TextShadow
 
@@ -188,7 +238,15 @@ Filters run in array order. All arguments must be finite.
 
 Font size must be finite and positive. Font size and shadow dimensions use project canvas pixels and scale with export resolution. Text wraps inside the clip's layer bounds and is rasterized once per clip before GPU transforms. Keep those bounds large enough for the intended text; each resulting bitmap dimension must be positive and at most 8192 pixels. Use a readable local `fontURL` for portable typography; platform font names and glyph availability differ. The caller must include the font's required license.
 
+Hosted documents may use an HTTPS `fontURL`. Codable round-trips, project
+validation, and editing preserve that reference. The consuming app must download
+the font and replace its URL with the owned local file before preview or export.
+The exporter and both native renderers reject unresolved hosted fonts before
+rendering; they do not fetch fonts or silently substitute a platform font.
+
 ## Animation
+
+Unreleased per-word and per-character animation uses `TextMotion(unit:stagger:animations:)` and the `.textMotion(_:)` clip modifier. See [motion-title presets, sampling, limits, and GPU behavior](MotionTitles.md).
 
 - `AnimationProperty` cases: `.x`, `.y`, `.scale`, `.rotation`, `.opacity`.
 - `Keyframe(time: VideoTime, value: Double, easing: Easing = .linear)` exposes those three values. Time is relative to the original clip's effect clock, not project time.
@@ -197,6 +255,21 @@ Font size must be finite and positive. Font size and shadow dimensions use proje
 - Animated values replace the corresponding base transform value. Width, height, crop, and content mode are not keyframe properties.
 
 `Easing` applies to the segment leaving a keyframe. Its `value(at: Double) -> Double` clamps progress to `0...1` and evaluates `.linear`, `.easeIn` (quadratic), `.easeOut` (quadratic), `.easeInOut` (smoothstep), or `.step` (hold until the segment ends).
+
+The unreleased extensibility branch adds optional `curve: CubicBezierTiming?` to `Keyframe` and `repetition: AnimationRepetition?` to `KeyframeAnimation` and `MediaClip.animate`. Existing documents decode with both values nil and keep their original behavior.
+
+`CubicBezierTiming(x1:y1:x2:y2:)` replaces that keyframe's `easing`. It solves the curve's time coordinate before evaluating the output value. All four controls must be finite and within `0...1`, keeping opacity and positive scale within their keyframe bounds. This is a bounded subset of [cubic Bezier timing](https://www.w3.org/TR/css-easing-1/#cubic-bezier-easing-functions); overshoot controls are not supported.
+
+Repetition is `.count(Int, autoreverses: Bool = false)` or `.forever(autoreverses: Bool = false)`. Counts must be positive and repeating animations require at least two keyframes. A cycle spans the first to last keyframe, followed by a backward pass when autoreversing. The first keyframe's time is an initial delay, not a delay between cycles. Finite repeats hold the final value after the last cycle, or the first value after an autoreversing cycle. Trim/split preserve phase; speed changes retime the keyframes and preserve the curve/repetition settings. Rendering still ends with the clip.
+
+```swift
+let title = MediaClip.text("LIVE", duration: duration)
+    .animate(.opacity, keyframes: [
+        Keyframe(time: .zero, value: 0.3,
+                 curve: CubicBezierTiming(x1: 0.22, y1: 1, x2: 0.36, y2: 1)),
+        Keyframe(time: try VideoTime(value: 1, timescale: 2), value: 1)
+    ], repetition: .forever(autoreverses: true))
+```
 
 ## Audio
 
@@ -216,6 +289,7 @@ Ordered per-clip DSP before gain, pan, fades, and mixing:
 
 - `.lowPass(cutoffHz: Double)` and `.highPass(cutoffHz: Double)`.
 - `.parametricEQ(frequencyHz: Double, gainDB: Double, bandwidthOctaves: Double)`.
+- `.custom(EffectReference)` on the unreleased extensibility branch. See [custom audio effects](CustomAudioEffects.md) for portable Swift processors, reset/cleanup, timing, and examples.
 
 All parameters must be finite. Frequency must be at least 20 Hz and below the source
 and processing Nyquist frequencies; gain is -24...24 dB, bandwidth 0.05...5 octaves.
@@ -299,7 +373,7 @@ Implementations must finish a playable file or throw, poll task cancellation, an
 
 `RendererCapabilities(name:features:codecs:containers:)` stores a `String`, `Set<CompositionFeature>`, `Set<VideoCodec>`, and `Set<VideoContainer>`. All properties are read-only. `validate(_:settings:) throws` rejects unavailable codec/container combinations and features required by the project's clips. It does not probe device codecs, validate all project values, or load media.
 
-`CompositionFeature` cases are `.video`, `.images`, `.text`, `.filters`, `.animation`, `.audioMixing`, `.audioFades`, `.audioPan`, `.customFonts`, `.playbackSpeed`, and `.audioFilters`.
+`CompositionFeature` cases are `.video`, `.images`, `.text`, `.filters`, `.animation`, `.audioMixing`, `.audioFades`, `.audioPan`, `.customFonts`, `.playbackSpeed`, and `.audioFilters`. The unreleased extensibility branch adds `.customVisualEffects`, `.customAudioEffects`, `.motionTitles`, `.masks`, `.chromaKey`, and an optional `effects: EffectRegistry = .empty` argument to `VideoExporter`, `AppleVideoRenderer` and `AndroidVideoRenderer` initializers. See the [registration and GPU contract](CustomEffects.md), [audio processing contract](CustomAudioEffects.md), [motion titles](MotionTitles.md), and [masks](MasksAndChromaKey.md).
 
 | Built-in renderer | Availability and responsibilities |
 | --- | --- |

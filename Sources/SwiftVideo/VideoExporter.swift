@@ -46,6 +46,7 @@ public struct ExportSettings: Hashable, Codable, Sendable {
 
 public enum CompositionFeature: String, Codable, Sendable, CaseIterable {
     case video, images, text, filters, animation, audioMixing, audioFades, audioPan, customFonts, playbackSpeed, audioFilters
+    case customVisualEffects, customAudioEffects, motionTitles, masks, chromaKey
 }
 
 public struct RendererCapabilities: Sendable {
@@ -73,8 +74,20 @@ public struct RendererCapabilities: Sendable {
             }
             if clip.playbackRate != .normal { required.insert(.playbackSpeed) }
             if !clip.audio.filters.isEmpty { required.insert(.audioFilters) }
+            if clip.audio.filters.contains(where: \.isCustom) { required.insert(.customAudioEffects) }
             if !clip.filters.isEmpty { required.insert(.filters) }
+            for filter in clip.filters {
+                switch filter {
+                case .mask: required.insert(.masks)
+                case .chromaKey: required.insert(.chromaKey)
+                default: break
+                }
+            }
+            if clip.filters.contains(where: { if case .custom = $0 { return true }; return false }) {
+                required.insert(.customVisualEffects)
+            }
             if !clip.animations.isEmpty { required.insert(.animation) }
+            if clip.textMotion != nil { required.insert(.motionTitles) }
             if clip.source.hasAudio && !clip.audio.isMuted {
                 required.insert(.audioMixing)
                 if clip.audio.fadeIn > .zero || clip.audio.fadeOut > .zero { required.insert(.audioFades) }
@@ -116,7 +129,7 @@ public actor VideoExporter {
     public func export(_ project: VideoProject, to destination: URL, settings: ExportSettings = ExportSettings(),
                        progress: @escaping @Sendable (ExportProgress) -> Void = { _ in }) async throws -> URL {
         guard active == nil else { throw VideoError.exportInProgress }
-        try project.validate()
+        try project.validateForRendering()
         try settings.validate(for: project)
         try renderer.capabilities.validate(project, settings: settings)
         guard try project.duration > .zero else { throw VideoError.invalidProject("Cannot export an empty timeline.") }

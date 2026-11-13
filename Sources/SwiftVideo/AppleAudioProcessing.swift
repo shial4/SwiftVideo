@@ -10,10 +10,10 @@ final class AppleClipAudioSource {
     private let processor: AppleAudioProcessor?
     private let origin: Int64
 
-    init(asset: AVAsset, track: AVAssetTrack, clip: MediaClip) throws {
+    init(asset: AVAsset, track: AVAssetTrack, clip: MediaClip, effects: EffectRegistry = .empty) throws {
         source = try AppleAudioSource(asset: asset, track: track, clip: clip)
         origin = CMTimeConvertScale(clip.sourceStart.cmTime, timescale: AppleAudioSource.sampleRate, method: .roundHalfAwayFromZero).value
-        processor = clip.playbackRate == .normal && clip.audio.filters.isEmpty ? nil : try AppleAudioProcessor(source: source, clip: clip)
+        processor = clip.playbackRate == .normal && clip.audio.filters.isEmpty ? nil : try AppleAudioProcessor(source: source, clip: clip, effects: effects)
     }
 
     func sample(at frame: Int64) throws -> (Float, Float) {
@@ -39,17 +39,23 @@ private final class AppleAudioProcessor {
     private var latencyFrames: Int64 = 0
     private var blockStart: Int64 = 0
     private var samples: [Float] = []
+    private var custom: AudioEffectChain?
+    private let outputFrames: Int64
 
-    init(source: AppleAudioSource, clip: MediaClip) throws {
+    init(source: AppleAudioSource, clip: MediaClip, effects: EffectRegistry) throws {
         self.source = source
         rate = clip.playbackRate.multiplier
         origin = CMTimeConvertScale(clip.sourceStart.cmTime, timescale: AppleAudioSource.sampleRate, method: .roundHalfAwayFromZero).value
         sourceFrames = CMTimeConvertScale(try clip.sourceDuration.cmTime, timescale: AppleAudioSource.sampleRate, method: .roundAwayFromZero).value
+        outputFrames = CMTimeConvertScale(clip.duration.cmTime, timescale: AppleAudioSource.sampleRate, method: .roundAwayFromZero).value
         guard let format = AVAudioFormat(standardFormatWithSampleRate: Double(AppleAudioSource.sampleRate), channels: 2),
               let output = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 1024) else {
             throw VideoError.renderingFailed("Cannot allocate audio processing buffers.")
         }
         self.format = format; self.output = output
+        // Enter offline mode before touching the graph. Accessing the main mixer
+        // first initializes device I/O, which can block or abort in headless exports.
+        try engine.enableManualRenderingMode(.offline, format: format, maximumFrameCount: output.frameCapacity)
         engine.attach(player)
         var last: AVAudioNode = player
         if clip.playbackRate != .normal {
@@ -59,11 +65,13 @@ private final class AppleAudioProcessor {
             last = stretch
         }
         // Separate units preserve authored order even when filters have different kinds.
-        for filter in clip.audio.filters {
+        let usesCustom = clip.audio.filters.contains(where: \.isCustom)
+        for filter in usesCustom ? [] : clip.audio.filters {
             let equalizer = AVAudioUnitEQ(numberOfBands: 1)
             let band = equalizer.bands[0]
             band.bypass = false
             switch filter {
+            case .custom: continue
             case .lowPass(let frequency): band.filterType = .lowPass; band.frequency = Float(frequency)
             case .highPass(let frequency): band.filterType = .highPass; band.frequency = Float(frequency)
             case .parametricEQ(let frequency, let gain, let bandwidth):
@@ -74,11 +82,14 @@ private final class AppleAudioProcessor {
             last = equalizer
         }
         engine.connect(last, to: engine.mainMixerNode, format: format)
-        try engine.enableManualRenderingMode(.offline, format: format, maximumFrameCount: output.frameCapacity)
         engine.prepare()
         try engine.start()
         latencyFrames = Int64((engine.attachedNodes.reduce(0) { $0 + $1.latency } * format.sampleRate).rounded(.up))
         player.play()
+        if usesCustom {
+            custom = try AudioEffectChain(clip: clip, registry: effects, platform: .apple,
+                format: AudioEffectFormat(sampleRate: Int(AppleAudioSource.sampleRate), channels: 2))
+        }
     }
 
     func sample(at frame: Int64) throws -> (Float, Float) {
@@ -105,11 +116,18 @@ private final class AppleAudioProcessor {
             }
             guard let channels = output.floatChannelData else { throw VideoError.renderingFailed("Audio processor returned no PCM.") }
             let count = Int(output.frameLength)
-            samples = [Float](repeating: 0, count: count * 2)
-            for index in 0..<count {
-                samples[index * 2] = channels[0][index]; samples[index * 2 + 1] = channels[1][index]
+            // Priming samples are discarded before custom DSP. Its first buffer starts
+            // at the selected clip's time, without feeding time-stretch latency into delay lines.
+            let skip = custom == nil ? 0 : Int(min(Int64(count), max(0, latencyFrames - rendered)))
+            let end = custom == nil ? count : Int(min(Int64(count), max(Int64(skip), outputFrames + latencyFrames - rendered)))
+            blockStart += Int64(skip)
+            samples = [Float](repeating: 0, count: (end - skip) * 2)
+            for index in skip..<end {
+                samples[(index - skip) * 2] = channels[0][index]; samples[(index - skip) * 2 + 1] = channels[1][index]
             }
+            if !samples.isEmpty { try custom?.process(&samples) }
             rendered += Int64(count)
+            if samples.isEmpty && rendered >= outputFrames + latencyFrames { return (0, 0) }
         }
         let index = Int(target - blockStart) * 2
         guard index >= 0 else { throw VideoError.renderingFailed("Audio processing requires increasing sample positions.") }
@@ -131,6 +149,6 @@ private final class AppleAudioProcessor {
         supplied += Int64(buffer.frameLength)
     }
 
-    deinit { player.stop(); engine.stop() }
+    deinit { custom?.finish(); player.stop(); engine.stop() }
 }
 #endif

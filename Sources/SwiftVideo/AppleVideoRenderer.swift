@@ -4,15 +4,22 @@
 #if canImport(AVFoundation)
 import AVFoundation
 import CoreImage
+import Dispatch
 import Metal
 
 /// AVFoundation decoding/encoding, Core Image composition, and Core Animation text rendering.
 public actor AppleVideoRenderer: VideoRendering {
+    // AVAssetReader and offline audio rendering can block while system media
+    // queues make progress. Keep those calls off Swift's cooperative pool.
+    private nonisolated let mediaQueue = DispatchSerialQueue(label: "SwiftVideo.AppleVideoRenderer", qos: .userInitiated)
+    public nonisolated var unownedExecutor: UnownedSerialExecutor { mediaQueue.asUnownedSerialExecutor() }
+
     public nonisolated let capabilities = RendererCapabilities(
         name: "AVFoundation", features: Set(CompositionFeature.allCases),
         codecs: [.h264, .hevc], containers: [.mp4, .mov])
 
-    public init() {}
+    private let effects: EffectRegistry
+    public init(effects: EffectRegistry = .empty) { self.effects = effects }
 
     // CIContext is thread-safe and owns expensive Metal kernel/command-queue caches.
     // Share it across preview and export instances instead of rebuilding it per edit.
@@ -22,9 +29,10 @@ public actor AppleVideoRenderer: VideoRendering {
 
     public func render(_ project: VideoProject, to destination: URL, settings: ExportSettings,
                        progress: @escaping @Sendable (ExportProgress) -> Void) async throws {
-        try project.validate()
+        try project.validateForRendering()
         try settings.validate(for: project)
         try capabilities.validate(project, settings: settings)
+        try effects.validate(project, for: .apple)
         guard let context = Self.context else {
             throw VideoError.unsupportedFeature("A Metal-capable GPU is required for Apple video composition.")
         }
@@ -40,10 +48,13 @@ public actor AppleVideoRenderer: VideoRendering {
         let visualClips = clips.enumerated().filter { $0.element.source.isVisual }.sorted {
             $0.element.zIndex == $1.element.zIndex ? $0.offset < $1.offset : $0.element.zIndex < $1.element.zIndex
         }.map(\.element)
+        let visualEffects = try AppleVisualEffects(clips: visualClips, registry: effects)
+        defer { visualEffects.finish() }
         var assets: [UUID: AVAsset] = [:]
         var videoTracks: [UUID: AVAssetTrack] = [:]
         var audioTracks: [UUID: AVAssetTrack] = [:]
         var images: [UUID: CIImage] = [:]
+        var titles: [UUID: AppleMotionTitle] = [:]
         for clip in clips {
             try Task.checkCancellation()
             switch clip.source {
@@ -83,8 +94,12 @@ public actor AppleVideoRenderer: VideoRendering {
                 }
                 images[clip.id] = image
             case .text(let text, let style):
-                images[clip.id] = try await AppleFrameRenderer.textImage(text, style: style, project: project, size: size,
-                                                                       rasterSize: clip.textRasterSize(for: size))
+                if clip.textMotion != nil {
+                    titles[clip.id] = try AppleMotionTitle(text: text, style: style, clip: clip, project: project, size: size)
+                } else {
+                    images[clip.id] = try await AppleFrameRenderer.textImage(text, style: style, project: project, size: size,
+                                                                           rasterSize: clip.textRasterSize(for: size))
+                }
             }
         }
 
@@ -165,7 +180,7 @@ public actor AppleVideoRenderer: VideoRendering {
                     throw VideoError.renderingFailed("Cannot allocate output video frame.")
                 }
                 try autoreleasepool {
-                    let image = try AppleFrameRenderer.compose(project, visualClips: visualClips, at: videoTime, size: size, videos: videos, images: images)
+                    let image = try AppleFrameRenderer.compose(project, visualClips: visualClips, at: videoTime, size: size, videos: videos, images: images, titles: titles, effects: visualEffects)
                     context.render(image, to: buffer, bounds: CGRect(x: 0, y: 0, width: size.width, height: size.height), colorSpace: colorSpace)
                 }
                 guard adaptor.append(buffer, withPresentationTime: videoTime.cmTime) else {
@@ -179,7 +194,7 @@ public actor AppleVideoRenderer: VideoRendering {
                 for clip in clips where audioTracks[clip.id] != nil {
                     if try clip.start < endTime && clip.timeRange.end > audioTime {
                         if audio[clip.id] == nil, let asset = assets[clip.id], let track = audioTracks[clip.id] {
-                            audio[clip.id] = try AppleClipAudioSource(asset: asset, track: track, clip: clip)
+                            audio[clip.id] = try AppleClipAudioSource(asset: asset, track: track, clip: clip, effects: effects)
                         }
                     } else { audio[clip.id] = nil }
                 }
@@ -257,6 +272,6 @@ public actor AppleVideoRenderer: VideoRendering {
 }
 
 extension VideoExporter {
-    public init() { self.init(renderer: AppleVideoRenderer()) }
+    public init(effects: EffectRegistry = .empty) { self.init(renderer: AppleVideoRenderer(effects: effects)) }
 }
 #endif

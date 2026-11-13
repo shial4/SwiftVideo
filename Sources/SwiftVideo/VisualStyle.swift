@@ -64,6 +64,9 @@ public enum MediaFilter: Hashable, Codable, Sendable {
     case saturation(Double)
     case gaussianBlur(Double)
     case sepia(Double)
+    case mask(VideoMask)
+    case chromaKey(ChromaKey)
+    case custom(EffectReference)
 }
 
 public enum TextAlignment: String, Codable, Sendable { case leading, center, trailing }
@@ -79,8 +82,10 @@ public struct TextShadow: Hashable, Codable, Sendable {
 }
 
 public struct TextStyle: Hashable, Codable, Sendable {
-    /// A platform font name, or a font file URL to load a supplied custom font on both platforms.
+    /// A platform font name; availability differs between platforms.
     public let fontName: String?
+    /// A local font file, or an HTTPS reference in a hosted document.
+    /// Download hosted fonts and replace this URL with the local copy before rendering.
     public let fontURL: URL?
     /// Size in project canvas pixels; scales when export resolution differs.
     public let fontSize: Double
@@ -118,26 +123,31 @@ public struct Keyframe: Hashable, Codable, Sendable {
     public let value: Double
     /// Easing from this keyframe to the next.
     public let easing: Easing
-    public init(time: VideoTime, value: Double, easing: Easing = .linear) {
-        self.time = time; self.value = value; self.easing = easing
+    /// When supplied, replaces `easing` for the segment leaving this keyframe.
+    public let curve: CubicBezierTiming?
+    public init(time: VideoTime, value: Double, easing: Easing = .linear, curve: CubicBezierTiming? = nil) {
+        self.time = time; self.value = value; self.easing = easing; self.curve = curve
     }
 }
 
 public struct KeyframeAnimation: Hashable, Codable, Sendable {
     public let property: AnimationProperty
     public let keyframes: [Keyframe]
-    public init(property: AnimationProperty, keyframes: [Keyframe]) {
-        self.property = property; self.keyframes = keyframes
+    /// Nil plays once and holds the final value, preserving the original behavior.
+    public let repetition: AnimationRepetition?
+    public init(property: AnimationProperty, keyframes: [Keyframe], repetition: AnimationRepetition? = nil) {
+        self.property = property; self.keyframes = keyframes; self.repetition = repetition
     }
 
     /// The caller validates sorted, unique keyframe times before rendering.
     public func value(at time: VideoTime) -> Double? {
         guard let first = keyframes.first, let last = keyframes.last else { return nil }
-        if time <= first.time { return first.value }
-        if time >= last.time { return last.value }
-        for (left, right) in zip(keyframes, keyframes.dropFirst()) where time < right.time {
-            let t = (time.seconds - left.time.seconds) / (right.time.seconds - left.time.seconds)
-            return left.value + (right.value - left.value) * left.easing.value(at: t)
+        let sampled = repetition?.sampleTime(time.seconds, start: first.time.seconds, end: last.time.seconds) ?? time.seconds
+        if repetition == nil ? time <= first.time : sampled <= first.time.seconds { return first.value }
+        if repetition == nil ? time >= last.time : sampled >= last.time.seconds { return last.value }
+        for (left, right) in zip(keyframes, keyframes.dropFirst()) where repetition == nil ? time < right.time : sampled < right.time.seconds {
+            let t = (sampled - left.time.seconds) / (right.time.seconds - left.time.seconds)
+            return left.value + (right.value - left.value) * (left.curve?.value(at: t) ?? left.easing.value(at: t))
         }
         return last.value
     }

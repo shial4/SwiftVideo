@@ -14,6 +14,8 @@ let package = Package(
     platforms: [.iOS(.v17), .macOS(.v14)],
     products: [
         .library(name: "SwiftVideo", type: needsAndroidMetadata ? .dynamic : nil, targets: ["SwiftVideo"]),
+        .library(name: "SwiftVideoMedia3", targets: ["SwiftVideoMedia3"]),
+        .library(name: "SwiftVideoSegmentation", type: needsAndroidMetadata ? .dynamic : nil, targets: ["SwiftVideoSegmentation"]),
         .executable(name: "SwiftVideoExample", targets: ["SwiftVideoExample"]),
     ],
     dependencies: [
@@ -29,15 +31,27 @@ let package = Package(
             .target(name: "SwiftVideoMedia3", condition: androidDependency)
         ], resources: [.process("Resources")], plugins: [.plugin(name: "skipstone", package: "skip")]),
         .target(name: "SwiftVideoMedia3", dependencies: [
-            .product(name: "SkipFoundation", package: "skip-foundation", condition: androidDependency),
-            .product(name: "SkipBridge", package: "skip-bridge", condition: androidDependency)
+            // The standalone adapter product also generates bridge metadata on Apple hosts.
+            .product(name: "SkipFoundation", package: "skip-foundation"),
+            .product(name: "SkipBridge", package: "skip-bridge")
+        ], plugins: [.plugin(name: "skipstone", package: "skip")]),
+        .target(name: "SwiftVideoSegmentation", dependencies: [
+            "SwiftVideo",
+            .target(name: "SwiftVideoSegmentationMedia3", condition: androidDependency)
+        ], plugins: [.plugin(name: "skipstone", package: "skip")]),
+        .target(name: "SwiftVideoSegmentationMedia3", dependencies: [
+            "SwiftVideoMedia3",
+            .product(name: "SkipFoundation", package: "skip-foundation"),
+            .product(name: "SkipBridge", package: "skip-bridge")
         ], plugins: [.plugin(name: "skipstone", package: "skip")]),
         .target(name: "SwiftVideoTestSupport", dependencies: [
+            "SwiftVideoMedia3",
             .product(name: "SkipFoundation", package: "skip-foundation", condition: androidDependency),
             .product(name: "SkipBridge", package: "skip-bridge", condition: androidDependency)
         ], path: "Tests/SwiftVideoTestSupport", plugins: [.plugin(name: "skipstone", package: "skip")]),
         .testTarget(name: "SwiftVideoTests", dependencies: [
             "SwiftVideo",
+            "SwiftVideoSegmentation",
             .target(name: "SwiftVideoTestSupport", condition: androidDependency),
             .product(name: "SkipTest", package: "skip")
         ], resources: [.process("Resources")], plugins: [.plugin(name: "skipstone", package: "skip")]),
