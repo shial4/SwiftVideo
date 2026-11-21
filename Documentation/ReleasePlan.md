@@ -3,7 +3,7 @@
 
 [Documentation index](README.md) | [Tests and coverage](Testing.md)
 
-Reviewed November 21, 2026. Release 0.0.2 promotes the stable implementation from `0.0.2-beta.4`. Preview and extensibility remain on `develop`; [PR #6](https://github.com/shial4/SwiftVideo/pull/6) stays unmerged.
+Reviewed November 22, 2026. Release 0.0.2 promotes the stable implementation from `0.0.2-beta.4`. Preview and extensibility remain on `develop`; [PR #6](https://github.com/shial4/SwiftVideo/pull/6) stays unmerged.
 
 ## Release scope
 
@@ -12,7 +12,7 @@ Reviewed November 21, 2026. Release 0.0.2 promotes the stable implementation fro
 | `0.0.2` | Composition/export, clip and track speed, inherited visual filters, ordered audio EQ, and reliability fixes | Stable Media3 1.11.1 |
 | `0.1.0-alpha.*` and `develop` | Experimental composition/layer preview, custom effects, motion titles, animation extensions, masks and optional segmentation | Prerelease dependencies remain experimental; require compatible stable dependencies before merging into `main` |
 
-The stable release preserves beta.4's library implementation, tests, dependency pins, example and verification tooling. Release documentation changes do not add preview or extensibility APIs. Existing beta and alpha tags are immutable, including [0.0.2-beta.4](https://github.com/shial4/SwiftVideo/releases/tag/0.0.2-beta.4) and [0.1.0-alpha.7](https://github.com/shial4/SwiftVideo/releases/tag/0.1.0-alpha.7).
+The stable release preserves beta.4's library implementation, tests, dependency pins, example and test tooling. Android CI runs the example build separately and reuses the cached setup from `develop`; test assertions, coverage gates and runtime limits are unchanged. Release documentation and CI changes do not add preview or extensibility APIs. Existing beta and alpha tags are immutable, including [0.0.2-beta.4](https://github.com/shial4/SwiftVideo/releases/tag/0.0.2-beta.4) and [0.1.0-alpha.7](https://github.com/shial4/SwiftVideo/releases/tag/0.1.0-alpha.7).
 
 ## Maintainer acceptance
 
@@ -23,6 +23,8 @@ The maintainer's earlier decision, "Ship with color limitation", accepts the mea
 ## Verification and publication
 
 Beta.4 is frozen at `311107384330d3c1670546b6eeef806447fdb0d9`. Its [Apple CI](https://github.com/shial4/SwiftVideo/actions/runs/42682862180) and [Android CI](https://github.com/shial4/SwiftVideo/actions/runs/42682863148) passed, including both example builds and all coverage gates. Independent SwiftPM and Kotlin/AAR consumers resolved the exact tag and passed exports, fractional PCM trims and failure cleanup.
+
+The first promotion run at `c7796a1` passed [Apple CI](https://github.com/shial4/SwiftVideo/actions/runs/44897275670). [Android CI](https://github.com/shial4/SwiftVideo/actions/runs/44897275687) reached its 45-minute build-job limit while assembling the example APK, after native compilation and test packaging passed. The dependent runtime job was skipped. On November 22, the maintainer approved separating the example build and reusing the cached setup from `develop`. The release still requires all jobs to pass on its exact commit.
 
 Final promotion follows these steps:
 

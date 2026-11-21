@@ -5,7 +5,7 @@
 
 ## 0.0.2 promotion verification
 
-The stable 0.0.2 promotion preserves beta.4's implementation, tests, dependency pins, example and CI tooling. Preview and extensibility remain on `develop` and are not part of this release. On November 21, 2026, the maintainer reported beta.4 use in Swideo without observed problems and requested publication. Exact usage dates were not supplied; see the [maintainer acceptance record](ReleasePlan.md#maintainer-acceptance).
+The stable 0.0.2 promotion preserves beta.4's implementation, tests, dependency pins, example and test tooling. The approved CI change separates the Android example build and reuses cached setup; assertions, coverage thresholds and runtime limits remain unchanged. Preview and extensibility remain on `develop` and are not part of this release. On November 21, 2026, the maintainer reported beta.4 use in Swideo without observed problems and requested publication. Exact usage dates were not supplied; see the [maintainer acceptance record](ReleasePlan.md#maintainer-acceptance).
 
 Fresh local checks on November 21 used the existing Xcode 27.2 and Android tools:
 
@@ -17,6 +17,10 @@ Fresh local checks on November 21 used the existing Xcode 27.2 and Android tools
 - Source headers, dependency notices, documentation links and whitespace checks passed. No toolchain was installed and no assertion or coverage threshold was relaxed.
 
 Local logs, media and test bundles are retained in the ignored `.build-coverage/release-002/` directory. Final hosted verification must pass on the release commit before tagging; its commit and CI links are recorded in the [0.0.2 release notes](https://github.com/shial4/SwiftVideo/releases/tag/0.0.2). The coverage figures below remain the measured beta.4 baseline, not a claim that a newer CI run has already passed.
+
+The first promotion commit, `c7796a1`, passed [Apple CI](https://github.com/shial4/SwiftVideo/actions/runs/44897275670): 44 macOS tests, 44 iOS tests, six editor-model tests, the iOS example build and 95.39% iOS line coverage. [Android CI](https://github.com/shial4/SwiftVideo/actions/runs/44897275687) was cancelled at its 45-minute build-job limit while finishing the example APK. Native compilation and portable test packaging passed; runtime tests and coverage did not run. This timeout is not a passing Android gate. The November 22 CI fix runs the example independently, using the setup action already on `develop`, and requires a fresh successful run before publication.
+
+Independent consumers also resolved `c7796a1` and passed the macOS export, iOS canonical scene and all three Kotlin/AAR checks. The first Kotlin rerun could not install because the emulator lacked storage; removing the disposable SwiftVideo instrumentation package resolved that setup failure. No test assertion was changed.
 
 ## Beta.4 baseline
 
