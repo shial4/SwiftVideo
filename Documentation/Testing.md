@@ -3,7 +3,24 @@
 
 [Documentation index](README.md) | [Public API reference](APIReference.md)
 
-The [0.0.2-beta.4](https://github.com/shial4/SwiftVideo/releases/tag/0.0.2-beta.4) snapshot was verified on November 10, 2026, at `311107384330d3c1670546b6eeef806447fdb0d9` with Media3 1.11.1. Exact-commit [Apple CI](https://github.com/shial4/SwiftVideo/actions/runs/42682862180) and [Android CI](https://github.com/shial4/SwiftVideo/actions/runs/42682863148) pass, including example builds and all coverage gates. The 0.0.1 tag predates playback speed and ordered filters. Beta observation remains a separate release gate; see the [release plan](ReleasePlan.md).
+## 0.0.2 promotion verification
+
+The stable 0.0.2 promotion preserves beta.4's implementation, tests, dependency pins, example and CI tooling. Preview and extensibility remain on `develop` and are not part of this release. On November 21, 2026, the maintainer reported beta.4 use in Swideo without observed problems and requested publication. Exact usage dates were not supplied; see the [maintainer acceptance record](ReleasePlan.md#maintainer-acceptance).
+
+Fresh local checks on November 21 used the existing Xcode 27.2 and Android tools:
+
+- All 44 macOS library tests and six editor model tests passed.
+- An independent macOS SwiftPM consumer resolved exact beta.4 and exported a one-second title composition with combined clip/track speed and ordered filters.
+- The exact-tag iOS 27.0 Simulator consumer passed its eight-second 1280x720 title/image and captioned picture-in-picture export, including speed and EQ.
+- The exact-tag API 35 arm64 Kotlin/AAR consumer passed three tests for exports, fractional PCM trims and missing-input cleanup. A second run retained outputs for independent inspection and also passed all three tests.
+- AVFoundation independently decoded the iOS and Android delivery-resolution outputs: both contain eight seconds of 1280x720 H.264 video at 30 fps with non-silent audio. Decoded frames were inspected for titles, captions and picture-in-picture. All three Android fractional-trim outputs have immediate audio, the expected fade and a silent tail, with no delayed start.
+- Source headers, dependency notices, documentation links and whitespace checks passed. No toolchain was installed and no assertion or coverage threshold was relaxed.
+
+Local logs, media and test bundles are retained in the ignored `.build-coverage/release-002/` directory. Final hosted verification must pass on the release commit before tagging; its commit and CI links are recorded in the [0.0.2 release notes](https://github.com/shial4/SwiftVideo/releases/tag/0.0.2). The coverage figures below remain the measured beta.4 baseline, not a claim that a newer CI run has already passed.
+
+## Beta.4 baseline
+
+The [0.0.2-beta.4](https://github.com/shial4/SwiftVideo/releases/tag/0.0.2-beta.4) snapshot was verified on November 10, 2026, at `311107384330d3c1670546b6eeef806447fdb0d9` with Media3 1.11.1. Exact-commit [Apple CI](https://github.com/shial4/SwiftVideo/actions/runs/42682862180) and [Android CI](https://github.com/shial4/SwiftVideo/actions/runs/42682863148) pass, including example builds and all coverage gates. The 0.0.1 tag predates playback speed and ordered filters.
 
 | Target | Observed result | Coverage |
 | --- | --- | --- |
@@ -102,7 +119,7 @@ A separate diagnostic on candidate `7947b27` confirms a synthetic BT.709 color s
 
 The independent decode confirms a difference in the exported file, not only in one inspection API. A first-frame comparison of the bundled coastal example also showed RGB differences in both iOS Simulator and Android emulator exports; that comparison includes scaling and encoding differences and is not a perceptual-visibility score. The coastal source is generated artwork animated into video, as recorded in the [asset provenance](../Example/ASSETS.md).
 
-On November 9, 2026, the maintainer accepted these measured SDR color differences as a documented limitation for 0.0.2. They do not block this release. The measurements do not establish visibility across ordinary footage or scope on physical devices. General export tests passing does not prove color fidelity. See the [bounded release exception](ReleasePlan.md#known-limitations-and-preview-blockers); existing pixel assertions and coverage thresholds are unchanged.
+On November 9, 2026, the maintainer accepted these measured SDR color differences as a documented limitation for 0.0.2. They do not block this release. The measurements do not establish visibility across ordinary footage or scope on physical devices. General export tests passing does not prove color fidelity. See the [bounded release exception](ReleasePlan.md#maintainer-acceptance); existing pixel assertions and coverage thresholds are unchanged.
 
 ## Limits of verification
 

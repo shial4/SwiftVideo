@@ -24,7 +24,7 @@ Built with SwiftVideo: [run the example editor on iOS or Android](Example/README
 - **One Swift composition, three platforms.** Use the same API with AVFoundation on Apple and Media3 through Skip Fuse on Android.
 - **GPU-backed visuals.** Metal-backed Core Image and Media3's OpenGL pipeline handle transforms, filters, and compositing. Text is prepared once for each export.
 - **Editing with predictable results.** Rational time, atomic edit batches, and split/trim operations preserve source offsets and effect timing.
-- **Clip and track speed and effects.** Retiming with preserved pitch, inherited visual filters, and ordered audio EQ. [Usage and timing rules](Documentation/Guide.md#playback-speed-and-track-effects) (available on `main`; planned for 0.0.2).
+- **Clip and track speed and effects.** Retiming with preserved pitch, inherited visual filters, and ordered audio EQ. [Usage and timing rules](Documentation/Guide.md#playback-speed-and-track-effects).
 - **Export with control.** Async/await, progress, cancellation, and destination protection are built in. Projects are Codable, Hashable, and Sendable.
 
 ## Quick start
@@ -72,7 +72,7 @@ let package = Package(
         .library(name: "MyVideoFeature", targets: ["MyVideoFeature"])
     ],
     dependencies: [
-        .package(url: "https://github.com/shial4/SwiftVideo.git", from: "0.0.1")
+        .package(url: "https://github.com/shial4/SwiftVideo.git", from: "0.0.2")
     ],
     targets: [
         .target(name: "MyVideoFeature", dependencies: [
@@ -84,7 +84,7 @@ let package = Package(
 
 Then `import SwiftVideo`. For an existing package, merge these dependency entries into its manifest. Android applications also need the Skip setup below.
 
-The latest stable release is `0.0.1`. Clip and track speed, inherited filters, and audio EQ are on `main` for the planned `0.0.2` release. To try those APIs before release, replace the dependency requirement with `branch: "main"`. See the [release plan](Documentation/ReleasePlan.md) for stabilization gates and the separate experimental preview release.
+The latest stable release is [0.0.2](https://github.com/shial4/SwiftVideo/releases/tag/0.0.2), including clip and track speed, inherited filters, ordered audio EQ, and export reliability fixes. Experimental live preview, custom effects and segmentation remain on `develop` and in explicitly selected alpha releases. See the [release plan](Documentation/ReleasePlan.md) for release scope and verification.
 
 | Your project | Requirements | Integration |
 | --- | --- | --- |
@@ -96,7 +96,7 @@ The latest stable release is `0.0.1`. Clip and track speed, inherited filters, a
 ### Native iOS and macOS
 
 1. In Xcode, choose **File > Add Package Dependencies** and enter `https://github.com/shial4/SwiftVideo.git`.
-2. Select **Up to Next Major Version**, starting at **0.0.1**, and add the **SwiftVideo** product to your app target.
+2. Select **Up to Next Major Version**, starting at **0.0.2**, and add the **SwiftVideo** product to your app target.
 3. Add `import SwiftVideo` and use the [quick start](#quick-start) from your SwiftUI, UIKit, or AppKit code.
 
 Use Xcode's Swift toolchain for Apple builds. You do not need an Android SDK, JDK, or emulator to use the Apple renderer. Your app owns media selection, file permissions, playback, and sharing. [Native app integration](Documentation/Integration.md#native-ios-and-macos).
@@ -116,7 +116,7 @@ Start with the [working iOS + Android example](Example/README.md), or follow the
 
 ### Native Android and Kotlin
 
-**Version 0.0.1 ships a Swift package, not a Maven artifact or a directly callable Kotlin DSL.** You can use it behind a small Skip Fuse wrapper while keeping your Android UI in Kotlin or Compose:
+**SwiftVideo ships a Swift package with a Skip Fuse adapter integration for Kotlin.** Keep your Android UI in Kotlin or Compose and expose the Swift composition API through a small wrapper:
 
 1. Create a native Skip framework that depends on SwiftVideo.
 2. Expose a small Swift API using bridge-friendly inputs such as file paths, text, and durations. Enable Skip's `kotlincompat` bridging for that wrapper.
@@ -161,7 +161,7 @@ Choose a smaller resolution for previews and the required delivery resolution fo
 | [Composition recipes](Documentation/Recipes.md) | Image/title scenes, video-in-video, captions, crossfades, and SwiftUI |
 | [SwiftVideo Studio example](Example/README.md) | Shared editor with playback, undo/redo, scrubbing, and 720p/1080p export |
 
-Documentation is hosted in this GitHub repository. Select your dependency's release tag to read matching docs; `main` follows current development.
+Documentation is hosted in this GitHub repository. Select your dependency's release tag to read matching docs. `main` follows the stable library; experimental development lives on `develop`.
 
 ## Tests and coverage
 

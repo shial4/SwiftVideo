@@ -10,10 +10,10 @@ SwiftVideo exposes a native Swift API. Apple apps and Skip Fuse modules use it d
 Add the dependency to your package's `dependencies` array:
 
 ```swift
-.package(url: "https://github.com/shial4/SwiftVideo.git", from: "0.0.1")
+.package(url: "https://github.com/shial4/SwiftVideo.git", from: "0.0.2")
 ```
 
-The latest stable release is `0.0.1`. For the unreleased speed and track-filter APIs documented on `main`, use `branch: "main"` in place of `from: "0.0.1"`.
+The latest stable release is `0.0.2`. It includes clip/track speed, inherited visual filters and ordered audio EQ. Use a tagged dependency for release builds.
 
 Add the product to the consuming target's `dependencies` array:
 
@@ -25,7 +25,7 @@ Use `import SwiftVideo` in source files. The [complete manifest](../README.md#in
 
 ## Native iOS and macOS
 
-In an Xcode app, choose **File > Add Package Dependencies**, enter `https://github.com/shial4/SwiftVideo.git`, select a version starting at `0.0.1`, and add the **SwiftVideo** product to the app target. A package-based feature can use the manifest entries above instead.
+In an Xcode app, choose **File > Add Package Dependencies**, enter `https://github.com/shial4/SwiftVideo.git`, select a version starting at `0.0.2`, and add the **SwiftVideo** product to the app target. A package-based feature can use the manifest entries above instead.
 
 SwiftUI, UIKit, and AppKit callers use the same API:
 
@@ -61,7 +61,7 @@ The public SwiftVideo module has bridging disabled; its result-builder API is in
 
 ## Native Android and Kotlin
 
-This is an adapter integration, not a published SwiftVideo Maven dependency. Version 0.0.1 does not ship a Kotlin facade or prebuilt AARs. You build and own the small public wrapper; SwiftVideo owns the composition and export implementation. The walkthrough below illustrates that boundary and must be built and tested with your Android app.
+This is an adapter integration, not a published SwiftVideo Maven dependency. Version 0.0.2 does not ship a Kotlin facade or prebuilt AARs. You build and own the small public wrapper; SwiftVideo owns the composition and export implementation. The walkthrough below illustrates that boundary and must be built and tested with your Android app.
 
 ### 1. Create a native wrapper
 
