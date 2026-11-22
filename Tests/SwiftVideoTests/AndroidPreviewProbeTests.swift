@@ -195,7 +195,7 @@ extension RenderBehaviorTests {
         try probe.start(session: preview.session)
         for milliseconds: Int64 in [800, 1200, 800] {
             let before = probe.frameCount()
-            counts.state.withLock { $0.contexts.removeAll() }
+            let resetsBeforeSeek = counts.state.withLock { $0.resets }
             probe.seek(milliseconds: milliseconds)
             let deadline = ContinuousClock.now.advanced(by: .seconds(10))
             var matched = false
@@ -210,12 +210,16 @@ extension RenderBehaviorTests {
             try #require(matched, "Effect/title frame missing at \(milliseconds): \(probe.pixels()), \(probe.spatialStats())")
             probe.play()
             let audioDeadline = ContinuousClock.now.advanced(by: .seconds(5))
-            while counts.state.withLock({ $0.contexts.isEmpty }) && ContinuousClock.now < audioDeadline {
+            // Pause/seek are asynchronous. The old player may finish a PCM block
+            // before release; inspect the first block after the new DSP reset.
+            while counts.state.withLock({ $0.resets <= resetsBeforeSeek || $0.firstContextAfterReset == nil })
+                    && ContinuousClock.now < audioDeadline {
                 try #require(probe.status() >= 0, "Audio preview: \(probe.failureMessage())")
                 try await Task.sleep(for: .milliseconds(20))
             }
             probe.pause()
-            let first = try #require(counts.state.withLock { $0.contexts.first })
+            #expect(counts.state.withLock { $0.resets } > resetsBeforeSeek)
+            let first = try #require(counts.state.withLock { $0.firstContextAfterReset })
             #expect(first.projectTime >= Double(milliseconds) / 1000 && first.projectTime < Double(milliseconds) / 1000 + 0.1,
                 "Seek must reset DSP history without restarting its timeline clock: \(first.projectTime)")
         }

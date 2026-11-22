@@ -13,6 +13,8 @@ final class AudioEffectCounts: Sendable {
     struct State: Sendable {
         var created = 0, resets = 0, finished = 0
         var contexts: [EffectContext] = []
+        var lastResetIndex = 0
+        var firstContextAfterReset: EffectContext? { contexts.dropFirst(lastResetIndex).first }
     }
     #if canImport(os)
     let state = OSAllocatedUnfairLock(initialState: State())
@@ -64,7 +66,10 @@ enum CustomAudioFixture {
             }
         }
 
-        mutating func reset() { previous = [0, 0]; counts.state.withLock { $0.resets += 1 } }
+        mutating func reset() {
+            previous = [0, 0]
+            counts.state.withLock { $0.resets += 1; $0.lastResetIndex = $0.contexts.count }
+        }
         func finish() { counts.state.withLock { $0.finished += 1 } }
     }
 }
