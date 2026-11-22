@@ -255,7 +255,9 @@ public final class Media3TestSupport {
             throw IllegalStateException("Export has no audio track.")
         }
         let decoder = MediaCodec.createDecoderByType(mime)
-        defer { decoder.stop(); decoder.release() }
+        // release() works in error/unconfigured states too. Calling stop() first
+        // can throw after configure/start fails and prevent resource cleanup.
+        defer { decoder.release() }
         decoder.configure(format, nil, nil, 0)
         decoder.start()
         var inputEnded = false
