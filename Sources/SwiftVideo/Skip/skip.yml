@@ -16,3 +16,14 @@ skip:
   # The composition API is consumed by compiled Swift on both platforms.
   # Android service bridges are explicitly owned by the renderer module.
   bridging: false
+
+# Media3 1.12 alpha artifacts require API 37 for compilation.
+settings:
+  contents:
+    - block: 'dependencyResolutionManagement'
+      contents:
+        - block: 'versionCatalogs'
+          contents:
+            - block: 'create("libs")'
+              contents:
+                - 'version("android-sdk-compile", "37")'

@@ -73,6 +73,7 @@ struct AudioFilterInspector: View {
 
     private func label(_ filter: AudioFilter) -> String {
         switch filter {
+        case .custom(let reference): "\(reference.id.name) v\(reference.id.version)"
         case .lowPass(let frequency): "Low pass \(Int(frequency)) Hz"
         case .highPass(let frequency): "High pass \(Int(frequency)) Hz"
         case .parametricEQ(let frequency, let gain, _): "EQ \(Int(frequency)) Hz, \(String(format: "%.1f", gain)) dB"

@@ -12,11 +12,14 @@ permissions:
 concurrency:
   group: android-${{ github.ref }}
   cancel-in-progress: true
+env:
+  # setup-gradle retains the local task cache as well as dependency downloads.
+  GRADLE_OPTS: -Dorg.gradle.caching=true
 jobs:
   build:
     # Skip code generation and native cross-compilation run on macOS.
     runs-on: macos-26-intel
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
         with:
@@ -42,10 +45,11 @@ jobs:
             .build-android-tests/core
             .build-android-tests/tests.apk
             .build-android-tests/media3
+            .build-android-tests/segmentation-media3
           include-hidden-files: true
           retention-days: 3
   example:
-    # Build independently so the example cannot consume the test build's budget.
+    # Independent of the test binaries: tests can start as soon as build finishes.
     runs-on: macos-26-intel
     timeout-minutes: 45
     steps:
@@ -67,7 +71,7 @@ jobs:
   tests:
     needs: build
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
         with:
@@ -90,7 +94,9 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -memory 4096 -accel on
           pre-emulator-launch-script: '"$ANDROID_HOME/emulator/emulator" -accel-check'
-          script: timeout 5m bash Tools/TestAndroid.sh
+          # A complete suite already exceeds five minutes on a healthy emulator.
+          # Leave time for diagnostics, but still terminate a hung test process.
+          script: timeout --kill-after=30s 15m bash Tools/TestAndroid.sh
       - name: Report and gate coverage
         run: |
           tar -xf .build-coverage/android/profiles.tar -C .build-coverage/android
@@ -99,12 +105,20 @@ jobs:
           "$ndk_bin/llvm-cov" export .build-android-tests/core/libSwiftVideo.so \
             -instr-profile=.build-coverage/android/coverage.profdata > .build-coverage/android/core-raw.json
           swift Tools/Coverage.swift android-core .build-coverage/android/core-raw.json .build-coverage/android/core.json 90
+          "$ndk_bin/llvm-cov" export .build-android-tests/core/libSwiftVideoSegmentation.so \
+            -instr-profile=.build-coverage/android/coverage.profdata > .build-coverage/android/segmentation-core-raw.json
+          swift Tools/Coverage.swift android-segmentation-core .build-coverage/android/segmentation-core-raw.json .build-coverage/android/segmentation-core.json 90
           curl -fL https://repo.maven.apache.org/maven2/org/jacoco/org.jacoco.cli/0.8.13/org.jacoco.cli-0.8.13-nodeps.jar -o "$RUNNER_TEMP/jacoco.jar"
           java -jar "$RUNNER_TEMP/jacoco.jar" report .build-coverage/android/media3.ec \
             --classfiles .build-android-tests/media3/classes \
             --sourcefiles .build-android-tests/media3/kotlin \
             --xml .build-coverage/android/media3.xml --html .build-coverage/android/media3-html
           swift Tools/Coverage.swift android-media3 .build-coverage/android/media3.xml .build-coverage/android/media3.json 75
+          java -jar "$RUNNER_TEMP/jacoco.jar" report .build-coverage/android/media3.ec \
+            --classfiles .build-android-tests/segmentation-media3/classes \
+            --sourcefiles .build-android-tests/segmentation-media3/kotlin \
+            --xml .build-coverage/android/segmentation-media3.xml --html .build-coverage/android/segmentation-media3-html
+          swift Tools/Coverage.swift android-segmentation-media3 .build-coverage/android/segmentation-media3.xml .build-coverage/android/segmentation-media3.json 75
       - uses: actions/upload-artifact@v7
         if: always()
         with:

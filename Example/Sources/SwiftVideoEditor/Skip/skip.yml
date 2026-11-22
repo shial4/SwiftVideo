@@ -13,3 +13,14 @@
 # this is a natively-compiled Skip Fuse module
 skip:
   mode: 'native'
+
+# The app must declare the alpha's SDK before dependency defaults are aggregated.
+settings:
+  contents:
+    - block: 'dependencyResolutionManagement'
+      contents:
+        - block: 'versionCatalogs'
+          contents:
+            - block: 'create("libs")'
+              contents:
+                - 'version("android-sdk-compile", "37")'

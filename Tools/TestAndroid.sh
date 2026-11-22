@@ -42,7 +42,10 @@ remote=
 adb shell cat /proc/meminfo > "$reports/meminfo-before-instrumentation.txt" || true
 adb install -r -t "$artifacts/tests.apk"
 adb logcat -c
+# This single JUnit entry point runs every native Swift Testing case. Selecting
+# it avoids scanning the APK's dependency classes during a cold emulator start.
 adb shell am instrument -w -e coverage true \
+    -e class org.swift.test.SwiftTestRunner \
     -e coverageFile /data/user/0/swift.video.module.test/coverage.ec \
     swift.video.module.test/androidx.test.runner.AndroidJUnitRunner \
     | tee "$reports/instrumentation.txt"

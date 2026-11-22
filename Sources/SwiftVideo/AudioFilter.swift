@@ -8,11 +8,15 @@ public enum AudioFilter: Hashable, Codable, Sendable {
     case lowPass(cutoffHz: Double)
     case highPass(cutoffHz: Double)
     case parametricEQ(frequencyHz: Double, gainDB: Double, bandwidthOctaves: Double)
+    case custom(EffectReference)
+
+    var isCustom: Bool { if case .custom = self { return true }; return false }
 
     /// Renderers also check against the decoded source's Nyquist frequency.
     func validate(sampleRate: Double? = nil) throws {
         let frequency: Double
         switch self {
+        case .custom(let reference): try reference.validate(); return
         case .lowPass(let cutoff), .highPass(let cutoff): frequency = cutoff
         case .parametricEQ(let center, let gain, let bandwidth):
             frequency = center

@@ -43,6 +43,7 @@ final class ColorMatrixEffect: RgbMatrix {
 /// Media3 performs resampling and mixing after this per-item PCM processor.
 final class EnvelopeAudioProcessor: BaseAudioProcessor {
     private var frames: Int64 = 0
+    private var positionOffsetSeconds = 0.0
     private let times: [Double]
     private let gains: [Double]
     private let left: Double
@@ -69,7 +70,12 @@ final class EnvelopeAudioProcessor: BaseAudioProcessor {
         return AudioProcessor.AudioFormat(inputAudioFormat.sampleRate, 2, C.ENCODING_PCM_16BIT)
     }
 
-    override func onFlush(streamMetadata: AudioProcessor.StreamMetadata) { frames = 0 }
+    override func onFlush(streamMetadata: AudioProcessor.StreamMetadata) {
+        frames = 0
+        // Media3 reports the position within the clipped item after a seek.
+        // Export starts at zero; playback can begin partway through the envelope.
+        positionOffsetSeconds = Double(streamMetadata.positionOffsetUs) / 1_000_000
+    }
 
     override func queueInput(inputBuffer: ByteBuffer) {
         let channels = inputAudioFormat.channelCount
@@ -80,7 +86,7 @@ final class EnvelopeAudioProcessor: BaseAudioProcessor {
         for _ in 0..<count {
             let first = floating ? Double(inputBuffer.getFloat()) : Double(inputBuffer.getShort()) / 32768
             let second = channels == 1 ? first : (floating ? Double(inputBuffer.getFloat()) : Double(inputBuffer.getShort()) / 32768)
-            let amplitude = gain(at: Double(frames) / Double(inputAudioFormat.sampleRate))
+            let amplitude = gain(at: positionOffsetSeconds + Double(frames) / Double(inputAudioFormat.sampleRate))
             output.putShort(pcm(first * amplitude * left))
             output.putShort(pcm(second * amplitude * right))
             frames += 1

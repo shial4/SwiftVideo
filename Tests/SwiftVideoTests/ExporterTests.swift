@@ -73,6 +73,31 @@ import Testing
         #expect(try FileManager.default.contentsOfDirectory(atPath: directory.path).isEmpty)
     }
 
+    @Test func unresolvedHostedFontFailsBeforeRenderingOrWritingOutput() async throws {
+        let directory = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let font = try #require(URL(string: "https://example.com/brand.ttf"))
+        let clip = MediaClip(source: .text("Brand", TextStyle(fontURL: font)),
+                            duration: try VideoTime(value: 1, timescale: 1))
+        let project = VideoProject(tracks: [MediaTrack(clips: [clip])])
+        let destination = directory.appendingPathComponent("output.mp4")
+        let renderer = ExportRendererStub(mode: .fail, features: [.text, .customFonts])
+        let expected = VideoError.invalidProject("Custom fonts require a local file URL before rendering.")
+        await #expect(throws: expected) {
+            try await VideoExporter(renderer: renderer).export(project, to: destination)
+        }
+        #if canImport(AVFoundation)
+        await #expect(throws: expected) {
+            try await AppleVideoRenderer().render(project, to: destination, settings: ExportSettings(), progress: { _ in })
+        }
+        #elseif os(Android)
+        #expect(throws: expected) {
+            try AndroidVideoRenderer.serializedPlan(project, settings: ExportSettings())
+        }
+        #endif
+        #expect(try FileManager.default.contentsOfDirectory(atPath: directory.path).isEmpty)
+    }
+
     private func project() throws -> VideoProject {
         VideoProject(tracks: [MediaTrack(clips: [MediaClip(source: .text("Test", TextStyle()),
                                                           duration: try VideoTime(value: 1, timescale: 1))])])

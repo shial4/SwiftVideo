@@ -5,6 +5,18 @@
 
 build:
   contents:
+    # Skip folds the native test target into the core Gradle module. Keep the
+    # optional module test-only so it cannot form SwiftVideo -> Segmentation -> SwiftVideo.
+    - block: 'dependencies'
+      export: false
+      remove:
+        - 'implementation("com.google.mediapipe:tasks-vision:1.2.2")'
+      contents:
+        - 'testImplementation(project(":SwiftVideoSegmentation"))'
+        - 'androidTestImplementation(project(":SwiftVideoSegmentation"))'
+    # Project dependencies are appended after Skip merges the dependency blocks,
+    # so scope these after the generated dependencies declaration has executed.
+    - 'configurations.getByName("api").dependencies.removeAll { it is ProjectDependency && it.name in setOf("SwiftVideoSegmentation", "SwiftVideoSegmentationMedia3") }'
     - block: 'android'
       contents:
         - 'sourceSets { getByName("androidTest") { assets.srcDir("src/test/assets") } }'
@@ -12,3 +24,13 @@ build:
 
 skip:
   mode: 'native'
+
+settings:
+  contents:
+    - block: 'dependencyResolutionManagement'
+      contents:
+        - block: 'versionCatalogs'
+          contents:
+            - block: 'create("libs")'
+              contents:
+                - 'version("android-sdk-compile", "37")'

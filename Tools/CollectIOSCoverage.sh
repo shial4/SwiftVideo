@@ -32,3 +32,4 @@ xcrun llvm-cov export \
     "$derived_data/Build/Products/Debug-iphonesimulator/SwiftVideoTests.xctest/SwiftVideoTests" \
     -instr-profile="$output/ios.profdata" > "$output/ios-raw.json"
 swift Tools/Coverage.swift ios "$output/ios-raw.json" "$output/ios.json" 90
+swift Tools/Coverage.swift ios-segmentation "$output/ios-raw.json" "$output/ios-segmentation.json" 75

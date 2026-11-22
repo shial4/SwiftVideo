@@ -9,36 +9,40 @@ import QuartzCore
 
 enum AppleFrameRenderer {
     static func compose(_ project: VideoProject, visualClips: [MediaClip], at time: VideoTime, size: VideoSize,
-                        videos: [UUID: AppleVideoSource], images: [UUID: CIImage]) throws -> CIImage {
+                        videos: [UUID: AppleVideoSource], images: [UUID: CIImage], titles: [UUID: AppleMotionTitle], effects: AppleVisualEffects) throws -> CIImage {
         let canvas = CGRect(x: 0, y: 0, width: size.width, height: size.height)
         var frame = CIImage(color: project.background.ciColor).cropped(to: canvas)
         for clip in visualClips where try clip.timeRange.contains(time) {
             let source: CIImage
-            if let video = videos[clip.id] {
+            if let title = titles[clip.id] { source = try title.image(at: time) }
+            else if let video = videos[clip.id] {
                 source = try video.image(at: clip.sourceTime(at: time))
             } else if let image = images[clip.id] { source = image }
             else { throw VideoError.invalidMedia("No visual source was prepared for clip \(clip.id).") }
             let transform = try clip.visualTransform(at: time)
-            let image = apply(clip.filters, to: source)
+            let image = try apply(clip.filters, to: source, clipID: clip.id, projectTime: time.seconds, effects: effects)
             let placed = place(image, transform: transform, canvas: canvas)
             frame = placed.composited(over: frame).cropped(to: canvas)
         }
         return frame
     }
 
-    static func apply(_ filters: [MediaFilter], to source: CIImage) -> CIImage {
-        filters.reduce(source) { image, filter in
+    static func apply(_ filters: [MediaFilter], to source: CIImage, clipID: UUID, projectTime: Double, effects: AppleVisualEffects) throws -> CIImage {
+        try filters.enumerated().reduce(source) { image, entry in
+            let (index, filter) = entry
             switch filter {
-            case .brightness(let value): image.applyingFilter("CIColorControls", parameters: [kCIInputBrightnessKey: value])
-            case .contrast(let value): image.applyingFilter("CIColorControls", parameters: [kCIInputContrastKey: value])
-            case .saturation(let value): image.applyingFilter("CIColorControls", parameters: [kCIInputSaturationKey: value])
-            case .sepia(let value): image.applyingFilter("CISepiaTone", parameters: [kCIInputIntensityKey: value])
-            case .gaussianBlur(let value): image.clampedToExtent().applyingFilter("CIGaussianBlur", parameters: [kCIInputRadiusKey: value]).cropped(to: image.extent)
+            case .brightness(let value): return image.applyingFilter("CIColorControls", parameters: [kCIInputBrightnessKey: value])
+            case .contrast(let value): return image.applyingFilter("CIColorControls", parameters: [kCIInputContrastKey: value])
+            case .saturation(let value): return image.applyingFilter("CIColorControls", parameters: [kCIInputSaturationKey: value])
+            case .sepia(let value): return image.applyingFilter("CISepiaTone", parameters: [kCIInputIntensityKey: value])
+            case .gaussianBlur(let value): return image.clampedToExtent().applyingFilter("CIGaussianBlur", parameters: [kCIInputRadiusKey: value]).cropped(to: image.extent)
+            case .custom, .mask, .chromaKey: return try effects.apply(to: image, clipID: clipID, filterIndex: index, projectTime: projectTime)
             }
         }
     }
 
-    private static func place(_ source: CIImage, transform t: VisualTransform, canvas: CGRect) -> CIImage {
+    /// Local layer pixels before placement, shared by export and interactive previews.
+    static func fit(_ source: CIImage, transform t: VisualTransform, canvas: CGRect) -> CIImage {
         let extent = source.extent
         let c = t.crop
         let crop = CGRect(x: extent.minX + extent.width * c.x, y: extent.minY + extent.height * (1 - c.y - c.height),
@@ -56,6 +60,12 @@ enum AppleFrameRenderer {
         image = image.transformed(by: CGAffineTransform(scaleX: sx, y: sy))
             .transformed(by: CGAffineTransform(translationX: (width - crop.width * sx) / 2, y: (height - crop.height * sy) / 2))
             .cropped(to: CGRect(x: 0, y: 0, width: width, height: height))
+        return image
+    }
+
+    private static func place(_ source: CIImage, transform t: VisualTransform, canvas: CGRect) -> CIImage {
+        let width = canvas.width * t.width, height = canvas.height * t.height
+        let image = fit(source, transform: t, canvas: canvas)
         let matrix = CGAffineTransform(translationX: -width / 2, y: -height / 2)
             .concatenating(CGAffineTransform(scaleX: t.scale, y: t.scale))
             .concatenating(CGAffineTransform(rotationAngle: -t.rotation * .pi / 180))
@@ -69,19 +79,7 @@ enum AppleFrameRenderer {
     @MainActor
     static func textImage(_ text: String, style: TextStyle, project: VideoProject, size: VideoSize, rasterSize: VideoSize) throws -> CIImage {
         let scale = Double(size.width) / Double(project.canvas.width)
-        let font: CTFont
-        if let url = style.fontURL {
-            guard let provider = CGDataProvider(url: url as CFURL), let cgFont = CGFont(provider) else {
-                throw VideoError.invalidMedia("Cannot load custom font at \(url.lastPathComponent).")
-            }
-            font = CTFontCreateWithGraphicsFont(cgFont, style.fontSize * scale, nil, nil)
-        } else {
-            font = CTFontCreateWithName((style.fontName ?? "Helvetica") as CFString, style.fontSize * scale, nil)
-            if let name = style.fontName, CTFontCopyPostScriptName(font) as String != name,
-               CTFontCopyFamilyName(font) as String != name {
-                throw VideoError.invalidMedia("Font \(name) is not available on this device. Supply a font file for portability.")
-            }
-        }
+        let font = try makeFont(style, size: style.fontSize * scale)
         let layer = CATextLayer()
         layer.frame = CGRect(x: 0, y: 0, width: rasterSize.width, height: rasterSize.height)
         layer.contentsScale = 1
@@ -113,6 +111,23 @@ enum AppleFrameRenderer {
         layer.render(in: context)
         guard let image = context.makeImage() else { throw VideoError.renderingFailed("Cannot render text bitmap.") }
         return CIImage(cgImage: image)
+    }
+
+    static func makeFont(_ style: TextStyle, size: Double) throws -> CTFont {
+        let font: CTFont
+        if let url = style.fontURL {
+            guard let provider = CGDataProvider(url: url as CFURL), let cgFont = CGFont(provider) else {
+                throw VideoError.invalidMedia("Cannot load custom font at \(url.lastPathComponent).")
+            }
+            font = CTFontCreateWithGraphicsFont(cgFont, size, nil, nil)
+        } else {
+            font = CTFontCreateWithName((style.fontName ?? "Helvetica") as CFString, size, nil)
+            if let name = style.fontName, CTFontCopyPostScriptName(font) as String != name,
+               CTFontCopyFamilyName(font) as String != name {
+                throw VideoError.invalidMedia("Font \(name) is not available on this device. Supply a font file for portability.")
+            }
+        }
+        return font
     }
 }
 

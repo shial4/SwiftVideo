@@ -14,7 +14,7 @@ case "$android_arch" in
     *) printf 'Unsupported test architecture: %s\n' "$android_arch" >&2; exit 2 ;;
 esac
 artifacts="${ANDROID_TEST_ARTIFACTS:-$PWD/.build-android-tests}"
-mkdir -p "$artifacts/core" "$artifacts/media3"
+mkdir -p "$artifacts/core" "$artifacts/media3" "$artifacts/segmentation-media3"
 
 skip android build --swift-version "$SWIFT_VERSION" --arch "$android_arch" \
     --scratch-path .build-android-coverage --no-prune --dir "$artifacts/native" \
@@ -34,3 +34,6 @@ cp "$ANDROID_MODULE/build/outputs/apk/androidTest/debug/SwiftVideo-debug-android
 rm -rf "$artifacts/media3/classes" "$artifacts/media3/kotlin"
 cp -R "$ANDROID_MODULE/../SwiftVideoMedia3/build/intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes" "$artifacts/media3/"
 cp -R "$ANDROID_MODULE/../SwiftVideoMedia3/src/main/kotlin" "$artifacts/media3/"
+rm -rf "$artifacts/segmentation-media3/classes" "$artifacts/segmentation-media3/kotlin"
+cp -R "$ANDROID_MODULE/../SwiftVideoSegmentationMedia3/build/intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes" "$artifacts/segmentation-media3/"
+cp -R "$ANDROID_MODULE/../SwiftVideoSegmentationMedia3/src/main/kotlin" "$artifacts/segmentation-media3/"
