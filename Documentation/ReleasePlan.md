@@ -3,7 +3,7 @@
 
 [Documentation index](README.md) | [Tests and coverage](Testing.md)
 
-Consolidation reviewed November 13, 2026. Release evidence below retains its original dates. Stabilize the existing library for **0.0.2 first**. Continue all unreleased preview and extensibility work on `develop` in one draft PR to `main`. This scope supersedes the earlier proposal to include extensibility in 0.0.2.
+Reviewed November 22, 2026. Stable **0.0.2 is published** at `af717712951834e18d2d1266c4102fc0503743f6`. Release evidence below retains its original dates. Continue all unreleased preview and extensibility work on `develop` in one draft PR to `main`. This scope supersedes the earlier proposal to include extensibility in 0.0.2.
 
 At the maintainer's request, release verification uses the iOS Simulator and Android emulators. Physical-device access is not a release prerequisite. Record hardware-specific behavior as unverified and add physical-device checks when devices become available.
 
@@ -15,13 +15,20 @@ At the maintainer's request, release verification uses the iOS Simulator and And
 | Next `0.1.0-alpha.N`, then `0.1.0-beta.N`, then `0.1.0` | Experimental composition and layer preview | Develop together on `develop`; merge only after both platform gates and stable dependency criteria pass |
 | Later release, version to be assigned | Custom visual/audio effects, motion titles, animation extensions, masks and background removal | Develop on the same `develop` branch; release only after 0.0.2 |
 
-Existing `0.1.0-alpha.*` tags remain unchanged. They are not renamed or promoted to `0.0.2`: these are different release lines. `0.0.1` remains the stable installation recommendation until 0.0.2 is published. Preview users must explicitly select the preview prerelease.
+Existing `0.1.0-alpha.*` tags remain unchanged. They are not renamed or promoted to `0.0.2`: these are different release lines. `0.0.2` is the stable installation recommendation. Preview users must explicitly select the preview prerelease.
 
 ## Development workflow
 
 Use `develop` as the sole active development branch and one draft PR to `main`. It combines stabilization, preview, effects, motion titles, masks and optional segmentation. All Media3 modules on this branch use 1.12.0-alpha02. Keep known diagnostic failures visible and preserve the original test thresholds.
 
 `main` stays stable. Existing release tags, including `0.0.2-beta.4` and every alpha, are immutable. Consolidating source does not create a release, restart beta.4 observation, or make the prerelease dependency suitable for stable users. Use the beta.4 tag for stable-candidate testing and its existing CI records for historical evidence. Any future candidate changes require focused verification and a new tag, never a moved tag.
+
+## Maintainer acceptance
+
+
+On November 21, the maintainer requested the stable 0.0.2 release and reported using beta.4 in Swideo without noticing problems. This is maintainer-reported application acceptance. Exact usage dates were not supplied, so this record does not claim that the previously proposed five-working-day observation window was independently verified. The promotion uses that acceptance together with the automated and independent-consumer evidence below.
+
+The maintainer's earlier decision, "Ship with color limitation", accepts the measured bounded SDR color-conversion difference for 0.0.2. Keep the [measurements and scope](Testing.md#known-color-limitation) visible. This exception does not waive audio, timing, missing frames, alpha/opacity, filter, cancellation or cleanup regressions, and it does not establish a general color-fidelity guarantee.
 
 ## Current release evidence
 
@@ -41,35 +48,11 @@ Earlier prerelease tags remain unchanged and are not eligible for stable promoti
 
 The empty-track failure originates in [InAppMp4Muxer.close](https://github.com/androidx/media/blob/1.11.1/libraries/transformer/src/main/java/androidx/media3/transformer/InAppMp4Muxer.java) writing a duration marker before [Mp4Writer](https://github.com/androidx/media/blob/1.11.1/libraries/muxer/src/main/java/androidx/media3/muxer/Mp4Writer.java) has reserved header space. SwiftVideo adds that marker only after a video keyframe and still closes the muxer on failure. No exact upstream fix is confirmed for that failure or the variable PCM offset.
 
-`main` remains at `d2977a2`. The beta.4 tag is frozen during beta observation; consolidation does not promote it or change its source. The accepted bounded SDR color limitation remains documented. It does not waive audio, timing, missing-frame or general filter regressions.
+`main` remains at the verified `0.0.2` release commit, `af71771`. Both platform CI workflows and published-tag SwiftPM, iOS and Kotlin/AAR consumers passed. The beta.4 tag remains unchanged. The accepted bounded SDR color limitation remains documented. It does not waive audio, timing, missing-frame or general filter regressions.
 
 Before consolidation, [PR #1](https://github.com/shial4/SwiftVideo/pull/1) at `fb8b612` passes [Apple CI](https://github.com/shial4/SwiftVideo/actions/runs/42685774218). Its [Android CI](https://github.com/shial4/SwiftVideo/actions/runs/42685774348) passes compilation, the example build and 40 native core tests, but instrumentation completes 75 tests with six assertions: four color checks and two missing-overlay checks in raw seek/reset controls with the frame processor disabled. Audio checks and the supported recreation path pass in this run. The Android CI coverage gate is skipped after the failure; local Media3 coverage is 89.51%. Preview is not eligible to merge.
 
 [PR #6](https://github.com/shial4/SwiftVideo/pull/6) at `0626b8f` has no merge conflicts. Its November 12 hosted Apple run and both Android build jobs passed. Android app tests recorded seven assertions: the six above plus the historically intermittent raw frame-processor seek failure. Supported preview paths and audio checks passed, but the failed instrumentation step skipped the Android coverage gate. See the [CI review](Testing.md#pr-6-hosted-ci-review). Keep the PR draft until the runtime/coverage and stable dependency gates pass; a historical raw control failure must not be relabeled as a passing test.
-
-## Implementation sequence
-
-Estimates assume one engineer, existing toolchains and simulator/emulator runtimes, and no newly discovered major regression. Codex owns implementation, diagnostics and release preparation; the maintainer owns product acceptance. Existing authorization to merge after the release gates pass remains in effect.
-
-| Step | Work | Exit condition | Engineering effort |
-| --- | --- | --- | --- |
-| 1. Prepare stable candidate | Create the release branch from `main`; backport the Apple blocking-media fix and focused test/coverage improvements | Reviewed diff contains stable features and dependencies only | 0.5-1 day |
-| 2. Verify and fix | Run the complete Apple and Android suites; investigate any failure on this branch before attributing it to preview or upstream | Required tests and coverage pass; no unexplained failures | 2-4 days |
-| 3. Verify consumers and runtimes | Exercise the title/image and captioned picture-in-picture examples, speed/filter combinations, and documented integration paths | Candidate passes on iOS Simulator and Android API 34/35 emulators; documentation states the tested environments and limitations | 1-2 days |
-| 4. Publish and observe beta | Tag a passing candidate as `0.0.2-beta.N`; exercise it through actual package consumers and record findings | Five working days of beta use with no open release-blocking defect | 0.5-1 day, plus observation window |
-| 5. Release | Merge the passing candidate, verify the resulting `main` SHA, tag `0.0.2`, publish matching notes and update installation guidance | Published tag resolves to the tested commit; package consumer smoke checks pass | 0.5-1 day |
-
-Step 1 reuses these focused changes:
-
-- `c9577c1`: run blocking Apple decoder/audio work on a dedicated serial executor and test it through that executor.
-- `b29374f`: run every applicable Apple suite and retain useful diagnostics when a runner stalls.
-- `39c1b84`: collect iOS coverage from the tested binary and matching profiles. Bring the collector and workflow change, not preview-specific release statements.
-- `c65d2a9`: clean only the Android runtime directory created by the test invocation, after collecting results.
-- `40e56f9`: set the Android muxer's video endpoint so one-frame exports retain their duration. The stable-branch regression reproduced 0 ms output before the fix and passed afterward on API 34 and 35.
-
-Local verification also required the LLVM coverage parser used by the collector and replacement of read-only generated Android coverage inputs during repeated packaging. Native core test stderr is now retained in the test artifact.
-
-Keep the current Swift, Skip and Android toolchains. Do not install a redundant local Swift toolchain, change Skip modes, or introduce new rendering abstractions for stabilization. Bring additional CI changes only when a candidate failure or measured build bottleneck justifies them.
 
 ## Release gates
 
@@ -119,7 +102,7 @@ The November 13 [beta01 candidate check](Testing.md#pr-6-hosted-ci-review) compi
 
 ## Monitoring and promotion
 
-The latest published stable-line beta is [0.0.2-beta.4](https://github.com/shial4/SwiftVideo/releases/tag/0.0.2-beta.4), published November 10, 2026 at 06:03:24 Australia/Brisbane (November 9 at 20:03:24 UTC), at `311107384330d3c1670546b6eeef806447fdb0d9`. Exact-commit CI and post-publication exact-tag consumers pass. Five full working days of documented actual beta use remain required. November 11-17 is the proposed window, not completed evidence; record the actual dates and findings. Do not promise November 18 as a release date. Elapsed time alone is not evidence of use. Keep beta.4 frozen during observation. When its release gates pass, prepare a focused promotion from that exact candidate, without pulling preview or extensibility from `develop` into 0.0.2. A new media-behavior fix requires a new beta and a fresh window. Beta.1, beta.2 and beta.3 remain superseded and cannot be promoted.
+Stable 0.0.2 was published on November 22, 2026. Preserve its tag and beta.4. New preview/effects candidates remain on `develop`; do not create a prerelease for every implementation commit.
 
 Use this plan's blocker list and existing CI artifacts as the release record. For each candidate, record: SwiftVideo SHA/tag, resolved Media3 version, device/OS, test failures, coverage results, artifact links and the release decision. Keep raw logs and media in CI artifacts, not in source control.
 
@@ -136,7 +119,7 @@ Raw upstream controls and accepted diagnostic limitations may eventually be repo
 
 ## Timing and uncertainty
 
-For **0.0.2**, budget roughly **5-9 engineering days plus the beta observation window**, usually **2-3 calendar weeks**. Reassess after the first complete stable-branch Android run. A reproducible production regression can extend this estimate; Media3 preview development need not be on this release's critical path.
+The 0.0.2 stabilization work is complete. The remaining schedule depends on preview verification and a suitable stable Media3 release.
 
 For preview, the official Media3 history gives a planning range, not a fix commitment:
 
@@ -150,7 +133,7 @@ These [official release dates](https://developer.android.com/jetpack/androidx/re
 
 ## Extensibility after stabilization
 
-Implementation from [PR #5](https://github.com/shial4/SwiftVideo/pull/5) is consolidated with preview and stabilization history on `develop`. It is not part of beta.4 or the 0.0.2 release gate. Keep one development PR open; close superseded PRs #1, #4 and #5 only after verifying the combined branch. Do not promote `develop` as 0.0.2.
+Implementation from [PR #5](https://github.com/shial4/SwiftVideo/pull/5) is consolidated with preview and stabilization history on `develop`. It is not part of beta.4 or the 0.0.2 release gate. Keep one development PR open; superseded PRs #1, #4 and #5 are closed. Do not promote `develop` as 0.0.2.
 
 The branch implements versioned effect registration and validated parameters; Apple Core Image/Metal and Android GPU visual adapters; bounded custom audio DSP; word/grapheme motion titles and animation controls; GPU masks/chroma key; and optional person segmentation using existing models. Examples and usage guides accompany the APIs. At `01f70f1`, [Apple CI](https://github.com/shial4/SwiftVideo/actions/runs/42684980302) and [Android CI](https://github.com/shial4/SwiftVideo/actions/runs/42684980550) pass, including optional-module coverage gates.
 

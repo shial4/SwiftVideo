@@ -33,9 +33,31 @@ The frame-processor seek assertion is additional to the latest six-assertion bas
 
 On November 13, all development Media3 artifacts were temporarily aligned to [1.12.0-beta01](https://developer.android.com/jetpack/androidx/releases/media3#1.12.0-beta01) for a local candidate check, using the unchanged native test libraries and test assertions. Skip metadata and Android APK compilation passed. API 35 arm64 instrumentation completed 132 tests in 16 suites with six assertions: the same four color checks and two legacy seek/reset checks. Supported preview, audio, effect and segmentation checks passed. The frame-processor seek control passed in this run, but it had also passed intermittently on alpha02; this is not proof of a fix. The candidate did not clear the runtime gate and remains prerelease, so dependency declarations were restored to alpha02. Complete local events and logs are retained under `.build-coverage/pr6-beta/`; no candidate was tagged or published and no coverage pass is inferred from this failed run.
 
+## 0.0.2 promotion verification
+
+
+The stable 0.0.2 promotion preserves beta.4's implementation, tests, dependency pins, example and test tooling. The approved CI change separates the Android example build and reuses cached setup; assertions, coverage thresholds and runtime limits remain unchanged. Preview and extensibility remain on `develop` and are not part of this release. On November 21, 2026, the maintainer reported beta.4 use in Swideo without observed problems and requested publication. Exact usage dates were not supplied; see the [maintainer acceptance record](ReleasePlan.md#maintainer-acceptance).
+
+Fresh local checks on November 21 used the existing Xcode 27.2 and Android tools:
+
+- All 44 macOS library tests and six editor model tests passed.
+- An independent macOS SwiftPM consumer resolved exact beta.4 and exported a one-second title composition with combined clip/track speed and ordered filters.
+- The exact-tag iOS 27.0 Simulator consumer passed its eight-second 1280x720 title/image and captioned picture-in-picture export, including speed and EQ.
+- The exact-tag API 35 arm64 Kotlin/AAR consumer passed three tests for exports, fractional PCM trims and missing-input cleanup. A second run retained outputs for independent inspection and also passed all three tests.
+- AVFoundation independently decoded the iOS and Android delivery-resolution outputs: both contain eight seconds of 1280x720 H.264 video at 30 fps with non-silent audio. Decoded frames were inspected for titles, captions and picture-in-picture. All three Android fractional-trim outputs have immediate audio, the expected fade and a silent tail, with no delayed start.
+- Source headers, dependency notices, documentation links and whitespace checks passed. No toolchain was installed and no assertion or coverage threshold was relaxed.
+
+Local logs, media and test bundles are retained in the ignored `.build-coverage/release-002/` directory. Final hosted verification must pass on the release commit before tagging; its commit and CI links are recorded in the [0.0.2 release notes](https://github.com/shial4/SwiftVideo/releases/tag/0.0.2). The coverage figures below remain the measured beta.4 baseline, not a claim that a newer CI run has already passed.
+
+The first promotion commit, `c7796a1`, passed [Apple CI](https://github.com/shial4/SwiftVideo/actions/runs/44897275670): 44 macOS tests, 44 iOS tests, six editor-model tests, the iOS example build and 95.39% iOS line coverage. [Android CI](https://github.com/shial4/SwiftVideo/actions/runs/44897275687) was cancelled at its 45-minute build-job limit while finishing the example APK. Native compilation and portable test packaging passed; runtime tests and coverage did not run. This timeout is not a passing Android gate. The November 22 CI fix runs the example independently, using the setup action already on `develop`, and requires a fresh successful run before publication.
+
+Independent consumers also resolved `c7796a1` and passed the macOS export, iOS canonical scene and all three Kotlin/AAR checks. The first Kotlin rerun could not install because the emulator lacked storage; removing the disposable SwiftVideo instrumentation package resolved that setup failure. No test assertion was changed.
+
+Published November 22 at `af717712951834e18d2d1266c4102fc0503743f6`. [Apple CI](https://github.com/shial4/SwiftVideo/actions/runs/44957712746) and [Android CI](https://github.com/shial4/SwiftVideo/actions/runs/44957712698) passed. Independent SwiftPM, iOS Simulator and all three Kotlin/AAR consumer checks then resolved and passed the published `0.0.2` tag. Coverage was 95.39% iOS, 95.94% Android core and 91.02% Media3. This stable evidence does not replace the separate development gates above.
+
 ## Frozen beta.4 evidence
 
-The [0.0.2-beta.4](https://github.com/shial4/SwiftVideo/releases/tag/0.0.2-beta.4) snapshot was verified on November 10, 2026, at `311107384330d3c1670546b6eeef806447fdb0d9` with Media3 1.11.1. Exact-commit [Apple CI](https://github.com/shial4/SwiftVideo/actions/runs/42682862180) and [Android CI](https://github.com/shial4/SwiftVideo/actions/runs/42682863148) pass, including example builds and all coverage gates. The 0.0.1 tag predates playback speed and ordered filters. Beta observation remains a separate release gate; see the [release plan](ReleasePlan.md).
+The [0.0.2-beta.4](https://github.com/shial4/SwiftVideo/releases/tag/0.0.2-beta.4) snapshot was verified on November 10, 2026, at `311107384330d3c1670546b6eeef806447fdb0d9` with Media3 1.11.1. Exact-commit [Apple CI](https://github.com/shial4/SwiftVideo/actions/runs/42682862180) and [Android CI](https://github.com/shial4/SwiftVideo/actions/runs/42682863148) pass, including example builds and all coverage gates. The 0.0.1 tag predates playback speed and ordered filters. The stable promotion is recorded above; see the [release plan](ReleasePlan.md).
 
 | Target | Observed result | Coverage |
 | --- | --- | --- |
