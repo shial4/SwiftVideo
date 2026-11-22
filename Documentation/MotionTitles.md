@@ -3,7 +3,7 @@
 
 [Documentation index](README.md) | [API reference](APIReference.md#animation) | [Platform integration](Integration.md)
 
-This API is unreleased on the extensibility branch. It is not part of 0.0.1 or the 0.0.2 stabilization release.
+This API is under development on `develop`. It is not included in stable 0.0.2 or its betas.
 
 `TextMotion` animates individual words or characters inside a text clip. The clip's transform and filters then apply to the complete title. Models are immutable, `Codable`, and `Sendable`, so applications can derive them from SwiftUI state and save them with a project.
 

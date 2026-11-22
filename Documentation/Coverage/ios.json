@@ -1,6 +1,6 @@
 {
-  "covered" : 2383,
-  "executable" : 2464,
+  "covered" : 2379,
+  "executable" : 2460,
   "files" : [
     {
       "covered" : 44,
@@ -58,8 +58,8 @@
       "file" : "Sources/SwiftVideo/AppleVisualEffect.swift"
     },
     {
-      "covered" : 85,
-      "executable" : 86,
+      "covered" : 87,
+      "executable" : 88,
       "file" : "Sources/SwiftVideo/AudioEffect.swift"
     },
     {
@@ -118,8 +118,8 @@
       "file" : "Sources/SwiftVideo/VideoExporter.swift"
     },
     {
-      "covered" : 79,
-      "executable" : 83,
+      "covered" : 73,
+      "executable" : 77,
       "file" : "Sources/SwiftVideo/VideoLayerRenderer.swift"
     },
     {
@@ -143,6 +143,6 @@
       "file" : "Sources/SwiftVideo/VisualStyle.swift"
     }
   ],
-  "linePercent" : 96.71266233766234,
+  "linePercent" : 96.70731707317073,
   "suite" : "ios"
 }

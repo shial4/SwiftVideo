@@ -1,7 +1,7 @@
 <!-- Copyright 2026 Software Deck Pty Ltd; SPDX-License-Identifier: Apache-2.0 -->
 # Custom audio effects
 
-This API is under development on `develop`. It is not included in 0.0.1 or the 0.0.2 betas.
+This API is under development on `develop`. It is not included in stable 0.0.2 or its betas.
 
 Write a Swift `AudioEffectProcessor` and register its factory with an `EffectRegistry`. The same implementation runs in native Apple applications and Skip Fuse applications on Android. Projects save an exact identifier/version and typed parameters, using the [same registration rules as visual effects](CustomEffects.md). They never contain executable code.
 

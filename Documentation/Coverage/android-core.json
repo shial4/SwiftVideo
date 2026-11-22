@@ -1,10 +1,10 @@
 {
-  "covered" : 1593,
-  "executable" : 1680,
+  "covered" : 1660,
+  "executable" : 1757,
   "files" : [
     {
-      "covered" : 52,
-      "executable" : 52,
+      "covered" : 61,
+      "executable" : 61,
       "file" : "Sources/SwiftVideo/AndroidAudioEffects.swift"
     },
     {
@@ -13,13 +13,18 @@
       "file" : "Sources/SwiftVideo/AndroidMaskEffects.swift"
     },
     {
-      "covered" : 229,
+      "covered" : 61,
+      "executable" : 62,
+      "file" : "Sources/SwiftVideo/AndroidRenderEffects.swift"
+    },
+    {
+      "covered" : 230,
       "executable" : 231,
       "file" : "Sources/SwiftVideo/AndroidRenderPlan.swift"
     },
     {
       "covered" : 0,
-      "executable" : 10,
+      "executable" : 16,
       "file" : "Sources/SwiftVideo/AndroidVideoPreview.swift"
     },
     {
@@ -33,8 +38,8 @@
       "file" : "Sources/SwiftVideo/AnimationTiming.swift"
     },
     {
-      "covered" : 85,
-      "executable" : 86,
+      "covered" : 87,
+      "executable" : 88,
       "file" : "Sources/SwiftVideo/AudioEffect.swift"
     },
     {
@@ -93,8 +98,8 @@
       "file" : "Sources/SwiftVideo/VideoExporter.swift"
     },
     {
-      "covered" : 30,
-      "executable" : 63,
+      "covered" : 24,
+      "executable" : 61,
       "file" : "Sources/SwiftVideo/VideoLayerRenderer.swift"
     },
     {
@@ -118,6 +123,6 @@
       "file" : "Sources/SwiftVideo/VisualStyle.swift"
     }
   ],
-  "linePercent" : 94.82142857142857,
+  "linePercent" : 94.47922595332953,
   "suite" : "android-core"
 }

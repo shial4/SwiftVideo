@@ -259,7 +259,7 @@ Unreleased per-word and per-character animation uses `TextMotion(unit:stagger:an
 
 `Easing` applies to the segment leaving a keyframe. Its `value(at: Double) -> Double` clamps progress to `0...1` and evaluates `.linear`, `.easeIn` (quadratic), `.easeOut` (quadratic), `.easeInOut` (smoothstep), or `.step` (hold until the segment ends).
 
-The unreleased extensibility branch adds optional `curve: CubicBezierTiming?` to `Keyframe` and `repetition: AnimationRepetition?` to `KeyframeAnimation` and `MediaClip.animate`. Existing documents decode with both values nil and keep their original behavior.
+The unreleased `develop` branch adds optional `curve: CubicBezierTiming?` to `Keyframe` and `repetition: AnimationRepetition?` to `KeyframeAnimation` and `MediaClip.animate`. Existing documents decode with both values nil and keep their original behavior.
 
 `CubicBezierTiming(x1:y1:x2:y2:)` replaces that keyframe's `easing`. It solves the curve's time coordinate before evaluating the output value. All four controls must be finite and within `0...1`, keeping opacity and positive scale within their keyframe bounds. This is a bounded subset of [cubic Bezier timing](https://www.w3.org/TR/css-easing-1/#cubic-bezier-easing-functions); overshoot controls are not supported.
 
@@ -292,7 +292,7 @@ Ordered per-clip DSP before gain, pan, fades, and mixing:
 
 - `.lowPass(cutoffHz: Double)` and `.highPass(cutoffHz: Double)`.
 - `.parametricEQ(frequencyHz: Double, gainDB: Double, bandwidthOctaves: Double)`.
-- `.custom(EffectReference)` on the unreleased extensibility branch. See [custom audio effects](CustomAudioEffects.md) for portable Swift processors, reset/cleanup, timing, and examples.
+- `.custom(EffectReference)` on the unreleased `develop` branch. See [custom audio effects](CustomAudioEffects.md) for portable Swift processors, reset/cleanup, timing, and examples.
 
 All parameters must be finite. Frequency must be at least 20 Hz and below the source
 and processing Nyquist frequencies; gain is -24...24 dB, bandwidth 0.05...5 octaves.
@@ -376,7 +376,7 @@ Implementations must finish a playable file or throw, poll task cancellation, an
 
 `RendererCapabilities(name:features:codecs:containers:)` stores a `String`, `Set<CompositionFeature>`, `Set<VideoCodec>`, and `Set<VideoContainer>`. All properties are read-only. `validate(_:settings:) throws` rejects unavailable codec/container combinations and features required by the project's clips. It does not probe device codecs, validate all project values, or load media.
 
-`CompositionFeature` cases are `.video`, `.images`, `.text`, `.filters`, `.animation`, `.audioMixing`, `.audioFades`, `.audioPan`, `.customFonts`, `.playbackSpeed`, and `.audioFilters`. The unreleased extensibility branch adds `.customVisualEffects`, `.customAudioEffects`, `.motionTitles`, `.masks`, `.chromaKey`, and an optional `effects: EffectRegistry = .empty` argument to `VideoExporter`, `AppleVideoRenderer` and `AndroidVideoRenderer` initializers. See the [registration and GPU contract](CustomEffects.md), [audio processing contract](CustomAudioEffects.md), [motion titles](MotionTitles.md), and [masks](MasksAndChromaKey.md).
+`CompositionFeature` cases are `.video`, `.images`, `.text`, `.filters`, `.animation`, `.audioMixing`, `.audioFades`, `.audioPan`, `.customFonts`, `.playbackSpeed`, and `.audioFilters`. The unreleased `develop` branch adds `.customVisualEffects`, `.customAudioEffects`, `.motionTitles`, `.masks`, `.chromaKey`, and an optional `effects: EffectRegistry = .empty` argument to `VideoExporter`, `AppleVideoRenderer` and `AndroidVideoRenderer` initializers. See the [registration and GPU contract](CustomEffects.md), [audio processing contract](CustomAudioEffects.md), [motion titles](MotionTitles.md), and [masks](MasksAndChromaKey.md).
 
 | Built-in renderer | Availability and responsibilities |
 | --- | --- |

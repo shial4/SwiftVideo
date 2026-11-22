@@ -1,7 +1,7 @@
 <!-- Copyright 2026 Software Deck Pty Ltd; SPDX-License-Identifier: Apache-2.0 -->
 # Person background removal
 
-Unreleased work on `develop`. This API is not in stable 0.0.1, the 0.0.2 betas, or `main`.
+Unreleased work on `develop`. This API is not in stable 0.0.2, its betas, or `main`.
 
 The optional `SwiftVideoSegmentation` product removes the background behind people in images and video. It registers an ordinary [custom visual effect](CustomEffects.md), so it works on clips or tracks, combines with existing filters, and saves a versioned reference and parameters in project JSON. It does not identify arbitrary foreground objects or produce a studio-quality hair matte.
 

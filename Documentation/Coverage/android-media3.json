@@ -1,6 +1,6 @@
 {
-  "covered" : 1825,
-  "executable" : 2046,
+  "covered" : 1864,
+  "executable" : 2090,
   "files" : [
     {
       "covered" : 151,
@@ -13,7 +13,7 @@
       "file" : "Sources/SwiftVideoMedia3/Media3AudioEffects.kt"
     },
     {
-      "covered" : 216,
+      "covered" : 212,
       "executable" : 226,
       "file" : "Sources/SwiftVideoMedia3/Media3CompositionBuilder.kt"
     },
@@ -38,8 +38,8 @@
       "file" : "Sources/SwiftVideoMedia3/Media3ExportSession.kt"
     },
     {
-      "covered" : 116,
-      "executable" : 151,
+      "covered" : 147,
+      "executable" : 176,
       "file" : "Sources/SwiftVideoMedia3/Media3LayerSnapshotSession.kt"
     },
     {
@@ -58,8 +58,8 @@
       "file" : "Sources/SwiftVideoMedia3/Media3PreviewAudioCache.kt"
     },
     {
-      "covered" : 326,
-      "executable" : 352,
+      "covered" : 338,
+      "executable" : 371,
       "file" : "Sources/SwiftVideoMedia3/Media3PreviewSession.kt"
     },
     {
@@ -83,6 +83,6 @@
       "file" : "Sources/SwiftVideoMedia3/PcmBoundaryExtractorsFactory.kt"
     }
   ],
-  "linePercent" : 89.19843597262953,
+  "linePercent" : 89.18660287081339,
   "suite" : "android-media3"
 }

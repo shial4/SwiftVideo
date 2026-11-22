@@ -3,6 +3,35 @@
 
 [Documentation index](README.md) | [Public API reference](APIReference.md)
 
+## Preview and effects integration
+
+On November 22, 2026, `develop` merged published stable `main` at `af71771` and added registry-backed composition/layer previews in `dca4f62`. Custom visual effects and motion titles use the export implementations and preserve their authored clocks after trim, split and seek. Android custom audio clears DSP history on seek and finishes processors after player release. Stable 0.0.2 and its tag are unchanged.
+
+The follow-up `37764d6` makes the new audio-seek regression observe the first PCM callback after a DSP reset. Clearing observations before an asynchronous seek allowed an in-flight block from the old player to be mistaken for new playback. It also selects the existing `org.swift.test.SwiftTestRunner` JUnit entry point directly, avoiding dependency-class discovery while retaining every native Swift test.
+
+| Target | Observed local result | Measured coverage |
+| --- | --- | --- |
+| macOS library | 121 tests in 18 suites passed; eight focused audio tests passed after the fixture correction | Real exports and core behavior |
+| iOS 27 Simulator | 120 tests in 18 suites passed | Core 2,379/2,460 (96.71%); segmentation 137/168 (81.55%) |
+| Android native core | 71 tests in 10 suites passed | Core 1,660/1,757 (94.48%); segmentation 37/41 (90.24%) |
+| Example editor model | Six tests passed | No UI coverage claim |
+
+Both the [implementation Apple CI](https://github.com/shial4/SwiftVideo/actions/runs/44994440137) and [corrected-commit Apple CI](https://github.com/shial4/SwiftVideo/actions/runs/44995411099) passed. The latter runs 121 macOS tests, 120 iOS tests, six editor tests and the iOS example build, with core coverage 2,380/2,460 (96.75%) and segmentation 137/168 (81.55%). Local logs remain in the ignored `.build-coverage/pr6-resume/` directory. No toolchain was installed, dependency upgraded, assertion relaxed or coverage scope reduced.
+
+The completed [Android CI at `37764d6`](https://github.com/shial4/SwiftVideo/actions/runs/44995411064) passed both build jobs and all 71 native core tests. App instrumentation completed 138 tests in 16 suites in 388.202 seconds, recording exactly seven known diagnostic assertions: four BT.709 color checks and three raw Media3 seek/reset overlay checks. The new public preview test passed in 3.206 seconds, including custom visual/audio effects, motion titles, forward/backward seeking and processor cleanup. New layer tests and existing supported preview, export and segmentation checks passed. None of the local watchdog, codec or playback-deadline failures below recurred in this hosted run. The instrumentation failure skipped hosted Android coverage; this is not a passing platform gate.
+
+The first API 35 arm64 app run on `dca4f62` completed 138 tests in 16 suites in 1,167.559 seconds with 26 assertions: four color, two raw seek/reset, two from the new audio-test observation race, three export watchdog timeouts, eleven audio-trim playback deadlines, one retimed-playback deadline and three canonical-preview checks. New layer-effect/motion tests passed. Both existing AVD data images lacked installation space, so this run used temporary emulator data; background app installation/compilation and heavy guest CPU activity were observed. These observations do not establish the cause of every timing failure. The original events, grouped issues, logcat and coverage are retained, not replaced by a later pass. Its measured Media3 coverage is 1,864/2,090 (89.19%) and segmentation bridge coverage 161/179 (89.94%); passing coverage percentages do not make this failed suite a passing runtime gate.
+
+The `37764d6` comparison passed all 71 native core tests and the new public preview test (4.348 seconds), including three forward/backward seeks, custom GPU effects, motion titles, audio clock resets and processor cleanup. The app suite then reached the existing 15-minute limit without completing. Partial events retain two reference-color assertions, two PCM export/inspection errors, two continuous-video checks, six audio-trim playback deadlines, one canonical-preview check and two raw seek/reset assertions. No complete app coverage or runtime pass is claimed for this attempt. Task-owned emulators were stopped and their temporary data removed; existing AVD apps/data were preserved.
+
+The codec error exposed a test-helper cleanup defect: a throwing `stop()` could prevent `release()` after configuration or startup failed. Follow-up `951297b` releases the inspection decoder directly, which is valid in MediaCodec error states. Swift/Skip metadata and Kotlin APK compilation pass. The local Kotlin build needed a one-command `-Pkotlin.incremental=false` rebuild after an incremental internal-helper lookup error; no persistent build setting changed. This cleanup correction does not establish that the local codec/timing failures are resolved.
+
+Final [Apple CI at `951297b`](https://github.com/shial4/SwiftVideo/actions/runs/44997621619) passed all 121 macOS tests, 120 iOS tests, six editor tests and the iOS example build. Hosted core coverage is 2,380/2,460 (96.75%) and segmentation coverage 137/168 (81.55%).
+
+Final [Android CI at the same commit](https://github.com/shial4/SwiftVideo/actions/runs/44997621533) passed both build jobs and 71 native core tests. App instrumentation completed all 138 tests in 16 suites in 385.005 seconds with the same seven diagnostic assertions as `37764d6`: four color checks and missing overlays in raw seek without the frame processor, raw seek with it, and raw reset without it. All new layer/effect tests passed; the public preview effects/motion/audio-seek test passed in 3.160 seconds. No additional assertion or local timing/codec failure recurred. Hosted Android coverage was skipped after instrumentation failed. The current code remains ineligible to merge; stable Media3 and passing runtime/coverage gates are still required.
+
+The checked-in [iOS](Coverage/ios.json), [Android native core](Coverage/android-core.json), and [Media3](Coverage/android-media3.json) reports contain the measured November 22 local profiles above. The Media3 profile comes from the first complete, failed app run; it is not evidence of a passing Android runtime gate.
+
 ## Combined development verification
 
 The merged `develop` implementation was tested locally on November 10, 2026, and its results reviewed on November 13. It combines stabilization head `b0179f4`, extensibility head `1e4a6aa`, and preview head `fb8b612`. No release tag was created or moved. This is consolidation evidence, not a stable release pass.
@@ -18,9 +47,9 @@ The merged `develop` implementation was tested locally on November 10, 2026, and
 
 All six existing coverage thresholds pass when processing these local profiles. Android instrumentation remains a failed suite: four BT.709 color assertions and two raw-player seek/reset assertions match the preview baseline. The first combined run recorded those six issues plus one audio-preview startup timeout (`red-with-offset-music.mp4`, zero source trim) while example builds were running. The unchanged APK recheck, without competing builds, completed in 235.190 seconds with all audio checks passing and the original six issues. The first timeout remains recorded as an intermittent verification risk; the recheck does not establish its cause or erase it.
 
-Merge regressions verify that layer masks use source coordinates before crop and that unsupported custom effects/motion titles fail before writing a preview. Export retains the custom visual/audio and motion-title callbacks through the shared Android composition builder. Layer previews support built-in masks and chroma key; custom registry and motion-title preview integration remains unsupported.
+The initial merge regressions verified that layer masks use source coordinates before crop and that unsupported custom effects/motion titles failed before writing a preview. Export retained the custom visual/audio and motion-title callbacks through the shared Android composition builder. That snapshot did not support custom registry and motion-title previews; the November 22 integration above adds them.
 
-The checked-in [iOS](Coverage/ios.json), [Android core](Coverage/android-core.json), and [Media3](Coverage/android-media3.json) files are this combined local snapshot. Existing installed toolchains were used, with no local toolchain installation or package-version upgrade for consolidation.
+The [historical coverage reports](https://github.com/shial4/SwiftVideo/tree/0626b8f/Documentation/Coverage) preserve this combined snapshot. Current checked-in reports describe the November 22 integration above. Existing installed toolchains were used, with no local toolchain installation or package-version upgrade for consolidation.
 
 ### PR #6 hosted CI review
 

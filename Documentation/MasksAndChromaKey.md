@@ -3,7 +3,7 @@
 
 [Documentation index](README.md) | [API reference](APIReference.md#mediafilter) | [Custom effects](CustomEffects.md)
 
-These APIs are unreleased on the extensibility branch. They are not part of 0.0.1 or the 0.0.2 stabilization release.
+These APIs are under development on `develop`. They are not included in stable 0.0.2 or its betas.
 
 Use `.mask` to keep a shaped region of an image, video, or title. Use `.chromaKey` to make a selected color transparent, revealing the layers underneath. Both are ordinary `MediaFilter` values: append them to a clip or track, combine them with other filters, and save them in project JSON.
 
