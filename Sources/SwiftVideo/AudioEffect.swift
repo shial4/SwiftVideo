@@ -54,8 +54,9 @@ struct AudioEffectChain: Sendable {
     private let clock: EffectClock
     private let start: Double
     private var frames: Int64 = 0
+    private var seekOffset: Double = 0
 
-    init(clip: MediaClip, registry: EffectRegistry, platform: EffectPlatform, format: AudioEffectFormat) throws {
+    init(clip: MediaClip, registry: EffectRegistry, platform: EffectPlatform, format: AudioEffectFormat, offset: Double = 0) throws {
         self.format = format; clock = EffectClock(clip: clip); start = clip.start.seconds
         do {
             for filter in clip.audio.filters {
@@ -65,7 +66,7 @@ struct AudioEffectChain: Sendable {
                     processors.append(try definition.factory(parameters, format))
                 } else { processors.append(try AudioBiquad(filter: filter, format: format)) }
             }
-            reset()
+            reset(at: offset)
         } catch { finish(); throw error }
     }
 
@@ -74,7 +75,7 @@ struct AudioEffectChain: Sendable {
             throw VideoError.renderingFailed("Audio effects require complete PCM frames.")
         }
         let count = samples.count
-        let context = clock.context(at: start + Double(frames) / Double(format.sampleRate))
+        let context = clock.context(at: start + seekOffset + Double(frames) / Double(format.sampleRate))
         for index in processors.indices {
             try processors[index].process(&samples, context: context)
             guard samples.count == count, samples.allSatisfy(\.isFinite) else {
@@ -84,7 +85,8 @@ struct AudioEffectChain: Sendable {
         frames += Int64(count / format.channels)
     }
 
-    mutating func reset() {
+    mutating func reset(at offset: Double = 0) {
+        seekOffset = offset
         frames = 0
         for index in processors.indices { processors[index].reset() }
     }

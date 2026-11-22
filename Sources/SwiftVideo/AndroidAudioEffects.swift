@@ -13,6 +13,7 @@ final class AndroidAudioEffects: Sendable {
         var chain: AudioEffectChain?
         var samples: [Float] = []
         var finished = false
+        var seekOffset: Double = 0
     }
     private let state = Mutex(State())
     private let clip: MediaClip
@@ -26,9 +27,9 @@ final class AndroidAudioEffects: Sendable {
             let format = try AudioEffectFormat(sampleRate: sampleRate, channels: channels)
             if state.format != format {
                 state.chain?.finish(); state.chain = nil
-                state.chain = try AudioEffectChain(clip: clip, registry: registry, platform: .android, format: format)
+                state.chain = try AudioEffectChain(clip: clip, registry: registry, platform: .android, format: format, offset: state.seekOffset)
                 state.format = format
-            } else if reset { state.chain?.reset() }
+            } else if reset { state.chain?.reset(at: state.seekOffset) }
             guard !data.isEmpty else { return Data() }
             guard data.count % (channels * MemoryLayout<Float>.size) == 0 else {
                 throw VideoError.renderingFailed("Custom audio received incomplete PCM frames.")
@@ -38,6 +39,13 @@ final class AndroidAudioEffects: Sendable {
             _ = state.samples.withUnsafeMutableBytes { data.copyBytes(to: $0) }
             try state.chain?.process(&state.samples)
             return state.samples.withUnsafeBytes { Data($0) }
+        }
+    }
+
+    /// Called only after the old Media3 player has released its audio processors.
+    func seek(to projectTime: Double) {
+        state.withLock { state in
+            state.seekOffset = min(clip.duration.seconds, max(0, projectTime - clip.start.seconds))
         }
     }
 

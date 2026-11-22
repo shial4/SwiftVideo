@@ -69,7 +69,7 @@ let staticTitle = animated.textMotion(nil)
 
 Each unit starts with `x = 0`, `y = 0`, `scale = 1`, `rotation = 0`, and `opacity = 1`. It is hidden before its stagger delay. Animation values replace these defaults. Translation is relative to the text layer's width and height, with positive y downward. Rotation is clockwise around the unit's bounds. This differs from a clip transform's x/y values, which position the layer's center on the project canvas.
 
-`transform(forUnit:at:)` samples a unit for a custom preview. Pass the original clip effect time: `projectTime - clip.start + clip.effectsOffset`. Built-in renderers do this automatically. `speed(_:)` retimes the motion and stagger; trim and split preserve progress instead of restarting the title.
+`transform(forUnit:at:)` samples a unit for a custom preview. Pass the original clip effect time: `projectTime - clip.start + clip.effectsOffset`. Built-in renderers do this automatically. Unreleased `develop` also samples motion titles in `VideoLayerRenderer` snapshots and direct `AndroidVideoPreview`; previous alpha tags do not include that integration. `speed(_:)` retimes the motion and stagger; trim and split preserve progress instead of restarting the title.
 
 ## Fonts, layout, and filters
 

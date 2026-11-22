@@ -94,7 +94,7 @@ let exporter = VideoExporter(effects: try audioEffects())
 try await exporter.export(project, to: outputURL)
 ```
 
-Keep the registry in your application's composition service and pass it to every preview/export exporter. SwiftUI views can store and edit `EffectReference` values. Native Kotlin callers use their app's existing Skip bridge wrapper around that service; registration and DSP stay in compiled Swift. See [platform integration](Integration.md).
+Keep the registry in your application's composition service and pass it to every exporter and, on unreleased `develop`, to `AndroidVideoPreview(project:settings:effects:)`. SwiftUI views can store and edit `EffectReference` values. Native Kotlin callers use their app's existing Skip bridge wrapper around that service; registration and DSP stay in compiled Swift. See [platform integration](Integration.md).
 
 ## Processing contract
 
@@ -103,7 +103,7 @@ Keep the registry in your application's composition service and pass it to every
 - Preserve the buffer's sample count and return finite values. A thrown error, changed sample count, or NaN/infinity fails the export and triggers normal staging cleanup. Output may exceed full scale temporarily, but final mixing limits the signal; leave headroom to avoid clipping.
 - Factories return a fresh processor for each clip/filter/export. Calls on one processor are serial. `AudioEffectProcessor` is `Sendable` because Android may invoke a processor on different threads over its lifetime; value types with owned state are the simplest implementation.
 - `reset()` runs before the first buffer and after stream flush/seek. Clear history while retaining configuration. A format change finishes the old processor and creates a new one. `finish()` runs once for every successfully created processor, including later factory failure, export failure, and cancellation. Both methods have empty defaults.
-- Trim, split, a new preview, and a new export start with fresh DSP history. Their effect clock still preserves the authored time. Prior source audio is not replayed to warm delay lines. Track filters create separate per-clip processors; they are not effects on the mixed track output.
+- Trim, split, a new preview, a preview seek, and a new export start with fresh DSP history. Their effect clock still preserves the authored time. Prior source audio is not replayed to warm delay lines. Track filters create separate per-clip processors; they are not effects on the mixed track output.
 - Processors are one-in/one-out and cannot change duration or declare latency. Echo and reverb tails end with the clip. Extend the authored source/timeline if a tail must remain audible. Arbitrary resampling, extra output frames, surround audio, and bus effects are outside this contract.
 
 Custom audio runs on the CPU in buffers. Stateful sample processing and small PCM blocks do not benefit from uploading each block to the GPU. Android crosses the Swift/JNI boundary once per block using byte arrays, rather than once per sample. Visual effects continue to use the GPU.

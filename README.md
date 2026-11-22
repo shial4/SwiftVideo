@@ -18,7 +18,7 @@ A declarative video composition library for **iOS, macOS, and Android**. Turn fo
 
 Built with SwiftVideo: [run the example editor on iOS or Android](Example/README.md), or [view the exported composition](Documentation/Images/composition.gif).
 
-> This is the unreleased `develop` branch. Stable users should use a release tag. `0.0.2-beta.4` remains the frozen stabilization candidate; development combines preview and extensibility in one PR. See the [release plan](Documentation/ReleasePlan.md).
+> This is the unreleased `develop` branch. Stable users should use a release tag. `0.0.2` is the published stable release; development combines preview and extensibility in one PR. See the [release plan](Documentation/ReleasePlan.md).
 
 ## Why SwiftVideo?
 

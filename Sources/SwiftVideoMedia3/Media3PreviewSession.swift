@@ -54,6 +54,8 @@ public final class Media3PreviewSession {
     private var seekVersion = 0
     private var seekPending = false
     private var atEnd = false
+    private var cleanup: (() -> Void)?
+    private var seeked: ((Int64) -> Void)?
 
     /// Optional native audio output integration, also used for PCM inspection.
     // SKIP @nobridge
@@ -62,9 +64,21 @@ public final class Media3PreviewSession {
 
     public init() {}
 
-    public func start(json: String, sample: @escaping @Sendable (String, Double) -> [Double]) throws {
+    public func start(json: String, sample: @escaping @Sendable (String, Double) -> [Double],
+                      audio: @escaping @Sendable (String, Int, Int, Data, Bool) throws -> Data = { _, _, _, _, _ in
+                          throw NSError(domain: "SwiftVideo", code: 1, userInfo: [NSLocalizedDescriptionKey: "Custom audio requires an effect registry."])
+                      },
+                      visual: @escaping @Sendable (String, Int) throws -> Media3VisualEffect = { _, _ in
+                          throw NSError(domain: "SwiftVideo", code: 1, userInfo: [NSLocalizedDescriptionKey: "Native visuals require an effect registry."])
+                      },
+                      titleMotion: @escaping @Sendable (String, Double) throws -> Data = { _, _ in
+                          throw NSError(domain: "SwiftVideo", code: 1, userInfo: [NSLocalizedDescriptionKey: "Motion titles require a timeline sampler."])
+                      }, seeked: @escaping @Sendable (Int64) -> Void = { _ in },
+                      released: @escaping @Sendable () -> Void = {}) throws {
         #if SKIP
         guard !cancelled.get(), state.compareAndSet(0, 1) else { throw IllegalStateException("Preview session already started or released") }
+        cleanup = released
+        self.seeked = seeked
         preparing.set(true)
         java.lang.Thread({
             let directory = File(ProcessInfo.processInfo.androidContext.getCacheDir(), "swiftvideo-preview-" + UUID().uuidString)
@@ -72,11 +86,12 @@ public final class Media3PreviewSession {
             do {
                 guard directory.mkdirs() else { throw IllegalStateException("Cannot create preview scratch directory") }
                 let plan = try Media3PreviewAudioCache(folder: directory).prepare(JSONObject(json), cancelled: { self.cancelled.get() })
-                let composition = try Media3CompositionBuilder().build(plan, folder: directory, sample: sample)
+                let composition = try Media3CompositionBuilder().build(plan, folder: directory, sample: sample, audio: audio, visual: visual, titleMotion: titleMotion)
                 self.handler.post {
                     self.preparing.set(false)
                     if self.cancelled.get() {
                         self.deleteFolder(directory)
+                        self.finishEffects()
                         self.state.set(3)
                         return
                     }
@@ -97,7 +112,7 @@ public final class Media3PreviewSession {
                 self.handler.post {
                     self.preparing.set(false)
                     self.deleteFolder(directory)
-                    if self.cancelled.get() { self.state.set(3) }
+                    if self.cancelled.get() { self.finishEffects(); self.state.set(3) }
                     else { self.fail(String(describing: error)) }
                 }
             }
@@ -200,7 +215,7 @@ public final class Media3PreviewSession {
             self.deleteFolder(self.folder)
             self.folder = nil
             self.audioSinkFactory = nil
-            if !self.preparing.get() { self.state.set(3) }
+            if !self.preparing.get() { self.finishEffects(); self.state.set(3) }
         }
         #endif
     }
@@ -302,6 +317,7 @@ public final class Media3PreviewSession {
         releasePlayer()
         let currentGeneration = generation
         guard state.get() == 2, let composition, let surface else { return }
+        seeked?(requestedPosition)
         do {
             let builder = CompositionPlayer.Builder(ProcessInfo.processInfo.androidContext)
                 .setLooper(Looper.getMainLooper())
@@ -378,8 +394,15 @@ public final class Media3PreviewSession {
         player?.release()
         player = nil
         composition = nil
+        finishEffects()
         deleteFolder(folder)
         folder = nil
+    }
+    private func finishEffects() {
+        let action = cleanup
+        cleanup = nil
+        seeked = nil
+        action?()
     }
     private func deleteFolder(_ directory: File?) {
         if let files = directory?.listFiles() { for file in files { file.delete() } }

@@ -58,9 +58,9 @@ import ImageIO
         #expect(try center(output)[3] == 0, "Cropping the masked-out source half must remain transparent.")
     }
 
-    @Test func unsupportedPreviewEffectsFailBeforeWriting() async throws {
+    @Test func unregisteredPreviewEffectsFailBeforeWriting() async throws {
         let title = MediaClip.text("Title", duration: try VideoTime(value: 1, timescale: 1))
-        let clips = [title.textMotion(.typewriter(stagger: .zero)), title.filter(.custom(EffectReference(EffectIdentifier("app.preview"))))]
+        let clips = [title.filter(.custom(EffectReference(EffectIdentifier("app.preview"))))]
         let output = FileManager.default.temporaryDirectory.appendingPathComponent("unsupported-preview-\(UUID()).png")
         defer { try? FileManager.default.removeItem(at: output) }
         for clip in clips {
@@ -72,6 +72,70 @@ import ImageIO
             #if os(Android)
             #expect(throws: VideoError.self) { try AndroidVideoPreview(project: project, settings: ExportSettings()) }
             #endif
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func registeredLayerEffectsRetainEditedTimelineClocks(video: Bool) async throws {
+        #if os(Android)
+        let source = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: video ? "blue.mp4" : "green.png"))
+        defer { try? FileManager.default.removeItem(at: source) }
+        #else
+        let source = try #require(Bundle.module.url(forResource: video ? "blue" : "green", withExtension: video ? "mp4" : "png"))
+        #endif
+        let clip = MediaClip(source: video ? .video(source) : .image(source), start: try VideoTime(value: 1, timescale: 5),
+            duration: try VideoTime(value: 8, timescale: 5), sourceStart: try VideoTime(value: 1, timescale: 10),
+            playbackRate: .half)
+        let project = VideoProject(canvas: VideoSize(width: 160, height: 90), tracks: [
+            MediaTrack(clips: [clip]).filter(.custom(EffectReference(CustomEffectFixture.clockID)))
+        ])
+        let editor = try VideoEditor(project: project)
+        _ = try await editor.apply([.trim(clip.id, keeping: VideoTimeRange(start: VideoTime(value: 2, timescale: 5), duration: VideoTime(value: 4, timescale: 5)))])
+        let rightID = UUID()
+        let edited = try await editor.apply([.split(clip.id, at: VideoTime(value: 1, timescale: 1), rightID: rightID)])
+        let renderer = try VideoLayerRenderer(effects: CustomEffectFixture.clockRegistry())
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("layer-clock-\(UUID())")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        for (id, tenths, channel) in [(clip.id, Int64(8), 1), (rightID, Int64(12), 2)] {
+            let output = folder.appendingPathComponent("\(tenths).png")
+            try await renderer.render(clipID: id, in: edited, at: VideoTime(value: tenths, timescale: 10), to: output)
+            let rgba = try center(output)
+            #expect(rgba[channel] > 240 && rgba[0] < 10 && rgba[3] == 255, "Effect clock: \(rgba)")
+        }
+    }
+
+    @Test func motionLayerUsesRequestedTimeAndRecoversAfterEffectFailure() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("motion-layer-\(UUID())")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let clip = try MediaClip.text("TITLE", duration: VideoTime(value: 2, timescale: 1), style: TextStyle(fontSize: 36))
+            .textMotion(.fadeUp(duration: VideoTime(value: 1, timescale: 2)))
+            .starting(at: VideoTime(value: 1, timescale: 1))
+        let renderer = try VideoLayerRenderer(effects: CustomEffectFixture.failingRegistry())
+        let invalid = clip.filter(.custom(EffectReference(CustomEffectFixture.failingID)))
+        let failed = folder.appendingPathComponent("failed.png")
+        await #expect(throws: VideoError.self) {
+            try await renderer.render(clipID: invalid.id,
+                in: VideoProject(canvas: VideoSize(width: 160, height: 90), tracks: [MediaTrack(clips: [invalid])]),
+                at: VideoTime(value: 2, timescale: 1), to: failed)
+        }
+        #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path).isEmpty)
+        let project = VideoProject(canvas: VideoSize(width: 160, height: 90), tracks: [MediaTrack(clips: [clip])])
+        for second in [Int64(1), 2] {
+            let output = folder.appendingPathComponent("\(second).png")
+            try await renderer.render(clipID: clip.id, in: project, at: VideoTime(value: second, timescale: 1), to: output)
+            #if os(Android)
+            let visible = try Media3TestSupport.layerImageStats(path: output.path)[3]
+            #else
+            let image = try #require(CGImageSourceCreateWithURL(output as CFURL, nil).flatMap { CGImageSourceCreateImageAtIndex($0, 0, nil) })
+            let context = try #require(CGContext(data: nil, width: 160, height: 90, bitsPerComponent: 8, bytesPerRow: 640,
+                space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+            context.draw(image, in: CGRect(x: 0, y: 0, width: 160, height: 90))
+            let bytes = try #require(context.data).assumingMemoryBound(to: UInt8.self)
+            let visible = stride(from: 3, to: 160 * 90 * 4, by: 4).filter { bytes[$0] == 255 }.count
+            #endif
+            #expect(second == 1 ? visible == 0 : visible > 100, "Motion at \(second): \(visible) opaque pixels")
         }
     }
 

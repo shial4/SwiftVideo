@@ -142,7 +142,7 @@ struct AndroidRenderPlan: Encodable {
         }
     }
 
-    private static func microseconds(_ time: VideoTime) throws -> Int64 {
+    static func microseconds(_ time: VideoTime) throws -> Int64 {
         guard time >= .zero else { throw VideoError.timeOverflow }
         let product = UInt64(time.value).multipliedFullWidth(by: 1_000_000)
         let divisor = UInt64(time.timescale)

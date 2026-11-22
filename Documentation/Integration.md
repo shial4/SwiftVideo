@@ -77,7 +77,21 @@ settings:
 
 Keep the existing `skip` configuration in that file. In the standard generated Skip app shell, this catalog value sets both compile and target SDK. Do not edit generated Gradle output.
 
-On Android, retain `AndroidVideoPreview(project:settings:)` for an immutable project snapshot. Construction validates and serializes the project using the same native Swift code as export, then starts background preparation. Its `session` exposes status, play, pause, seek, and release operations. Release the old owner when replacing the project. An explicit `session.release()` cancels preparation and schedules cleanup; releasing the owner also releases the session.
+On Android, retain `AndroidVideoPreview(project:settings:effects:)` for an immutable project snapshot. Construction validates and serializes the project using the same native Swift code as export, then starts background preparation. Its `session` exposes status, play, pause, seek, and release operations. Release the old owner when replacing the project. An explicit `session.release()` cancels preparation and schedules cleanup; releasing the owner also releases the session.
+
+On unreleased `develop`, supply the same immutable registry to preview and export:
+
+```swift
+let preview = try AndroidVideoPreview(project: project, settings: settings, effects: registry)
+let layers = VideoLayerRenderer(effects: registry)
+```
+
+The registry enables GLSL/native visual effects and custom audio processing in
+Android composition preview, and custom visual effects in Apple/Android layer
+snapshots. Motion titles use the same glyph preparation and GPU animation as
+export. Seeking clears audio delay lines while preserving the authored effect
+clock. These additions are not included in previously published alpha tags or
+stable 0.0.2. Existing calls without a registry remain valid for built-in effects.
 
 This alpha supplies a low-level renderer, not a SwiftUI preview view. A Swift-authored transpiled platform adapter must attach a `SurfaceView` through `Media3PreviewSession.attachSurfaceView(_:)` and detach that same view when it leaves the UI. Android surface types are deliberately excluded from the native Swift bridge. The native owner and generated JVM adapter must refer to the same session. The [test probe](../Tests/SwiftVideoTestSupport/Media3PreviewProbe.swift) demonstrates surface attachment and replacement; it is not an app UI component.
 

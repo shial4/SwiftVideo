@@ -174,6 +174,62 @@ extension RenderBehaviorTests {
         #expect(probe.positionMilliseconds() >= startMilliseconds + durationMilliseconds && !probe.isPlaying())
     }
 
+    @Test func registeredPreviewEffectsAndMotionSurviveSeekingAndRelease() async throws {
+        let image = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "green.png"))
+        let audio = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "music.wav"))
+        defer { for url in [image, audio] { try? FileManager.default.removeItem(at: url) } }
+        let counts = AudioEffectCounts()
+        let registry = try CustomEffectFixture.clockRegistry(audio: [CustomAudioFixture.definition(counts: counts)])
+        func time(_ tenths: Int64) throws -> VideoTime { try VideoTime(value: tenths, timescale: 10) }
+        let visual = try MediaClip(source: .image(image), start: time(2), duration: time(16), sourceStart: time(1),
+            filters: [.custom(EffectReference(CustomEffectFixture.clockID))], playbackRate: .half)
+        let title = try MediaClip.text("TITLE", duration: time(16), style: TextStyle(fontSize: 24))
+            .textMotion(.fadeUp(duration: time(4))).starting(at: time(2)).zIndex(1)
+        let sound = try MediaClip(source: .audio(audio), start: time(2), duration: time(16), sourceStart: time(1),
+            audio: AudioSettings(filters: [.custom(EffectReference(CustomAudioFixture.id, parameters: ["gain": .number(0)]))]),
+            playbackRate: .half)
+        let project = VideoProject(canvas: VideoSize(width: 320, height: 180), tracks: [MediaTrack(clips: [visual, title, sound])])
+        let preview = try AndroidVideoPreview(project: project, settings: ExportSettings(), effects: registry)
+        let probe = Media3PreviewProbe()
+        defer { probe.release(); preview.session.release() }
+        try probe.start(session: preview.session)
+        for milliseconds: Int64 in [800, 1200, 800] {
+            let before = probe.frameCount()
+            counts.state.withLock { $0.contexts.removeAll() }
+            probe.seek(milliseconds: milliseconds)
+            let deadline = ContinuousClock.now.advanced(by: .seconds(10))
+            var matched = false
+            while ContinuousClock.now < deadline {
+                try #require(probe.status() >= 0, "Effects preview: \(probe.failureMessage())")
+                let pixels = probe.pixels(), stats = probe.spatialStats()
+                let channel = milliseconds < 1000 ? 1 : 2
+                if probe.frameCount() > before, pixels.count == 6, stats.count == 4,
+                   pixels[channel] > 220, pixels[0] < 20, stats[2] > 40 { matched = true; break }
+                try await Task.sleep(for: .milliseconds(25))
+            }
+            try #require(matched, "Effect/title frame missing at \(milliseconds): \(probe.pixels()), \(probe.spatialStats())")
+            probe.play()
+            let audioDeadline = ContinuousClock.now.advanced(by: .seconds(5))
+            while counts.state.withLock({ $0.contexts.isEmpty }) && ContinuousClock.now < audioDeadline {
+                try #require(probe.status() >= 0, "Audio preview: \(probe.failureMessage())")
+                try await Task.sleep(for: .milliseconds(20))
+            }
+            probe.pause()
+            let first = try #require(counts.state.withLock { $0.contexts.first })
+            #expect(first.projectTime >= Double(milliseconds) / 1000 && first.projectTime < Double(milliseconds) / 1000 + 0.1,
+                "Seek must reset DSP history without restarting its timeline clock: \(first.projectTime)")
+        }
+        preview.session.release()
+        let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+        while preview.session.currentStatus() != 3 && ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(preview.session.currentStatus() == 3)
+        let result = counts.state.withLock { $0 }
+        #expect(result.created > 0 && result.created == result.finished && result.resets >= 3)
+        #expect(!FileManager.default.fileExists(atPath: preview.session.temporaryDirectoryPath()))
+    }
+
     @Test func nativePreviewValidatesAndReleasesWithoutAnAttachedSurface() async throws {
         let image = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "green.png"))
         defer { try? FileManager.default.removeItem(at: image) }

@@ -49,6 +49,28 @@ import Testing
         #expect(result.contexts.map(\.projectTime) == [0, 2.0 / 48_000, 0])
     }
 
+    @Test func seekingResetsDSPHistoryAtTheRequestedEffectClock() throws {
+        let counts = AudioEffectCounts()
+        let registry = try EffectRegistry(audio: [CustomAudioFixture.definition(mode: .delay, counts: counts)])
+        let clip = try MediaClip(source: .audio(URL(fileURLWithPath: "/unused.wav")), start: VideoTime(value: 2, timescale: 1),
+            duration: VideoTime(value: 1, timescale: 1), sourceStart: VideoTime(value: 1, timescale: 4),
+            audio: AudioSettings(filters: [.custom(EffectReference(CustomAudioFixture.id))]), playbackRate: .double)
+        var chain = try AudioEffectChain(clip: clip, registry: registry, platform: .android,
+            format: AudioEffectFormat(sampleRate: 48_000, channels: 1))
+        defer { chain.finish() }
+        var impulse: [Float] = [1]
+        try chain.process(&impulse)
+        chain.reset(at: 0.25)
+        var samples: [Float] = [0]
+        try chain.process(&samples)
+        #expect(samples == [0])
+        let context = try #require(counts.state.withLock { $0.contexts.last })
+        #expect(context.projectTime == 2.25 && context.effectTime == 0.25 && context.sourceTime == 0.75)
+        chain.reset()
+        try chain.process(&samples)
+        #expect(counts.state.withLock { $0.contexts.last?.projectTime } == 2)
+    }
+
     @Test func freshClipsHaveIndependentDSPAndRetimedSourceClocks() throws {
         let counts = AudioEffectCounts()
         let registry = try EffectRegistry(audio: [CustomAudioFixture.definition(mode: .delay, counts: counts)])
@@ -131,6 +153,46 @@ import Testing
     }
 
     #if os(Android)
+    @Test func androidRenderCallbacksShareRegistryClocksAndCleanup() throws {
+        let counts = AudioEffectCounts(), visualID = EffectIdentifier("test.callback-failure")
+        let registry = try EffectRegistry(visual: [VisualEffectDefinition(visualID).android { _ in
+            AndroidVisualEffect(nativeFactory: { throw VideoError.renderingFailed("Expected native factory failure") })
+        }], audio: [CustomAudioFixture.definition(counts: counts)])
+        let start = try VideoTime(value: 2, timescale: 1), duration = try VideoTime(value: 1, timescale: 1)
+        let title = try MediaClip.text("ONE TWO", duration: duration).starting(at: start)
+            .textMotion(.typewriter(stagger: VideoTime(value: 1, timescale: 2), unit: .word))
+            .filter(.custom(EffectReference(visualID)))
+        let sound = try clip([.custom(EffectReference(CustomAudioFixture.id))]).starting(at: start)
+        let project = VideoProject(tracks: [MediaTrack(clips: [title, sound])])
+        let plan = try AndroidRenderPlan(project: project, settings: ExportSettings(), effects: registry)
+        let prepared = try AndroidRenderEffects(project: project, plan: plan, registry: registry)
+        defer { prepared.finish() }
+        #expect(prepared.json.contains("\"kind\":\"native\""))
+        #expect(throws: VideoError.renderingFailed("Expected native factory failure")) {
+            try prepared.visual(id: title.id.uuidString, index: 0)
+        }
+        #expect(throws: VideoError.self) { try prepared.visual(id: "missing", index: 0) }
+        #expect(throws: VideoError.self) { try prepared.titleMotion(id: "missing", microseconds: 0) }
+        #expect(throws: VideoError.self) { try prepared.audio(id: "missing", sampleRate: 1000, channels: 1, data: Data(), reset: true) }
+        func floats(_ data: Data) -> [Float] {
+            var result = [Float](repeating: 0, count: data.count / 4)
+            _ = result.withUnsafeMutableBytes { data.copyBytes(to: $0) }
+            return result
+        }
+        let early = try floats(prepared.titleMotion(id: title.id.uuidString, microseconds: 2_100_000))
+        let later = try floats(prepared.titleMotion(id: title.id.uuidString, microseconds: 2_600_000))
+        #expect(early.count == 10 && early[4] == 1 && early[9] == 0)
+        #expect(later.count == 10 && later[4] == 1 && later[9] == 1)
+        prepared.seek(to: 2.25)
+        let input: [Float] = [0.1, 0.2]
+        let result = try prepared.audio(id: sound.id.uuidString, sampleRate: 1000, channels: 1,
+            data: input.withUnsafeBytes { Data($0) }, reset: true)
+        #expect(floats(result) == [0.2, 0.4])
+        #expect(counts.state.withLock { $0.contexts.first?.projectTime } == 2.25)
+        prepared.finish(); prepared.finish()
+        #expect(counts.state.withLock { $0.created == 1 && $0.finished == 1 })
+    }
+
     @Test func androidBufferBoundaryHandlesResetFormatChangesAndFinish() throws {
         let counts = AudioEffectCounts()
         let registry = try EffectRegistry(audio: [CustomAudioFixture.definition(mode: .delay, counts: counts)])

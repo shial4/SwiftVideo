@@ -3,6 +3,7 @@
 
 #if !SKIP_BRIDGE
 import Foundation
+import SwiftVideoMedia3
 #if SKIP
 import android.graphics.Bitmap
 import android.graphics.Color
@@ -27,7 +28,6 @@ import androidx.media3.effect.Presentation
 import androidx.media3.effect.StaticOverlaySettings
 import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.transformer.__
-import SwiftVideoMedia3
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.atomic.AtomicInteger
@@ -112,9 +112,16 @@ public final class Media3PreviewProbe {
     public func start(json: String, useSurfaceView: Bool = false,
                       sample: @escaping @Sendable (String, Double) -> [Double]) throws {
         #if SKIP
+        let session = Media3PreviewSession()
+        try start(session: session, useSurfaceView: useSurfaceView)
+        try session.start(json: json, sample: sample)
+        #endif
+    }
+
+    public func start(session: Media3PreviewSession, useSurfaceView: Bool = false) throws {
+        #if SKIP
         guard state.compareAndSet(0, 1) else { throw IllegalStateException("Preview probe already started") }
         let started = SystemClock.elapsedRealtime()
-        let session = Media3PreviewSession()
         self.session = session
         let counts = audioCounts
         let squares = audioSquares
@@ -136,7 +143,6 @@ public final class Media3PreviewProbe {
                 session.attachSurface(reader.getSurface(), width: 320, height: 180)
             }
         }
-        try session.start(json: json, sample: sample)
         #endif
     }
 

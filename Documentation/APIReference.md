@@ -9,7 +9,7 @@ Import `SwiftVideo` to use the public API below. `Foundation` supplies `URL`, `U
 
 Available in `0.1.0-alpha.1` on Android only. Sources: [AndroidVideoPreview.swift](../Sources/SwiftVideo/AndroidVideoPreview.swift) and [Media3PreviewSession.swift](../Sources/SwiftVideoMedia3/Media3PreviewSession.swift).
 
-`AndroidVideoPreview(project: VideoProject, settings: ExportSettings) throws` owns a preview of one immutable project snapshot. It rejects invalid or empty projects and unsupported Android export settings before starting. Asynchronous preparation failures are reported by `session.failureMessage()`. The owner releases its session in `deinit`.
+`AndroidVideoPreview(project: VideoProject, settings: ExportSettings, effects: EffectRegistry = .empty) throws` owns a preview of one immutable project snapshot. It rejects invalid or empty projects and unsupported Android export settings before starting. Asynchronous preparation failures are reported by `session.failureMessage()`. The owner releases its session in `deinit`. The optional registry parameter is available on unreleased `develop`: custom visual/audio effects and motion titles use the export implementations. Seeks reset audio history at the requested project time; release and failure finish prepared processors.
 
 | Session member | Contract |
 | --- | --- |
@@ -29,16 +29,19 @@ The transpiled Android boundary also exposes `attachSurfaceView(_:)`, `detachSur
 Source: [VideoLayerRenderer.swift](../Sources/SwiftVideo/VideoLayerRenderer.swift).
 
 `VideoLayerRenderer` is an actor that renders one active text, image, or video
-clip to a transparent PNG on Apple and Android:
+clip to a transparent PNG on Apple and Android. On unreleased `develop`, pass
+the same effect registry used for export (or omit it for built-in effects):
 
 ```swift
-try await VideoLayerRenderer().render(
+try await VideoLayerRenderer(effects: registry).render(
     clipID: clip.id, in: project, at: time,
     canvasSize: VideoSize(width: 480, height: 270), to: destination)
 ```
 
 The image includes source timing, clip and track playback rates, ordered clip
-and track filters, crop, content mode, and text styling. It does not include
+and track filters, crop, content mode, and text styling. On `develop`, custom
+visual effects and motion-title units are sampled at the requested project time,
+including their original trim/split clock. Audio is not processed. It does not include
 position, scale, rotation, or opacity. Apply the clip's `visualTransform(at:)`
 to the image in the editor so gestures can move existing pixels immediately.
 The image dimensions are the preview canvas dimensions multiplied by the

@@ -44,6 +44,23 @@ extension RenderBehaviorTests {
         #expect(pixels[video ? 1 : 2] < 30)
     }
 
+    @Test func nativeVisualLayerUsesRegisteredFactoryAndPreservesAlpha() async throws {
+        let id = EffectIdentifier("test.layer-opacity")
+        let registry = try EffectRegistry(visual: [VisualEffectDefinition(id).android { _ in
+            AndroidVisualEffect(nativeFactory: { try Media3TestSupport.nativeOpacityEffect(0.5) })
+        }])
+        let source = URL(fileURLWithPath: try Media3TestSupport.copyFixture(name: "green.png"))
+        let output = source.deletingLastPathComponent().appendingPathComponent("native-layer-\(UUID()).png")
+        defer { for url in [source, output] { try? FileManager.default.removeItem(at: url) } }
+        let clip = MediaClip.image(source, duration: try VideoTime(value: 1, timescale: 1))
+            .filter(.custom(EffectReference(id)))
+        try await VideoLayerRenderer(effects: registry).render(clipID: clip.id,
+            in: VideoProject(canvas: VideoSize(width: 160, height: 90), tracks: [MediaTrack(clips: [clip])]),
+            at: .zero, to: output)
+        let rgba = try Media3TestSupport.layerImageStats(path: output.path)
+        #expect(rgba[6] < 10 && rgba[7] > 240 && rgba[8] < 10 && abs(rgba[9] - 128) <= 1)
+    }
+
     @Test func nativeVisualFactoryFailureCleansUpAndAllowsAnotherExport() async throws {
         let id = EffectIdentifier("test.native-failure")
         let registry = try EffectRegistry(visual: [VisualEffectDefinition(id).android { _ in

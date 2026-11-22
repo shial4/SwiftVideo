@@ -69,6 +69,25 @@ import Testing
         #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path).isEmpty)
     }
 
+    @Test func layerFailureReleasesItsProcessorAndLeavesNoStagingFile() async throws {
+        let counts = LifecycleCounts(), id = EffectIdentifier("test.layer-lifecycle")
+        let registry = try EffectRegistry(visual: [VisualEffectDefinition(id).apple { _ in
+            LifecycleProcessor(counts: counts, invalidExtent: true)
+        }])
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("layer-lifecycle-\(UUID())")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let clip = MediaClip.text("Title", duration: try VideoTime(value: 1, timescale: 1))
+            .filter(.custom(EffectReference(id)))
+        await #expect(throws: VideoError.self) {
+            try await VideoLayerRenderer(effects: registry).render(clipID: clip.id,
+                in: VideoProject(canvas: VideoSize(width: 160, height: 90), tracks: [MediaTrack(clips: [clip])]),
+                at: .zero, to: folder.appendingPathComponent("failed.png"))
+        }
+        #expect(counts.state.withLock { $0.finished } == 1)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path).isEmpty)
+    }
+
     @Test func cancellationDuringCustomRenderingReleasesTheProcessor() async throws {
         let counts = LifecycleCounts()
         let id = EffectIdentifier("test.cancel")

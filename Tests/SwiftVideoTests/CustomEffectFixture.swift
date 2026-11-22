@@ -13,7 +13,7 @@ enum CustomEffectFixture {
     static let clockID = EffectIdentifier("test.effect-clock")
 
     /// Independent oracle for an original 1.6-second effect starting at project time 0.2.
-    static func clockRegistry() throws -> EffectRegistry {
+    static func clockRegistry(audio: [AudioEffectDefinition] = []) throws -> EffectRegistry {
         var definition = VisualEffectDefinition(clockID).android { _ in
             AndroidVisualEffect(fragmentShader: """
                 precision highp float;
@@ -37,7 +37,7 @@ enum CustomEffectFixture {
         #if canImport(CoreImage)
         definition = definition.apple { _ in ClockVisualEffect() }
         #endif
-        return try EffectRegistry(visual: [definition])
+        return try EffectRegistry(visual: [definition], audio: audio)
     }
 
     static func failingRegistry() throws -> EffectRegistry {

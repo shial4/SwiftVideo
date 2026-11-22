@@ -26,13 +26,13 @@ public final class Media3CompositionBuilder {
 
     public func build(_ plan: JSONObject, folder: File, sample: @escaping (String, Double) -> [Double],
                       audio: @escaping (String, Int, Int, Data, Bool) throws -> Data = { _, _, _, _, _ in
-                          throw IllegalArgumentException("Custom audio requires an export effect registry.")
+                          throw IllegalArgumentException("Custom audio requires an effect registry.")
                       },
                       visual: @escaping (String, Int) throws -> Media3VisualEffect = { _, _ in
-                          throw IllegalArgumentException("Native visual effects require an export effect registry.")
+                          throw IllegalArgumentException("Native visual effects require an effect registry.")
                       },
                       titleMotion: @escaping (String, Double) throws -> Data = { _, _ in
-                          throw IllegalArgumentException("Motion titles are not supported by direct preview.")
+                          throw IllegalArgumentException("Motion titles require a timeline sampler.")
                       }) throws -> Composition {
         let sequences = java.util.ArrayList<EditedMediaItemSequence>()
         let visualIDs = java.util.ArrayList<String>()
@@ -145,7 +145,7 @@ public final class Media3CompositionBuilder {
     /// Shared crop, filters, and fitting for encoded output and paused layer images.
     func visualEffects(_ clip: JSONObject, width: Int, height: Int,
                        visual: (String, Int) throws -> Media3VisualEffect = { _, _ in
-                           throw IllegalArgumentException("Native visual effects require an export effect registry.")
+                           throw IllegalArgumentException("Native visual effects require an effect registry.")
                        }) throws -> java.util.ArrayList<Effect> {
         let visualEffects = java.util.ArrayList<Effect>()
         let transform = clip.getJSONObject("transform")

@@ -79,7 +79,7 @@ try await exporter.export(project, to: outputURL)
 
 Filters run in authored order: clip filters first, then track filters. A track effect is instantiated separately for each visual clip; it is not a post-composition adjustment layer. Use `track.filter(.custom(reference))` to apply the effect to all its visual clips. Transform animations, layout, opacity and composition continue to use the existing clip API.
 
-For SwiftUI, keep the registry with your export service and pass immutable project snapshots to the exporter. Parameter edits produce new `EffectReference` and project values. Apply the same debounce/cancellation policy as any other preview export. For native Kotlin consumers, register the effect in the native Swift wrapper before invoking the exporter; the [existing wrapper integration](Integration.md#native-android-and-kotlin) still applies.
+For SwiftUI, keep the registry with your composition service and pass immutable project snapshots to the exporter. On unreleased `develop`, pass it to `VideoLayerRenderer(effects:)` and Android `AndroidVideoPreview(project:settings:effects:)` as well. Parameter edits produce new `EffectReference` and project values. Apply the same debounce/cancellation policy as any other preview export. For native Kotlin consumers, register the effect in the native Swift wrapper before invoking the exporter; the [existing wrapper integration](Integration.md#native-android-and-kotlin) still applies.
 
 ## Save, restore and check support
 

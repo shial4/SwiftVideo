@@ -15,7 +15,8 @@ import SwiftVideoMedia3
 /// The caller places the image using the clip's evaluated center, scale,
 /// rotation, and opacity. These four properties are not baked into the image.
 public actor VideoLayerRenderer {
-    public init() {}
+    private let effects: EffectRegistry
+    public init(effects: EffectRegistry = .empty) { self.effects = effects }
 
     /// `canvasSize` is the preview canvas resolution, before the clip's width and height.
     /// The destination must be a new local PNG. The caller owns the resulting file.
@@ -28,13 +29,6 @@ public actor VideoLayerRenderer {
         }
         guard clip.source.isVisual, try clip.timeRange.contains(time) else {
             throw VideoError.invalidProject("The requested layer is not visible at this time.")
-        }
-        // Preview has no effect registry or motion-title session yet. Reject these
-        // explicitly instead of returning pixels that disagree with export.
-        guard clip.textMotion == nil, !clip.filters.contains(where: {
-            if case .custom = $0 { return true }; return false
-        }) else {
-            throw VideoError.unsupportedFeature("Layer previews do not yet support custom effects or motion titles.")
         }
         let size = canvasSize ?? project.canvas
         guard size.width > 0, size.height > 0, size.width <= 8192, size.height <= 8192 else {
@@ -55,11 +49,17 @@ public actor VideoLayerRenderer {
         try await renderApple(clip, project: project, time: time, size: size, to: staging)
         #elseif os(Android)
         let onlyLayer = VideoProject(canvas: project.canvas, frameRate: project.frameRate,
-            background: .clear, tracks: [MediaTrack(clips: [clip])])
-        let plan = try AndroidVideoRenderer.serializedPlan(onlyLayer, settings: ExportSettings(resolution: size, frameRate: .fps30))
+            background: .clear, tracks: [MediaTrack(clips: [clip.audio(AudioSettings(isMuted: true))])])
+        let plan = try AndroidVideoRenderer.renderPlan(onlyLayer,
+            settings: ExportSettings(resolution: size, frameRate: .fps30), effects: effects)
+        let prepared = try AndroidRenderEffects(project: onlyLayer, plan: plan, registry: effects)
+        defer { prepared.finish() }
         let seconds = try clip.sourceTime(at: time).seconds
         let session = Media3LayerSnapshotSession()
-        try session.start(json: plan, sourceSeconds: seconds, outputPath: staging.path)
+        try session.start(json: prepared.json, sourceSeconds: seconds, outputPath: staging.path,
+            projectTimeUs: AndroidRenderPlan.microseconds(time),
+            visual: { try prepared.visual(id: $0, index: $1) },
+            titleMotion: { try prepared.titleMotion(id: $0, microseconds: $1) })
         do {
             while session.currentStatus() == 1 {
                 try Task.checkCancellation()
@@ -94,8 +94,12 @@ public actor VideoLayerRenderer {
         let source: CIImage
         switch clip.source {
         case .text(let text, let style):
-            source = try await AppleFrameRenderer.textImage(text, style: style, project: project,
-                size: size, rasterSize: clip.textRasterSize(for: size))
+            if clip.textMotion != nil {
+                source = try AppleMotionTitle(text: text, style: style, clip: clip, project: project, size: size).image(at: time)
+            } else {
+                source = try await AppleFrameRenderer.textImage(text, style: style, project: project,
+                    size: size, rasterSize: clip.textRasterSize(for: size))
+            }
         case .image(let url):
             guard let image = CIImage(contentsOf: url, options: [.applyOrientationProperty: true]),
                   !image.extent.isEmpty, !image.extent.isInfinite else {
@@ -114,7 +118,7 @@ public actor VideoLayerRenderer {
         }
         try Task.checkCancellation()
         let canvas = CGRect(x: 0, y: 0, width: size.width, height: size.height)
-        let effects = try AppleVisualEffects(clips: [clip], registry: .empty)
+        let effects = try AppleVisualEffects(clips: [clip], registry: self.effects)
         defer { effects.finish() }
         let filtered = try AppleFrameRenderer.apply(clip.filters, to: source, clipID: clip.id,
             projectTime: time.seconds, effects: effects)

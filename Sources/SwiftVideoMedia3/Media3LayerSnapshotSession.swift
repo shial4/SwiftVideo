@@ -6,6 +6,8 @@ import Foundation
 #if SKIP
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
+import android.graphics.BitmapFactory
+import java.io.File
 import android.graphics.Matrix
 import android.media.MediaMetadataRetriever
 import android.net.Uri
@@ -40,12 +42,19 @@ public final class Media3LayerSnapshotSession {
         #endif
     }
 
-    public func start(json: String, sourceSeconds: Double, outputPath: String) throws {
+    public func start(json: String, sourceSeconds: Double, outputPath: String, projectTimeUs: Int64 = 0,
+                      visual: @escaping @Sendable (String, Int) throws -> Media3VisualEffect = { _, _ in
+                          throw NSError(domain: "SwiftVideo", code: 1, userInfo: [NSLocalizedDescriptionKey: "Native visuals require an effect registry."])
+                      },
+                      titleMotion: @escaping @Sendable (String, Double) throws -> Data = { _, _ in
+                          throw NSError(domain: "SwiftVideo", code: 1, userInfo: [NSLocalizedDescriptionKey: "Motion titles require a timeline sampler."])
+                      }) throws {
         #if SKIP
         guard status.compareAndSet(0, 1) else { throw IllegalStateException("Layer renderer already started") }
         java.lang.Thread({
             do {
-                try self.render(JSONObject(json), sourceSeconds: sourceSeconds, outputPath: outputPath)
+                try self.render(JSONObject(json), sourceSeconds: sourceSeconds, outputPath: outputPath,
+                    projectTimeUs: projectTimeUs, visual: visual, titleMotion: titleMotion)
                 self.status.set(self.cancelled.get() ? 3 : 2)
             } catch {
                 self.failure.set(String(describing: error))
@@ -80,14 +89,32 @@ public final class Media3LayerSnapshotSession {
     }
 
     #if SKIP
-    private func render(_ plan: JSONObject, sourceSeconds: Double, outputPath: String) throws {
+    private func render(_ plan: JSONObject, sourceSeconds: Double, outputPath: String, projectTimeUs: Int64,
+                        visual: (String, Int) throws -> Media3VisualEffect,
+                        titleMotion: @escaping (String, Double) throws -> Data) throws {
         let context = ProcessInfo.processInfo.androidContext
         let clip = plan.getJSONArray("clips").getJSONObject(0)
         let builder = Media3CompositionBuilder()
+        let directory = File(context.getCacheDir(), "swiftvideo-layer-" + UUID().uuidString)
+        guard directory.mkdirs() else { throw IllegalStateException("Cannot create layer scratch directory.") }
+        defer {
+            if let files = directory.listFiles() { for file in files { file.delete() } }
+            directory.delete()
+        }
+        var motionRaster: MotionTitleRaster? = nil
         let bitmap: Bitmap
         switch clip.getString("kind") {
         case "text":
-            bitmap = try builder.textImage(clip, width: plan.getInt("width"), height: plan.getInt("height"))
+            if clip.has("textMotion") {
+                let raster = try Media3TextRaster.motion(clip, width: plan.getInt("width"), height: plan.getInt("height"), folder: directory)
+                motionRaster = raster
+                guard let image = BitmapFactory.decodeFile(Uri.parse(raster.path).getPath()) else {
+                    throw IllegalStateException("Cannot decode motion title atlas.")
+                }
+                bitmap = image
+            } else {
+                bitmap = try builder.textImage(clip, width: plan.getInt("width"), height: plan.getInt("height"))
+            }
         case "image":
             bitmap = ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.getContentResolver(), Uri.parse(clip.getString("url"))), { decoder, _, _ in
                 decoder.setAllocator(ImageDecoder.ALLOCATOR_SOFTWARE)
@@ -121,12 +148,14 @@ public final class Media3LayerSnapshotSession {
             processor.release()
             output.get()?.recycle()
         }
-        let effects = try builder.visualEffects(clip, width: plan.getInt("width"), height: plan.getInt("height"))
+        let effects = java.util.ArrayList<Effect>()
+        if let raster = motionRaster { effects.add(MotionTitleEffect(raster: raster, sample: titleMotion)) }
+        effects.addAll(try builder.visualEffects(clip, width: plan.getInt("width"), height: plan.getInt("height"), visual: visual))
         let format = Format.Builder().setWidth(bitmap.getWidth()).setHeight(bitmap.getHeight())
             .setColorInfo(ColorInfo.SRGB_BT709_FULL).build()
         processor.registerInputStream(VideoFrameProcessor.INPUT_TYPE_BITMAP, format, effects, Int64(0))
         try wait(ready, error: error)
-        guard processor.queueInputBitmap(bitmap, ConstantRateTimestampIterator(Int64(1), Float(1))) else {
+        guard processor.queueInputBitmap(bitmap, ConstantRateTimestampIterator(projectTimeUs, projectTimeUs + 1, Float(1))) else {
             throw IllegalStateException("Layer processor did not accept its image.")
         }
         processor.signalEndOfInput()
